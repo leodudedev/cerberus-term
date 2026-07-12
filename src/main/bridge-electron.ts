@@ -3,6 +3,7 @@ import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { randomUUID } from 'node:crypto';
 import { readlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { config } from '../core/config.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
 // Electron-side backing of TerminalBridge: owns every pty, bridges IPC.
@@ -10,8 +11,15 @@ import type { SpawnOptions } from '../core/terminal-bridge.js';
 interface PaneProc {
   proc: IPty;
   spawnCwd: string;
+  buf: string; // rolling raw-output tail; feeds capturePane (no tmux)
 }
 const ptys = new Map<string, PaneProc>();
+
+// Keep the last ~16KB of each pane's output so the Cerberus daemon can read the
+// live permission dialog (the native replacement for `tmux capture-pane`).
+const BUFFER_MAX = 16 * 1024;
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB0]|\x1b[<=>]|[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
 
 function defaultShell(): string {
   if (process.platform === 'win32') return 'powershell.exe';
@@ -53,20 +61,45 @@ export function getPaneCwd(paneId: string): string {
   return liveCwd(entry.proc.pid, entry.spawnCwd);
 }
 
+// --- Cerberus core seam (used by pane-control.ts) ---
+
+export function paneExists(paneId: string): boolean {
+  return ptys.has(paneId);
+}
+
+// Inject raw bytes into a pane's pty (replaces `tmux send-keys`).
+export function writeKeys(paneId: string, data: string): void {
+  ptys.get(paneId)?.proc.write(data);
+}
+
+// ANSI-stripped tail of a pane's output (replaces `tmux capture-pane`).
+export function getPaneBuffer(paneId: string): string {
+  const buf = ptys.get(paneId)?.buf ?? '';
+  return buf.replace(ANSI_RE, '');
+}
+
 export function registerBridge(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('pty:spawn', (_e, opts: SpawnOptions): string => {
     const paneId = randomUUID();
     const spawnCwd = opts.cwd ?? process.env['HOME'] ?? process.cwd();
+    // Inject the pane identity + daemon port so the CLI hooks report back an
+    // exact pane<->event correlation and reach our daemon (not mycli's :8899).
     const proc = ptySpawn(opts.shell ?? defaultShell(), [], {
       name: 'xterm-color',
       cols: opts.cols,
       rows: opts.rows,
       cwd: spawnCwd,
-      env: cleanEnv(opts.env)
+      env: cleanEnv({
+        ...(opts.env ?? {}),
+        CERBERUS_PANE_ID: paneId,
+        CERBERUS_PORT: String(config.port)
+      })
     });
-    ptys.set(paneId, { proc, spawnCwd });
+    const entry: PaneProc = { proc, spawnCwd, buf: '' };
+    ptys.set(paneId, entry);
 
     proc.onData((data) => {
+      entry.buf = (entry.buf + data).slice(-BUFFER_MAX);
       getWindow()?.webContents.send('pty:data', paneId, data);
     });
     proc.onExit(({ exitCode }) => {

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys } from './bridge-electron.js';
 import { registerConfigIpc } from './config-ipc.js';
+import { startCerberus } from './cerberus/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -41,6 +42,13 @@ app.whenReady().then(() => {
   registerBridge(() => mainWindow);
   registerConfigIpc();
   createWindow();
+
+  // Cerberus remote control (daemon + Telegram bot). Never let it crash the app.
+  try {
+    startCerberus();
+  } catch (e) {
+    console.error('[cerberus] failed to start:', (e as Error).message);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
