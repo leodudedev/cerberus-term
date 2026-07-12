@@ -1,4 +1,5 @@
 import { Layout } from './Layout.js';
+import { openConfigEditor } from './ConfigEditor.js';
 import {
   newLeaf,
   splitLeaf,
@@ -60,7 +61,10 @@ if (container) {
     if (detail.cmd === 'split-right') split('row', target);
     else if (detail.cmd === 'split-down') split('column', target);
     else if (detail.cmd === 'kill') kill(target);
-    // 'config' -> gear placeholder, wired in Step 5
+    else if (detail.cmd === 'config') {
+      const paneIdPromise = layout.paneIdOf(target);
+      if (paneIdPromise) void paneIdPromise.then((paneId) => openConfigEditor(paneId));
+    }
   });
 
   layout.render(root);

@@ -66,6 +66,10 @@ export class Layout {
     this.applyFocusStyles();
   }
 
+  paneIdOf(leafId: string): Promise<string> | null {
+    return this.leaves.get(leafId)?.pane.paneId ?? null;
+  }
+
   focusLeaf(leafId: string): void {
     this.focusedLeafId = leafId;
     this.leaves.get(leafId)?.pane.focus();

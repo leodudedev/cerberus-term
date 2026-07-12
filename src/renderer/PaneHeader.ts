@@ -38,7 +38,7 @@ export function makePaneHeader(leafId: string, focus: () => void): HTMLElement {
     button('✕', 'Close pane', 'kill', leafId)
   );
 
-  const gear = button('⚙', 'Config (coming in Step 5)', 'config', leafId);
+  const gear = button('⚙', 'Edit .cerberus.json', 'config', leafId);
   gear.classList.add('pane-btn-gear');
   buttons.append(gear);
 

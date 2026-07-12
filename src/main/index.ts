@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys } from './bridge-electron.js';
+import { registerConfigIpc } from './config-ipc.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -38,6 +39,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerBridge(() => mainWindow);
+  registerConfigIpc();
   createWindow();
 
   app.on('activate', () => {

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { SpawnOptions, TerminalBridge } from '../core/terminal-bridge.js';
+import type { ConfigBridge, ConfigTarget, SaveResult } from '../core/config-bridge.js';
 
 // Per-pane fan-out for the shared pty:data / pty:exit channels. The main
 // process tags every message with its paneId; we dispatch to subscribers here
@@ -42,3 +43,10 @@ const bridge: TerminalBridge = {
 };
 
 contextBridge.exposeInMainWorld('cerberus', bridge);
+
+const configBridge: ConfigBridge = {
+  resolve: (paneId) => ipcRenderer.invoke('config:resolve', paneId) as Promise<ConfigTarget>,
+  save: (path, content) => ipcRenderer.invoke('config:save', path, content) as Promise<SaveResult>
+};
+
+contextBridge.exposeInMainWorld('cerberusConfig', configBridge);

@@ -72,6 +72,76 @@
       .pane-btn-gear {
         margin-left: 8px;
       }
+      /* config editor modal */
+      .config-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 100;
+        font-family: system-ui, sans-serif;
+      }
+      .config-modal {
+        display: flex;
+        flex-direction: column;
+        width: min(680px, 90vw);
+        max-height: 80vh;
+        background: #232323;
+        border: 1px solid #3a3a3a;
+        border-radius: 6px;
+        padding: 14px;
+        gap: 10px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      }
+      .config-path {
+        color: #9aa0a0;
+        font-size: 12px;
+        font-family: Menlo, Monaco, monospace;
+        word-break: break-all;
+      }
+      .config-textarea {
+        flex: 1 1 auto;
+        min-height: 240px;
+        resize: vertical;
+        background: #1a1a1a;
+        color: #e0e0e0;
+        border: 1px solid #3a3a3a;
+        border-radius: 4px;
+        padding: 10px;
+        font-family: Menlo, Monaco, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        tab-size: 2;
+      }
+      .config-error {
+        color: #e06c6c;
+        font-size: 12px;
+        min-height: 14px;
+        font-family: Menlo, Monaco, monospace;
+      }
+      .config-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .config-buttons button {
+        padding: 6px 16px;
+        border: 0;
+        border-radius: 4px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .config-cancel {
+        background: #3a3a3a;
+        color: #e0e0e0;
+      }
+      .config-save {
+        background: #4a9d7f;
+        color: #0d1512;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
