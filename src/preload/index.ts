@@ -1,3 +1,44 @@
-// Empty for Step 0. Step 1 adds the contextBridge exposing TerminalBridge
-// (spawn / write / onData / resize / kill / onExit) to the renderer.
-export {};
+import { contextBridge, ipcRenderer } from 'electron';
+import type { SpawnOptions, TerminalBridge } from '../core/terminal-bridge.js';
+
+// Per-pane fan-out for the shared pty:data / pty:exit channels. The main
+// process tags every message with its paneId; we dispatch to subscribers here
+// so the renderer gets a clean per-pane callback API.
+type DataCb = (data: string) => void;
+type ExitCb = (code: number) => void;
+
+const dataListeners = new Map<string, Set<DataCb>>();
+const exitListeners = new Map<string, Set<ExitCb>>();
+
+ipcRenderer.on('pty:data', (_e, paneId: string, data: string) => {
+  dataListeners.get(paneId)?.forEach((cb) => cb(data));
+});
+
+ipcRenderer.on('pty:exit', (_e, paneId: string, code: number) => {
+  exitListeners.get(paneId)?.forEach((cb) => cb(code));
+  dataListeners.delete(paneId);
+  exitListeners.delete(paneId);
+});
+
+function subscribe<T>(map: Map<string, Set<T>>, paneId: string, cb: T): () => void {
+  let set = map.get(paneId);
+  if (!set) {
+    set = new Set<T>();
+    map.set(paneId, set);
+  }
+  set.add(cb);
+  return () => {
+    map.get(paneId)?.delete(cb);
+  };
+}
+
+const bridge: TerminalBridge = {
+  spawn: (opts: SpawnOptions) => ipcRenderer.invoke('pty:spawn', opts) as Promise<string>,
+  write: (paneId, data) => ipcRenderer.send('pty:write', paneId, data),
+  resize: (paneId, cols, rows) => ipcRenderer.send('pty:resize', paneId, cols, rows),
+  kill: (paneId) => ipcRenderer.send('pty:kill', paneId),
+  onData: (paneId, cb) => subscribe(dataListeners, paneId, cb),
+  onExit: (paneId, cb) => subscribe(exitListeners, paneId, cb)
+};
+
+contextBridge.exposeInMainWorld('cerberus', bridge);
