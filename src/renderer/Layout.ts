@@ -1,5 +1,6 @@
 import { createTerminalPane, type TerminalPane } from './Terminal.js';
 import { makeSplitter } from './Splitter.js';
+import { makePaneHeader } from './PaneHeader.js';
 import type { PaneNode } from './pane-tree.js';
 
 interface LeafEntry {
@@ -104,8 +105,16 @@ export class Layout {
       el.className = 'pane';
       el.dataset['leafId'] = id;
       el.style.cssText =
-        'position:relative;width:100%;height:100%;overflow:hidden;background:#1a1a1a;box-sizing:border-box';
-      const pane = createTerminalPane(el);
+        'position:relative;display:flex;flex-direction:column;width:100%;height:100%;overflow:hidden;background:#1a1a1a;box-sizing:border-box';
+
+      const body = document.createElement('div');
+      body.className = 'pane-body';
+      body.style.cssText = 'flex:1 1 0;position:relative;overflow:hidden;min-height:0';
+
+      const pane = createTerminalPane(body);
+      const header = makePaneHeader(id, () => pane.focus());
+
+      el.append(header, body);
       pane.onFocus(() => {
         this.focusedLeafId = id;
         this.applyFocusStyles();

@@ -4,6 +4,7 @@ import {
   splitLeaf,
   killLeaf,
   firstLeaf,
+  leaves,
   setRatio,
   type Dir,
   type PaneNode
@@ -36,25 +37,30 @@ if (container) {
     layout.focusLeaf(nextFocus);
   };
 
-  const split = (dir: Dir): void => {
-    const { root: next, newLeafId } = splitLeaf(root, focusedLeafId, dir);
+  const split = (dir: Dir, leafId: string): void => {
+    const { root: next, newLeafId } = splitLeaf(root, leafId, dir);
     root = next;
     rerender(newLeafId);
   };
 
-  const kill = (): void => {
-    const next = killLeaf(root, focusedLeafId);
+  const kill = (leafId: string): void => {
+    const next = killLeaf(root, leafId);
     // Killing the last pane would empty the workspace; respawn a fresh one so
     // the app stays usable.
     root = next ?? newLeaf();
-    rerender(firstLeaf(root).id);
+    // Preserve focus if the focused pane still exists (button-killing a
+    // background pane); otherwise fall back to the first leaf.
+    const stillFocused = leaves(root).some((l) => l.id === focusedLeafId);
+    rerender(stillFocused ? focusedLeafId : firstLeaf(root).id);
   };
 
   window.addEventListener('pane-cmd', (ev) => {
-    const cmd = (ev as CustomEvent<{ cmd: string }>).detail.cmd;
-    if (cmd === 'split-right') split('row');
-    else if (cmd === 'split-down') split('column');
-    else if (cmd === 'kill') kill();
+    const detail = (ev as CustomEvent<{ cmd: string; leafId?: string }>).detail;
+    const target = detail.leafId ?? focusedLeafId;
+    if (detail.cmd === 'split-right') split('row', target);
+    else if (detail.cmd === 'split-down') split('column', target);
+    else if (detail.cmd === 'kill') kill(target);
+    // 'config' -> gear placeholder, wired in Step 5
   });
 
   layout.render(root);
