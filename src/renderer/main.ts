@@ -1,5 +1,13 @@
 import { Layout } from './Layout.js';
-import { newLeaf, splitLeaf, killLeaf, firstLeaf, type Dir, type PaneNode } from './pane-tree.js';
+import {
+  newLeaf,
+  splitLeaf,
+  killLeaf,
+  firstLeaf,
+  setRatio,
+  type Dir,
+  type PaneNode
+} from './pane-tree.js';
 
 // Step 2: boot one pane, drive split/kill from temporary Cmd combos (dispatched
 // as 'pane-cmd' window events by each terminal).
@@ -11,9 +19,16 @@ if (container) {
   let root: PaneNode = newLeaf();
   let focusedLeafId = root.id;
 
-  const layout = new Layout(container, (id) => {
-    focusedLeafId = id;
-  });
+  const layout = new Layout(
+    container,
+    (id) => {
+      focusedLeafId = id;
+    },
+    // commit a drag into the model; DOM already reflects it, so no re-render
+    (splitId, ratio) => {
+      root = setRatio(root, splitId, ratio);
+    }
+  );
 
   const rerender = (nextFocus: string): void => {
     layout.render(root);

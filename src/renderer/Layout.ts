@@ -1,4 +1,5 @@
 import { createTerminalPane, type TerminalPane } from './Terminal.js';
+import { makeSplitter } from './Splitter.js';
 import type { PaneNode } from './pane-tree.js';
 
 interface LeafEntry {
@@ -15,10 +16,11 @@ function collectLeafIds(node: PaneNode, out: Set<string>): void {
   collectLeafIds(node.b, out);
 }
 
-// Size a child (leaf or split) inside its parent flex container. Re-applied
-// every render so stale flex from a previous layout can't linger.
-function sizeChild(el: HTMLElement, pct: number): void {
-  el.style.flex = `0 0 ${pct}%`;
+// Size a child (leaf or split) inside its parent flex container via proportional
+// flex-grow, so a fixed-px splitter can sit between children without overflow.
+// Re-applied every render so stale flex from a previous layout can't linger.
+function sizeChild(el: HTMLElement, grow: number): void {
+  el.style.flex = `${grow} 1 0`;
   el.style.overflow = 'hidden';
   el.style.minWidth = '0';
   el.style.minHeight = '0';
@@ -33,7 +35,8 @@ export class Layout {
 
   constructor(
     private readonly container: HTMLElement,
-    private readonly onFocusChange: (leafId: string) => void
+    private readonly onFocusChange: (leafId: string) => void,
+    private readonly onRatioChange: (splitId: string, ratio: number) => void
   ) {}
 
   render(root: PaneNode | null): void {
@@ -77,9 +80,20 @@ export class Layout {
 
     const a = this.build(node.a);
     const b = this.build(node.b);
-    sizeChild(a, node.ratio * 100);
-    sizeChild(b, 100 - node.ratio * 100);
-    div.append(a, b);
+    sizeChild(a, node.ratio);
+    sizeChild(b, 1 - node.ratio);
+
+    const splitter = makeSplitter(
+      node.dir,
+      (ratio) => {
+        // live: cheap flex-grow update, no tree render
+        a.style.flexGrow = String(ratio);
+        b.style.flexGrow = String(1 - ratio);
+      },
+      (ratio) => this.onRatioChange(node.id, ratio)
+    );
+
+    div.append(a, splitter, b);
     return div;
   }
 

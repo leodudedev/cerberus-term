@@ -61,6 +61,17 @@ export function killLeaf(root: PaneNode, leafId: string): PaneNode | null {
   return root;
 }
 
+// Update one split's ratio (immutable). Clamped to a safe range as a guard.
+export function setRatio(root: PaneNode, splitId: string, ratio: number): PaneNode {
+  const clamped = Math.min(0.95, Math.max(0.05, ratio));
+  function rec(node: PaneNode): PaneNode {
+    if (node.type === 'leaf') return node;
+    if (node.id === splitId) return { ...node, ratio: clamped };
+    return { ...node, a: rec(node.a), b: rec(node.b) };
+  }
+  return rec(root);
+}
+
 export function firstLeaf(node: PaneNode): LeafNode {
   return node.type === 'leaf' ? node : firstLeaf(node.a);
 }
