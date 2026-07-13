@@ -90,7 +90,14 @@ function createWindow(): void {
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return;
     const mod = process.platform === 'darwin' ? input.meta : input.control;
-    if (mod && ['=', '+', '-', '0'].includes(input.key)) event.preventDefault();
+    if (!mod) return;
+    if (['=', '+', '-', '0'].includes(input.key)) {
+      event.preventDefault();
+    } else if (input.key === ',') {
+      // Reliable Cmd+, even if the menu accelerator doesn't fire.
+      event.preventDefault();
+      mainWindow?.webContents.send('cerberus:open-settings');
+    }
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
