@@ -7,6 +7,7 @@ declare global {
     cerberus: TerminalBridge;
     cerberusConfig: ConfigBridge;
     cerberusSettings: SettingsBridge;
+    cerberusUI: { onOpenSettings(cb: () => void): void };
   }
 }
 

@@ -69,20 +69,8 @@ if (container) {
   });
 
   window.addEventListener('open-settings', () => void openSettingsEditor());
-
-  // Cmd+, opens settings. Capture phase + stopPropagation so xterm never sees
-  // it and the comma doesn't reach the shell.
-  window.addEventListener(
-    'keydown',
-    (e) => {
-      if (e.metaKey && !e.ctrlKey && !e.altKey && e.key === ',') {
-        e.preventDefault();
-        e.stopPropagation();
-        void openSettingsEditor();
-      }
-    },
-    true
-  );
+  // Native menu (Cmd+,) routes here — the reliable path on macOS.
+  window.cerberusUI.onOpenSettings(() => void openSettingsEditor());
 
   layout.render(root);
   layout.focusLeaf(focusedLeafId);

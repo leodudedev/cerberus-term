@@ -62,3 +62,13 @@ const settingsBridge: SettingsBridge = {
 };
 
 contextBridge.exposeInMainWorld('cerberusSettings', settingsBridge);
+
+// Native-menu -> renderer bridge (Cmd+, opens settings). A contextBridge
+// callback avoids cross-world DOM-event issues.
+let onOpenSettings: (() => void) | null = null;
+ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
+contextBridge.exposeInMainWorld('cerberusUI', {
+  onOpenSettings: (cb: () => void) => {
+    onOpenSettings = cb;
+  }
+});

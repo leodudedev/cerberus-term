@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys } from './bridge-electron.js';
@@ -9,6 +9,64 @@ import { startCerberus } from './cerberus/index.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
+
+// A native menu is the only reliable way to bind Cmd+, on macOS (the OS routes
+// it to the app menu before the web page ever sees the keydown). Zoom roles are
+// deliberately omitted so the terminal UI can't be zoomed.
+function buildMenu(): void {
+  const isMac = process.platform === 'darwin';
+  const openSettings = (): void => mainWindow?.webContents.send('cerberus:open-settings');
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { label: 'Settings…', accelerator: 'Cmd+,', click: openSettings },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' }
+            ]
+          } as MenuItemConstructorOptions
+        ]
+      : []),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { role: 'togglefullscreen' }]
+    },
+    { role: 'windowMenu' },
+    ...(!isMac
+      ? [
+          {
+            label: 'Settings',
+            submenu: [{ label: 'Settings…', accelerator: 'Ctrl+,', click: openSettings }]
+          } as MenuItemConstructorOptions
+        ]
+      : [])
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -52,6 +110,7 @@ app.whenReady().then(() => {
   registerBridge(() => mainWindow);
   registerConfigIpc();
   registerSettingsIpc();
+  buildMenu();
   createWindow();
 
   // Cerberus remote control (daemon + Telegram bot). Never let it crash the app.
