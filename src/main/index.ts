@@ -16,6 +16,7 @@ let mainWindow: BrowserWindow | null = null;
 function buildMenu(): void {
   const isMac = process.platform === 'darwin';
   const openSettings = (): void => mainWindow?.webContents.send('cerberus:open-settings');
+  const toggleTheme = (): void => mainWindow?.webContents.send('cerberus:toggle-theme');
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -52,7 +53,13 @@ function buildMenu(): void {
     },
     {
       label: 'View',
-      submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }, { role: 'togglefullscreen' }]
+      submenu: [
+        { label: 'Toggle Theme', accelerator: 'CmdOrCtrl+Shift+L', click: toggleTheme },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'toggleDevTools' },
+        { role: 'togglefullscreen' }
+      ]
     },
     { role: 'windowMenu' },
     ...(!isMac

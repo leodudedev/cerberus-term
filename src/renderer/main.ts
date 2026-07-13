@@ -13,16 +13,22 @@ import {
   type PaneNode
 } from './pane-tree.js';
 import { installKeymap, type CerberusAction } from './keymap.js';
+import { loadLayout, saveLayout } from './persistence.js';
+import { applyPref, getPref, toggleTheme } from './themes.js';
 
-// Step 2: boot one pane, drive split/kill from temporary Cmd combos (dispatched
-// as 'pane-cmd' window events by each terminal).
+// Theme first so the very first paint (and xterm) uses the right palette.
+applyPref(getPref());
+
 const container = document.querySelector<HTMLDivElement>('#app');
 
 if (container) {
-  container.style.cssText = 'width:100vw;height:100vh;background:#1a1a1a';
+  container.style.cssText = 'width:100vw;height:100vh;background:var(--bg)';
 
-  let root: PaneNode = newLeaf();
-  let focusedLeafId = root.id;
+  // Restore the saved layout + cwds, or start with one pane.
+  const saved = loadLayout();
+  const savedCwds = saved?.cwds ?? {};
+  let root: PaneNode = saved?.tree ?? newLeaf();
+  let focusedLeafId = firstLeaf(root).id;
 
   const layout = new Layout(
     container,
@@ -32,13 +38,25 @@ if (container) {
     // commit a drag into the model; DOM already reflects it, so no re-render
     (splitId, ratio) => {
       root = setRatio(root, splitId, ratio);
-    }
+      schedulePersist();
+    },
+    (leafId) => savedCwds[leafId]
   );
+
+  // Debounced persist (tree + a fresh cwd snapshot, which also refreshes titles).
+  let persistTimer: number | undefined;
+  const schedulePersist = (): void => {
+    if (persistTimer !== undefined) window.clearTimeout(persistTimer);
+    persistTimer = window.setTimeout(() => {
+      void layout.snapshotCwds().then((cwds) => saveLayout(root, cwds));
+    }, 800);
+  };
 
   const rerender = (nextFocus: string): void => {
     layout.render(root);
     focusedLeafId = nextFocus;
     layout.focusLeaf(nextFocus);
+    schedulePersist();
   };
 
   const split = (dir: Dir, leafId: string): void => {
@@ -95,8 +113,18 @@ if (container) {
       root = resizeNearest(root, focusedLeafId, axis, delta);
       layout.render(root);
       layout.focusLeaf(focusedLeafId);
+      schedulePersist();
     }
   });
+
+  // Theme toggle (native menu View -> Toggle Theme).
+  window.cerberusUI.onToggleTheme(() => toggleTheme());
+
+  // Periodic snapshot: refresh cwds/titles and persist (catches `cd` without a
+  // structural change).
+  window.setInterval(() => {
+    void layout.snapshotCwds().then((cwds) => saveLayout(root, cwds));
+  }, 4000);
 
   layout.render(root);
   layout.focusLeaf(focusedLeafId);

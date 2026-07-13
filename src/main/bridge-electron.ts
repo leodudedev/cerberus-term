@@ -1,7 +1,7 @@
 import { ipcMain, type BrowserWindow } from 'electron';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { randomUUID } from 'node:crypto';
-import { readlinkSync } from 'node:fs';
+import { readlinkSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
@@ -84,7 +84,9 @@ export function getPaneBuffer(paneId: string): string {
 export function registerBridge(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('pty:spawn', (_e, opts: SpawnOptions): string => {
     const paneId = randomUUID();
-    const spawnCwd = opts.cwd ?? process.env['HOME'] ?? process.cwd();
+    // Restore may hand us a cwd that no longer exists; fall back to $HOME.
+    const home = process.env['HOME'] ?? process.cwd();
+    const spawnCwd = opts.cwd && existsSync(opts.cwd) ? opts.cwd : home;
     // Inject the pane identity + daemon port so the CLI hooks report back an
     // exact pane<->event correlation and reach our daemon (not mycli's :8899).
     const proc = ptySpawn(opts.shell ?? defaultShell(), [], {
@@ -130,6 +132,8 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
     ptys.get(paneId)?.proc.kill();
     ptys.delete(paneId);
   });
+
+  ipcMain.handle('pty:cwd', (_e, paneId: string): string => getPaneCwd(paneId));
 }
 
 export function killAllPtys(): void {

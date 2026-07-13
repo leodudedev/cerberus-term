@@ -44,7 +44,8 @@ const bridge: TerminalBridge = {
   resize: (paneId, cols, rows) => ipcRenderer.send('pty:resize', paneId, cols, rows),
   kill: (paneId) => ipcRenderer.send('pty:kill', paneId),
   onData: (paneId, cb) => subscribe(dataListeners, paneId, cb),
-  onExit: (paneId, cb) => subscribe(exitListeners, paneId, cb)
+  onExit: (paneId, cb) => subscribe(exitListeners, paneId, cb),
+  cwd: (paneId) => ipcRenderer.invoke('pty:cwd', paneId) as Promise<string>
 };
 
 contextBridge.exposeInMainWorld('cerberus', bridge);
@@ -66,9 +67,14 @@ contextBridge.exposeInMainWorld('cerberusSettings', settingsBridge);
 // Native-menu -> renderer bridge (Cmd+, opens settings). A contextBridge
 // callback avoids cross-world DOM-event issues.
 let onOpenSettings: (() => void) | null = null;
+let onToggleTheme: (() => void) | null = null;
 ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
+ipcRenderer.on('cerberus:toggle-theme', () => onToggleTheme?.());
 contextBridge.exposeInMainWorld('cerberusUI', {
   onOpenSettings: (cb: () => void) => {
     onOpenSettings = cb;
+  },
+  onToggleTheme: (cb: () => void) => {
+    onToggleTheme = cb;
   }
 });

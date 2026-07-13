@@ -1,6 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { currentTheme, xtermTheme, type Theme } from './themes.js';
 
 // A live terminal pane: xterm bound to one pty, with a lifecycle the pane tree
 // can manage (focus, dispose). The tree owns creation/teardown; this owns the
@@ -19,17 +20,22 @@ function emitPaneCmd(cmd: 'split-right' | 'split-down' | 'kill'): void {
   window.dispatchEvent(new CustomEvent('pane-cmd', { detail: { cmd } }));
 }
 
-export function createTerminalPane(el: HTMLElement): TerminalPane {
+export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane {
   const term = new Terminal({
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     fontSize: 13,
     cursorBlink: true,
-    theme: { background: '#1a1a1a', foreground: '#e0e0e0' }
+    theme: xtermTheme(currentTheme())
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(el);
   fit.fit();
+
+  const onTheme = (e: Event): void => {
+    term.options.theme = xtermTheme((e as CustomEvent<Theme>).detail);
+  };
+  window.addEventListener('theme-change', onTheme);
 
   let paneId: string | null = null;
   let disposed = false;
@@ -67,7 +73,7 @@ export function createTerminalPane(el: HTMLElement): TerminalPane {
   });
 
   const paneIdPromise = window.cerberus
-    .spawn({ cols: term.cols, rows: term.rows })
+    .spawn({ cols: term.cols, rows: term.rows, ...(cwd ? { cwd } : {}) })
     .then((id) => {
       paneId = id;
       if (disposed) {
@@ -93,6 +99,7 @@ export function createTerminalPane(el: HTMLElement): TerminalPane {
     dispose: () => {
       disposed = true;
       ro.disconnect();
+      window.removeEventListener('theme-change', onTheme);
       unsub.forEach((u) => u());
       if (paneId) window.cerberus.kill(paneId);
       term.dispose();

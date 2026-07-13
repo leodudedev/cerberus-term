@@ -9,20 +9,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cerberus</title>
     <style>
+      /* Theme tokens. Default = dark; [data-theme="light"] overrides. applyPref()
+         stamps data-theme on <html>. */
+      :root,
+      :root[data-theme='dark'] {
+        --bg: #1a1a1a;
+        --panel: #232323;
+        --input-bg: #1a1a1a;
+        --text: #e0e0e0;
+        --muted: #9aa0a0;
+        --border: #3a3a3a;
+        --header-border: #111;
+        --accent: #4a9d7f;
+        --accent-text: #0d1512;
+        --header-focus: #2b3a34;
+        --splitter: #2a2a2a;
+        --btn-hover: #3a3a3a;
+        --error: #e06c6c;
+        --hint: #7a8a80;
+        --overlay: rgba(0, 0, 0, 0.5);
+      }
+      :root[data-theme='light'] {
+        --bg: #f5f5f5;
+        --panel: #ececec;
+        --input-bg: #ffffff;
+        --text: #1a1a1a;
+        --muted: #5a5a5a;
+        --border: #cccccc;
+        --header-border: #d0d0d0;
+        --accent: #2f7d63;
+        --accent-text: #ffffff;
+        --header-focus: #d5e8e0;
+        --splitter: #d0d0d0;
+        --btn-hover: #dcdcdc;
+        --error: #c0392b;
+        --hint: #5a7a70;
+        --overlay: rgba(0, 0, 0, 0.35);
+      }
+
       html,
       body {
         margin: 0;
         height: 100%;
-        background: #1a1a1a;
+        background: var(--bg);
         overflow: hidden;
       }
       /* focused pane highlight; inset outline so it doesn't shift layout */
       .pane.focused {
-        outline: 1px solid #4a9d7f;
+        outline: 1px solid var(--accent);
         outline-offset: -1px;
       }
       .splitter:hover {
-        background: #4a9d7f !important;
+        background: var(--accent) !important;
       }
       .pane-header {
         display: flex;
@@ -30,17 +68,17 @@
         justify-content: space-between;
         flex: 0 0 26px;
         padding: 0 6px;
-        background: #232323;
-        border-bottom: 1px solid #111;
+        background: var(--panel);
+        border-bottom: 1px solid var(--header-border);
         font-family: system-ui, sans-serif;
         font-size: 11px;
         user-select: none;
       }
       .pane.focused .pane-header {
-        background: #2b3a34;
+        background: var(--header-focus);
       }
       .pane-title {
-        color: #9aa0a0;
+        color: var(--muted);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -60,14 +98,14 @@
         border: 0;
         border-radius: 3px;
         background: transparent;
-        color: #9aa0a0;
+        color: var(--muted);
         font-size: 12px;
         line-height: 1;
         cursor: pointer;
       }
       .pane-btn:hover {
-        background: #3a3a3a;
-        color: #e0e0e0;
+        background: var(--btn-hover);
+        color: var(--text);
       }
       .pane-btn-gear {
         margin-left: 8px;
@@ -79,7 +117,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(0, 0, 0, 0.5);
+        background: var(--overlay);
         z-index: 100;
         font-family: system-ui, sans-serif;
       }
@@ -88,15 +126,15 @@
         flex-direction: column;
         width: min(680px, 90vw);
         max-height: 80vh;
-        background: #232323;
-        border: 1px solid #3a3a3a;
+        background: var(--panel);
+        border: 1px solid var(--border);
         border-radius: 6px;
         padding: 14px;
         gap: 10px;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
       }
       .config-path {
-        color: #9aa0a0;
+        color: var(--muted);
         font-size: 12px;
         font-family: Menlo, Monaco, monospace;
         word-break: break-all;
@@ -105,9 +143,9 @@
         flex: 1 1 auto;
         min-height: 240px;
         resize: vertical;
-        background: #1a1a1a;
-        color: #e0e0e0;
-        border: 1px solid #3a3a3a;
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
         border-radius: 4px;
         padding: 10px;
         font-family: Menlo, Monaco, monospace;
@@ -116,7 +154,7 @@
         tab-size: 2;
       }
       .config-error {
-        color: #e06c6c;
+        color: var(--error);
         font-size: 12px;
         min-height: 14px;
         font-family: Menlo, Monaco, monospace;
@@ -134,12 +172,12 @@
         cursor: pointer;
       }
       .config-cancel {
-        background: #3a3a3a;
-        color: #e0e0e0;
+        background: var(--btn-hover);
+        color: var(--text);
       }
       .config-save {
-        background: #4a9d7f;
-        color: #0d1512;
+        background: var(--accent);
+        color: var(--accent-text);
         font-weight: 600;
       }
       /* settings form */
@@ -147,7 +185,7 @@
         gap: 8px;
       }
       .settings-title {
-        color: #e0e0e0;
+        color: var(--text);
         font-size: 15px;
         font-weight: 600;
         margin-bottom: 4px;
@@ -159,21 +197,21 @@
       }
       .settings-label {
         flex: 0 0 150px;
-        color: #9aa0a0;
+        color: var(--muted);
         font-size: 12px;
       }
       .settings-input {
         flex: 1 1 auto;
-        background: #1a1a1a;
-        color: #e0e0e0;
-        border: 1px solid #3a3a3a;
+        background: var(--input-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
         border-radius: 4px;
         padding: 6px 8px;
         font-family: Menlo, Monaco, monospace;
         font-size: 12px;
       }
       .settings-hint {
-        color: #7a8a80;
+        color: var(--hint);
         font-size: 11px;
         margin-top: 2px;
       }

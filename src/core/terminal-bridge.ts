@@ -21,4 +21,6 @@ export interface TerminalBridge {
   onData(paneId: string, cb: (data: string) => void): () => void;
   /** Subscribe to pty exit. Returns an unsubscribe fn. */
   onExit(paneId: string, cb: (code: number) => void): () => void;
+  /** Live cwd of a pane's shell (for session-restore snapshots + titles). */
+  cwd(paneId: string): Promise<string>;
 }
