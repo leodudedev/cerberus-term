@@ -15,9 +15,12 @@ export function startCerberus(): void {
   applySettingsToEnv(); // in-app settings override .env
   setStatePath(join(app.getPath('userData'), 'cerberus-state.json'));
 
-  // In dev app.getAppPath() is the repo root; in a packaged app the hook is
-  // shipped via extraResources (Step 9).
-  const notifyScript = join(app.getAppPath(), 'resources', 'hooks', 'notify.sh');
+  // Dev: resources/ under the repo root. Packaged: extraResources land in
+  // process.resourcesPath (outside the asar, so the shell can exec them).
+  const base = app.isPackaged
+    ? process.resourcesPath
+    : join(app.getAppPath(), 'resources');
+  const notifyScript = join(base, 'hooks', 'notify.sh');
   if (existsSync(notifyScript)) {
     installClaudeHooks(notifyScript);
   } else {

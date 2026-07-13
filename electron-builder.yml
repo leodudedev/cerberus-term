@@ -1,0 +1,44 @@
+appId: com.cerberus.term
+productName: Cerberus
+
+directories:
+  output: dist
+  buildResources: build
+
+# electron-vite output + manifest. Prod dependencies (node-pty, grammy) are
+# collected by electron-builder automatically.
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+
+# A native .node can't be loaded from inside the asar archive.
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+
+# Ship the Cerberus CLI hooks next to the app (shell can't exec inside asar);
+# they land in process.resourcesPath/hooks.
+extraResources:
+  - from: resources/hooks
+    to: hooks
+    filter:
+      - '**/*'
+
+# node-pty is already built against the Electron ABI by the @electron/rebuild
+# postinstall on the build host.
+npmRebuild: false
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+
+win:
+  target:
+    - nsis
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development

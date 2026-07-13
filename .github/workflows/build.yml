@@ -1,0 +1,49 @@
+name: build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  dist:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # pnpm install runs the @electron/rebuild postinstall, building node-pty
+      # against the Electron ABI for this OS (ConPTY on Windows).
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - name: Build installer
+        run: pnpm dist
+        env:
+          # No signing certs in CI for now.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cerberus-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+          if-no-files-found: ignore
