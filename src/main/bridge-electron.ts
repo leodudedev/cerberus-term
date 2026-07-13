@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { config } from '../core/config.js';
+import { getSettings } from './settings.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
 // Electron-side backing of TerminalBridge: owns every pty, bridges IPC.
@@ -22,6 +23,8 @@ const BUFFER_MAX = 16 * 1024;
 const ANSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB0]|\x1b[<=>]|[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
 
 function defaultShell(): string {
+  const configured = getSettings().defaultShell?.trim();
+  if (configured) return configured;
   if (process.platform === 'win32') return 'powershell.exe';
   return process.env['SHELL'] ?? '/bin/zsh';
 }

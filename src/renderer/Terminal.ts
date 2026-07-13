@@ -58,6 +58,10 @@ export function createTerminalPane(el: HTMLElement): TerminalPane {
         emitPaneCmd('kill');
         return false;
       }
+      if (e.key === ',') {
+        window.dispatchEvent(new CustomEvent('open-settings'));
+        return false;
+      }
     }
     return true;
   });

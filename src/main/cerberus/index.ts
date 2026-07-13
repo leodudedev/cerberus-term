@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { setStatePath } from '../../core/persist.js';
+import { applySettingsToEnv } from '../settings.js';
 import { loadEnvFile } from './env.js';
 import { installClaudeHooks } from './hook-install.js';
 import { startDaemon } from './daemon.js';
@@ -10,7 +11,8 @@ import { startDaemon } from './daemon.js';
 // load Telegram creds, point persistence at userData, install CLI hooks,
 // start the loopback daemon + Telegram bot.
 export function startCerberus(): void {
-  loadEnvFile();
+  loadEnvFile(); // dev fallback: fills only missing env
+  applySettingsToEnv(); // in-app settings override .env
   setStatePath(join(app.getPath('userData'), 'cerberus-state.json'));
 
   // In dev app.getAppPath() is the repo root; in a packaged app the hook is

@@ -1,5 +1,6 @@
 import { Layout } from './Layout.js';
 import { openConfigEditor } from './ConfigEditor.js';
+import { openSettingsEditor } from './SettingsEditor.js';
 import {
   newLeaf,
   splitLeaf,
@@ -66,6 +67,8 @@ if (container) {
       if (paneIdPromise) void paneIdPromise.then((paneId) => openConfigEditor(paneId));
     }
   });
+
+  window.addEventListener('open-settings', () => void openSettingsEditor());
 
   layout.render(root);
   layout.focusLeaf(focusedLeafId);
