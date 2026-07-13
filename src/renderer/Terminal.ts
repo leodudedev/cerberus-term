@@ -58,10 +58,10 @@ export function createTerminalPane(el: HTMLElement): TerminalPane {
         emitPaneCmd('kill');
         return false;
       }
-      if (e.key === ',') {
-        window.dispatchEvent(new CustomEvent('open-settings'));
-        return false;
-      }
+      // Cmd+, (settings) is handled by a window-level capture listener in
+      // main.ts — more reliable than xterm focus. Swallow it here so the comma
+      // never reaches the shell.
+      if (e.key === ',') return false;
     }
     return true;
   });

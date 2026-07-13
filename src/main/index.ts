@@ -26,6 +26,15 @@ function createWindow(): void {
     }
   });
 
+  // Block browser zoom accelerators (Cmd/Ctrl +/-/0): a terminal must not
+  // zoom the whole UI. Doing it here also beats the default menu accelerators,
+  // which a renderer preventDefault can't stop.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const mod = process.platform === 'darwin' ? input.meta : input.control;
+    if (mod && ['=', '+', '-', '0'].includes(input.key)) event.preventDefault();
+  });
+
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;
