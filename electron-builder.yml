@@ -28,17 +28,26 @@ extraResources:
 # postinstall on the build host.
 npmRebuild: false
 
+# Publish to GitHub Releases (owner/repo inferred from the git remote in CI).
+publish:
+  provider: github
+
+# Stable, version-less artifact names so README can link to
+# releases/latest/download/<name> permanently.
 mac:
   target:
     - dmg
   category: public.app-category.developer-tools
+  artifactName: ${productName}-mac-${arch}.${ext}
 
 win:
   target:
     - nsis
+  artifactName: ${productName}-win-${arch}.${ext}
 
 linux:
   target:
     - AppImage
     - deb
   category: Development
+  artifactName: ${productName}-linux-${arch}.${ext}

@@ -1,12 +1,16 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, dirname } from "node:path";
 
-// Tiny JSON snapshot so mute-set and session registry survive a restart.
-// Best-effort: a missing/corrupt file yields empty state, a failed write only
-// logs. The path is set by main at startup (Electron userData); until then it
-// falls back to cwd/cerberus-state.json.
+// Tiny JSON snapshot so mute-set and the Telegram session registry survive a
+// restart. Best-effort: a missing/corrupt file yields empty state, a failed
+// write only logs.
+//
+// The path is resolved WITHOUT electron and is stable, so registry.ts / mute.ts
+// (which seed their maps at import time, before main can call anything) read the
+// same file that later writes go to. setStatePath can still override it.
 
-let statePath = join(process.cwd(), "cerberus-state.json");
+let statePath = join(homedir(), ".cerberus-term", "cerberus-state.json");
 
 export function setStatePath(path: string): void {
   statePath = path;
@@ -31,6 +35,7 @@ export function saveState(patch: Partial<PersistedState>): void {
   const cur = loadState();
   Object.assign(cur, patch);
   try {
+    mkdirSync(dirname(statePath), { recursive: true });
     writeFileSync(statePath, JSON.stringify(cur));
   } catch (e) {
     console.error("[persist] write failed:", (e as Error).message);

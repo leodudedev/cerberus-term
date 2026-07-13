@@ -1,7 +1,6 @@
 import { app } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { setStatePath } from '../../core/persist.js';
 import { applySettingsToEnv } from '../settings.js';
 import { loadEnvFile } from './env.js';
 import { installClaudeHooks } from './hook-install.js';
@@ -13,7 +12,8 @@ import { startDaemon } from './daemon.js';
 export function startCerberus(): void {
   loadEnvFile(); // dev fallback: fills only missing env
   applySettingsToEnv(); // in-app settings override .env
-  setStatePath(join(app.getPath('userData'), 'cerberus-state.json'));
+  // persist uses a stable ~/.cerberus-term path resolved at import time, so
+  // registry/mute rehydrate correctly across restarts (no setStatePath needed).
 
   // Dev: resources/ under the repo root. Packaged: extraResources land in
   // process.resourcesPath (outside the asar, so the shell can exec them).

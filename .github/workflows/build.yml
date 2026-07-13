@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write # needed to publish GitHub Releases
+
 jobs:
   dist:
     strategy:
@@ -31,12 +34,17 @@ jobs:
 
       - run: pnpm typecheck
 
-      - name: Build installer
-        run: pnpm dist
+      - run: pnpm exec electron-vite build
+
+      # On a tag -> build + publish installers to a GitHub Release.
+      # Otherwise (manual run) -> build only.
+      - name: Package (+ publish on tags)
+        run: >-
+          pnpm exec electron-builder
+          --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
-          # No signing certs in CI for now.
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - uses: actions/upload-artifact@v4
         with:

@@ -23,6 +23,7 @@
     "dist:mac": "electron-vite build && electron-builder --mac",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:linux": "electron-vite build && electron-builder --linux",
+    "release": "electron-vite build && electron-builder --publish always",
     "postinstall": "electron-rebuild -f -w node-pty"
   },
   "devDependencies": {
