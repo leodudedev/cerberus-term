@@ -8,9 +8,11 @@ import {
   firstLeaf,
   leaves,
   setRatio,
+  resizeNearest,
   type Dir,
   type PaneNode
 } from './pane-tree.js';
+import { installKeymap, type CerberusAction } from './keymap.js';
 
 // Step 2: boot one pane, drive split/kill from temporary Cmd combos (dispatched
 // as 'pane-cmd' window events by each terminal).
@@ -71,6 +73,30 @@ if (container) {
   window.addEventListener('open-settings', () => void openSettingsEditor());
   // Native menu (Cmd+,) routes here — the reliable path on macOS.
   window.cerberusUI.onOpenSettings(() => void openSettingsEditor());
+
+  // tmux-style keyboard control (leader Ctrl+B).
+  const RESIZE_STEP = 0.04;
+  installKeymap();
+  window.addEventListener('cerberus-action', (ev) => {
+    const { type, dir } = (ev as CustomEvent<CerberusAction>).detail;
+    if (type === 'split') {
+      split(dir === 'down' ? 'column' : 'row', focusedLeafId);
+    } else if (type === 'kill') {
+      kill(focusedLeafId);
+    } else if (type === 'focus' && dir) {
+      const target = layout.leafInDirection(focusedLeafId, dir);
+      if (target) {
+        focusedLeafId = target;
+        layout.focusLeaf(target);
+      }
+    } else if (type === 'resize' && dir) {
+      const axis: Dir = dir === 'left' || dir === 'right' ? 'row' : 'column';
+      const delta = dir === 'right' || dir === 'down' ? RESIZE_STEP : -RESIZE_STEP;
+      root = resizeNearest(root, focusedLeafId, axis, delta);
+      layout.render(root);
+      layout.focusLeaf(focusedLeafId);
+    }
+  });
 
   layout.render(root);
   layout.focusLeaf(focusedLeafId);

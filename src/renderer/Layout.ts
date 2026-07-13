@@ -70,6 +70,39 @@ export class Layout {
     return this.leaves.get(leafId)?.pane.paneId ?? null;
   }
 
+  // Geometric nearest leaf from `fromId` in a direction (for keyboard focus nav).
+  leafInDirection(
+    fromId: string,
+    dir: 'left' | 'right' | 'up' | 'down'
+  ): string | null {
+    const from = this.leaves.get(fromId);
+    if (!from) return null;
+    const r = from.el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+
+    let best: string | null = null;
+    let bestDist = Infinity;
+    for (const [id, entry] of this.leaves) {
+      if (id === fromId) continue;
+      const rr = entry.el.getBoundingClientRect();
+      const dx = rr.left + rr.width / 2 - cx;
+      const dy = rr.top + rr.height / 2 - cy;
+      let inDir = false;
+      if (dir === 'right') inDir = dx > 5 && Math.abs(dy) <= Math.abs(dx);
+      else if (dir === 'left') inDir = dx < -5 && Math.abs(dy) <= Math.abs(dx);
+      else if (dir === 'down') inDir = dy > 5 && Math.abs(dx) <= Math.abs(dy);
+      else if (dir === 'up') inDir = dy < -5 && Math.abs(dx) <= Math.abs(dy);
+      if (!inDir) continue;
+      const dist = dx * dx + dy * dy;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = id;
+      }
+    }
+    return best;
+  }
+
   focusLeaf(leafId: string): void {
     this.focusedLeafId = leafId;
     this.leaves.get(leafId)?.pane.focus();

@@ -72,6 +72,45 @@ export function setRatio(root: PaneNode, splitId: string, ratio: number): PaneNo
   return rec(root);
 }
 
+function containsLeaf(node: PaneNode, leafId: string): boolean {
+  if (node.type === 'leaf') return node.id === leafId;
+  return containsLeaf(node.a, leafId) || containsLeaf(node.b, leafId);
+}
+
+// Deepest ancestor split (nearest to the leaf) whose direction matches `axis`.
+function nearestSplitId(node: PaneNode, leafId: string, axis: Dir): string | null {
+  if (node.type === 'leaf') return null;
+  const child = containsLeaf(node.a, leafId)
+    ? node.a
+    : containsLeaf(node.b, leafId)
+      ? node.b
+      : null;
+  if (!child) return null;
+  const deeper = nearestSplitId(child, leafId, axis);
+  if (deeper) return deeper; // a match closer to the leaf wins
+  return node.dir === axis ? node.id : null;
+}
+
+// Nudge the ratio of the split controlling the leaf along `axis` by `delta`
+// (divider-move semantics). No-op when there's no matching ancestor.
+export function resizeNearest(
+  root: PaneNode,
+  leafId: string,
+  axis: Dir,
+  delta: number
+): PaneNode {
+  const id = nearestSplitId(root, leafId, axis);
+  if (!id) return root;
+  function rec(node: PaneNode): PaneNode {
+    if (node.type === 'leaf') return node;
+    if (node.id === id) {
+      return { ...node, ratio: Math.min(0.95, Math.max(0.05, node.ratio + delta)) };
+    }
+    return { ...node, a: rec(node.a), b: rec(node.b) };
+  }
+  return rec(root);
+}
+
 export function firstLeaf(node: PaneNode): LeafNode {
   return node.type === 'leaf' ? node : firstLeaf(node.a);
 }
