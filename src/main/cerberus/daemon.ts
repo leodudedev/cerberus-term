@@ -14,7 +14,10 @@ import { capturePane } from "../pane-control.js";
 // sometimes, and whether it does can't be inferred from the tool or command —
 // Claude attaches it to whatever sub-command it can turn into an allow rule. So
 // we read the option straight from the pane instead of guessing.
-const ALWAYS_OPTION_RE = /don'?t ask again|allow all|always allow|non chiedere|consenti sempre/i;
+// Match both the straight and typographic apostrophe (Claude renders "don’t"
+// with U+2019), plus the "Yes, and …" allow-rule option and the Italian wording.
+const ALWAYS_OPTION_RE =
+  /don['’]?t ask again|allow all|always allow|yes,?\s+and\b|non chiedere|consenti sempre|approva sempre/i;
 
 // HTTP daemon that receives detection events from the hook scripts.
 // Two producers, one endpoint:
