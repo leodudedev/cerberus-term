@@ -80,6 +80,9 @@ Linux in a matrix and uploads the installers to the GitHub Release.
 ## Stack
 
 Electron · xterm.js · node-pty · TypeScript · electron-vite · electron-builder ·
-grammY (Telegram). Reusable Cerberus core copied from the tmux `mycli` project
-into `src/core`. Backend sits behind a thin `TerminalBridge` seam so a future
+grammY (Telegram). Backend sits behind a thin `TerminalBridge` seam so a future
 Tauri/Rust swap is a module replacement, not a rewrite.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

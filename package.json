@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "description": "Cerberus — GUI terminal multiplexer with remote control",
   "author": "Leonardo Pinori",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "pnpm": {

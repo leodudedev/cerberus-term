@@ -1,14 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 
-// Minimal .env loader (no dep). For dev we reuse the tmux mycli .env for the
-// Telegram credentials; CERBERUS_ENV_FILE overrides the path. Never overwrites a
+// Minimal .env loader (no dep). Optional dev fallback for the Telegram
+// credentials before they're set in-app: point CERBERUS_ENV_FILE at a .env file.
+// No default path — credentials normally come from Settings. Never overwrites a
 // value already present in the environment.
 export function loadEnvFile(): void {
-  const path =
-    process.env['CERBERUS_ENV_FILE'] ??
-    join(homedir(), 'Documents', 'leo', 'dev', 'mycli', '.env');
+  const path = process.env['CERBERUS_ENV_FILE'];
+  if (!path) return;
 
   let raw: string;
   try {
