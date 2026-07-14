@@ -57,8 +57,12 @@ Grab the installer for your OS from the latest release:
 
 Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-term/releases/latest).
 
-> Builds aren't code-signed yet: on macOS right-click → **Open** the first time;
-> on Windows dismiss the SmartScreen prompt. Signing/notarization is on the list.
+> Builds aren't notarized yet. **macOS** flags the app as "damaged" (Gatekeeper
+> quarantine on a non-notarized app) — clear it once, then open normally:
+> ```bash
+> xattr -cr /Applications/Cerberus.app
+> ```
+> **Windows**: dismiss the SmartScreen prompt. Signing/notarization is on the list.
 
 ## First run
 
