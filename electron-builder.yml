@@ -54,6 +54,4 @@ linux:
     - deb
   category: Development
   maintainer: Leonardo Pinori <pinori@gmail.com>
-  desktopName: cerberus.desktop
-  synopsis: GUI terminal multiplexer with remote control
   artifactName: ${productName}-linux-${arch}.${ext}
