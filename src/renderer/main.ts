@@ -95,7 +95,11 @@ if (container) {
   // External driver (POST /pane) -> open a read-only follower pane tailing a log.
   const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
   window.cerberusUI.onOpenPane(({ file, title, cwd }) => {
-    const { root: next, newLeafId } = splitLeaf(root, focusedLeafId, 'row');
+    // Auto-tile: split the largest pane along its longer side (grid-ish growth).
+    const target = layout.pickTileTarget();
+    const parentLeaf = target?.leafId ?? focusedLeafId;
+    const dir: Dir = target?.dir ?? 'row';
+    const { root: next, newLeafId } = splitLeaf(root, parentLeaf, dir);
     root = next;
     layout.setPaneSpec(newLeafId, {
       ...(cwd ? { cwd } : {}),

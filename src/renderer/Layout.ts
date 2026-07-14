@@ -107,6 +107,28 @@ export class Layout {
     this.paneSpecs.set(leafId, spec);
   }
 
+  // Auto-tiling target for an externally-opened pane: split the largest leaf
+  // along its longer side (wide -> row, tall -> column) so repeated opens tend
+  // toward a balanced grid instead of ever-thinner columns.
+  pickTileTarget(): { leafId: string; dir: 'row' | 'column' } | null {
+    let best: string | null = null;
+    let bestArea = -1;
+    let w = 0;
+    let h = 0;
+    for (const [id, entry] of this.leaves) {
+      const r = entry.el.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (area > bestArea) {
+        bestArea = area;
+        best = id;
+        w = r.width;
+        h = r.height;
+      }
+    }
+    if (!best) return null;
+    return { leafId: best, dir: w >= h ? 'row' : 'column' };
+  }
+
   // Geometric nearest leaf from `fromId` in a direction (for keyboard focus nav).
   leafInDirection(
     fromId: string,
