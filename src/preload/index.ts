@@ -70,6 +70,7 @@ interface OpenPanePayload {
   file: string;
   title: string;
   cwd: string;
+  format?: 'raw' | 'claude-stream';
 }
 let onOpenSettings: (() => void) | null = null;
 let onToggleTheme: (() => void) | null = null;

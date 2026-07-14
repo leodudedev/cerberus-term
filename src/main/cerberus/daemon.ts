@@ -128,7 +128,7 @@ const server = createServer(async (req, res) => {
   // read-only pane that follows a worker log. Loopback-only; require an absolute
   // file path so nothing shell-injectable reaches the follower's tail command.
   if (req.method === "POST" && req.url === "/pane") {
-    let body: { file?: string; title?: string; cwd?: string };
+    let body: { file?: string; title?: string; cwd?: string; format?: string };
     try {
       body = (await readJson(req)) as typeof body;
     } catch {
@@ -141,10 +141,13 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: "missing_or_relative_file" }));
       return;
     }
+    // Opt-in readable projection; any unknown value falls back to raw tail.
+    const format = body.format === "claude-stream" ? "claude-stream" : "raw";
     emit?.("cerberus:open-pane", {
       file: body.file,
       title: body.title ?? "",
       cwd: body.cwd ?? "",
+      format,
     });
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));

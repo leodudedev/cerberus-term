@@ -94,17 +94,41 @@ if (container) {
 
   // External driver (POST /pane) -> open a read-only follower pane tailing a log.
   const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
-  window.cerberusUI.onOpenPane(({ file, title, cwd }) => {
+  // jq projection of a Claude Code --output-format stream-json log: assistant
+  // text, "▶ tool input", a "── subtype · N turns · $cost" footer, an init line;
+  // non-JSON lines pass through raw so a dirty tail line never breaks the pane.
+  const CLAUDE_STREAM_FMT =
+    `jq -Rr --unbuffered '. as $l | (try fromjson catch null) as $e | ` +
+    `if $e == null then $l ` +
+    `elif $e.type=="assistant" then ($e.message.content[]? | ` +
+    `if .type=="text" then .text ` +
+    `elif .type=="tool_use" then "▶ " + .name + " " + ((.input // {}) | tojson) ` +
+    `else empty end) ` +
+    `elif $e.type=="result" then "── " + ($e.subtype // "done") + " · " + ` +
+    `(($e.num_turns // 0)|tostring) + " turns" + " · $" + (($e.total_cost_usd // 0)|tostring) ` +
+    `elif $e.type=="system" then "· " + (($e.session_id // "?")[0:8]) + " (" + ($e.model // "?") + ")" ` +
+    `else empty end'`;
+
+  window.cerberusUI.onOpenPane(({ file, title, cwd, format }) => {
     // Auto-tile: split the largest pane along its longer side (grid-ish growth).
     const target = layout.pickTileTarget();
     const parentLeaf = target?.leafId ?? focusedLeafId;
     const dir: Dir = target?.dir ?? 'row';
     const { root: next, newLeafId } = splitLeaf(root, parentLeaf, dir);
     root = next;
+
+    const q = shellQuote(file);
+    // raw branch unchanged; claude-stream pipes through jq, degrading to a raw
+    // tail if jq isn't installed.
+    const initialCommand =
+      format === 'claude-stream'
+        ? `sh -c ${shellQuote(`command -v jq >/dev/null 2>&1 && tail -f ${q} | ${CLAUDE_STREAM_FMT} || tail -f ${q}`)}\r`
+        : `tail -f ${q}\r`;
+
     layout.setPaneSpec(newLeafId, {
       ...(cwd ? { cwd } : {}),
       title: title || `tail:${file.split('/').pop() ?? file}`,
-      initialCommand: `tail -f ${shellQuote(file)}\r`,
+      initialCommand,
       readOnly: true
     });
     rerender(focusedLeafId); // render the follower without stealing focus

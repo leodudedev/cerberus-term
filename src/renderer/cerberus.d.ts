@@ -10,7 +10,14 @@ declare global {
     cerberusUI: {
       onOpenSettings(cb: () => void): void;
       onToggleTheme(cb: () => void): void;
-      onOpenPane(cb: (p: { file: string; title: string; cwd: string }) => void): void;
+      onOpenPane(
+        cb: (p: {
+          file: string;
+          title: string;
+          cwd: string;
+          format?: 'raw' | 'claude-stream';
+        }) => void
+      ): void;
     };
   }
 }
