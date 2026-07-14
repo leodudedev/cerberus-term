@@ -1,10 +1,49 @@
+<div align="center">
+
 # 🐕‍🦺 Cerberus
 
-**GUI terminal multiplexer with remote control.** Split panes with the mouse or
-tmux-style keys; when an AI coding session (Claude Code / Copilot CLI) needs you
-— a permission prompt, waiting for input — Cerberus pushes a risk-tagged Telegram
-notification, and you **approve / deny / prompt** from your phone straight into
-the right pane. No tmux: every pane is a native pty we own.
+**A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys, and approve, deny, or prompt Claude Code &amp; GitHub Copilot CLI from your phone, over Telegram, straight into the right pane.
+
+<sub>native panes · no tmux · permission prompts · risk-tagged commands · multi-account · session restore · light/dark</sub>
+
+![CI](https://img.shields.io/github/actions/workflow/status/leodudedev/cerberus-term/build.yml?label=build&logo=github)
+![Electron](https://img.shields.io/badge/Electron-2C2E3B?logo=electron&logoColor=9FEAF9)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Node.js ≥22](https://img.shields.io/badge/Node.js-%E2%89%A522-5FA04E?logo=nodedotjs&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-F69220?logo=pnpm&logoColor=white)
+![Telegram](https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white)
+![xterm.js](https://img.shields.io/badge/xterm.js-2E2E2E?logo=gnometerminal&logoColor=white)
+![license MIT](https://img.shields.io/badge/license-MIT-blue)
+
+[Download](#download) · [First run](#first-run) · [Controls](#controls) · [Config](#per-project-config) · [Development](#development)
+
+</div>
+
+> Your company won't enable remote control? No problem — Cerberus is your
+> three-headed guard dog, and it works the night shift for free. 🐕‍🦺
+
+Run your AI coding sessions in native panes — no tmux, every pane is a pty
+Cerberus owns. When a session needs you — a permission prompt, waiting for input
+— it pushes a Telegram notification. From your phone you **approve / deny**, or
+**type a prompt** that lands in the right pane. Every pending command is tagged
+with a risk icon 🟢 🟡 🔴 so you know what you're approving. Approve something
+remotely and the result is pushed back to you.
+
+```mermaid
+flowchart LR
+    subgraph app["Cerberus (Electron)"]
+        A["pane · claude<br/>└ notify.sh"]
+        B["pane · copilot<br/>└ copilot-notify.sh"]
+        D["daemon 127.0.0.1:8898<br/>enrich + push"]
+        A --> D
+        B --> D
+    end
+    subgraph tg["Telegram"]
+        T["🔔 + 🟢🟡🔴<br/>approve · deny · reply"]
+    end
+    D -->|push| T
+    T -->|"keystroke / prompt"| A
+```
 
 ## Download
 
@@ -30,9 +69,6 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
    silently on first run; when a session needs you, you get a Telegram push with
    🟢 🟡 🔴 risk and Approve / Deny / prompt buttons that land in that pane.
 
-Per-project overrides live in `.cerberus.json` (edit via the pane's ⚙ gear):
-`mute`, `chatId`, `minRisk`, `notifyIdle`.
-
 ## Controls
 
 | Action | Mouse / button | Keyboard |
@@ -46,6 +82,18 @@ Per-project overrides live in `.cerberus.json` (edit via the pane's ⚙ gear):
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
 
 The layout, per-pane cwds, and theme are restored on relaunch.
+
+## Per-project config
+
+Drop a `.cerberus.json` in a project (edit it via the pane's ⚙ gear) to override
+the global settings for sessions running there:
+
+| Key | Meaning |
+|-----|---------|
+| `mute` | silence notifications for this project |
+| `chatId` | route its pushes to a different Telegram chat |
+| `minRisk` | only notify at/above this risk (`safe` \| `caution` \| `danger`) |
+| `notifyIdle` | also notify on waiting-for-input, not just permissions |
 
 ## Development
 
@@ -65,22 +113,28 @@ pnpm run dist:mac      # / dist:win / dist:linux
 > Use `pnpm run pack`/`dist`, not `pnpm pack`/`dist` — `pack` collides with a
 > pnpm builtin.
 
-## Releases
+### Releases
 
-Push a tag to build + publish installers via GitHub Actions:
+Push a tag and GitHub Actions builds + publishes the installers to a Release:
 
 ```bash
 git tag v0.1.0 && git push --tags
 ```
 
 The `build` workflow (`.github/workflows/build.yml`) builds macOS / Windows /
-Linux in a matrix and uploads the installers to the GitHub Release.
+Linux in a matrix.
+
+## Security
+
+The daemon binds **loopback only** (`127.0.0.1`). Telegram callbacks are checked
+against your allowed chat(s). CLI hooks are gated on `CERBERUS_PANE_ID`, so they
+fire only inside a Cerberus pane and coexist with any tmux-based setup.
 
 ## Stack
 
 Electron · xterm.js · node-pty · TypeScript · electron-vite · electron-builder ·
-grammY (Telegram). Backend sits behind a thin `TerminalBridge` seam so a future
-Tauri/Rust swap is a module replacement, not a rewrite.
+grammY (Telegram). The backend sits behind a thin `TerminalBridge` seam, so a
+future Tauri/Rust swap is a module replacement, not a rewrite.
 
 ## License
 
