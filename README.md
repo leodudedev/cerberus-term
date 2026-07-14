@@ -8,16 +8,15 @@ the right pane. No tmux: every pane is a native pty we own.
 
 ## Download
 
-Grab the installer for your OS from the latest release
-(**replace `OWNER/REPO`** with the GitHub repo path):
+Grab the installer for your OS from the latest release:
 
 | OS | File |
 |----|------|
-| macOS (Apple Silicon) | [`Cerberus-mac-arm64.dmg`](https://github.com/OWNER/REPO/releases/latest/download/Cerberus-mac-arm64.dmg) |
-| Windows | [`Cerberus-win-x64.exe`](https://github.com/OWNER/REPO/releases/latest/download/Cerberus-win-x64.exe) |
-| Linux (AppImage) | [`Cerberus-linux-x64.AppImage`](https://github.com/OWNER/REPO/releases/latest/download/Cerberus-linux-x64.AppImage) |
+| macOS (Apple Silicon) | [`Cerberus-mac-arm64.dmg`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-mac-arm64.dmg) |
+| Windows | [`Cerberus-win-x64.exe`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-win-x64.exe) |
+| Linux (AppImage) | [`Cerberus-linux-x64.AppImage`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-linux-x64.AppImage) |
 
-Or see all assets on the [releases page](https://github.com/OWNER/REPO/releases/latest).
+Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-term/releases/latest).
 
 > Builds aren't code-signed yet: on macOS right-click → **Open** the first time;
 > on Windows dismiss the SmartScreen prompt. Signing/notarization is on the list.
