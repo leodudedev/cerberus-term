@@ -44,7 +44,7 @@ export function installClaudeHooks(notifyScript: string): void {
   }
 
   settings.hooks ??= {};
-  const events = ['PreToolUse', 'Notification'] as const;
+  const events = ['PreToolUse', 'PostToolUse', 'Notification'] as const;
 
   let changed = false;
   for (const ev of events) {

@@ -2,7 +2,8 @@ import { createServer, type IncomingMessage } from "node:http";
 import { config } from "../../core/config.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
 import { upsertSession } from "../../core/registry.js";
-import { initBot, pushAttention } from "./bot.js";
+import { initBot, pushAttention, pushCompletion } from "./bot.js";
+import { takeApproval } from "./remote-approvals.js";
 import { lastAssistantText, lastCopilotText, type ToolUse } from "../../core/transcript.js";
 import { readProjectConfig } from "../../core/project-config.js";
 import { isMuted } from "../../core/mute.js";
@@ -36,6 +37,7 @@ interface HookPayload {
   tool_name?: string;
   toolArgs?: unknown;
   tool_input?: unknown;
+  tool_response?: unknown; // PostToolUse result
   // Common
   cwd?: string;
   message?: string;
@@ -79,6 +81,25 @@ function extractQuestionOptions(toolName: string, input: unknown): string[] | un
     .filter(Boolean)
     .slice(0, 8);
   return labels.length ? labels : undefined;
+}
+
+// Pull a short human-readable result out of a PostToolUse tool_response, whose
+// shape varies by tool (string, {stdout}, {filePath}, structured object).
+function summarizeResult(resp: unknown): string {
+  if (typeof resp === "string") return resp.trim();
+  if (resp && typeof resp === "object") {
+    const r = resp as Record<string, unknown>;
+    for (const k of ["stdout", "message", "content", "filePath", "result"]) {
+      const v = r[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    try {
+      return JSON.stringify(r).slice(0, 400);
+    } catch {
+      return "";
+    }
+  }
+  return "";
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {
@@ -144,6 +165,24 @@ const server = createServer(async (req, res) => {
       const command = summarizeToolArgs(hook.tool_input);
       const options = extractQuestionOptions(name, hook.tool_input);
       putPendingTool(sessionId, name, command, options);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // Claude PostToolUse: if this tool was approved from Telegram, push its
+    // result back (completion feed). Locally-approved tools stay silent.
+    if (agent === "claude" && hook.hook_event_name === "PostToolUse") {
+      const appr = takeApproval(sessionId, String(hook.tool_name ?? ""));
+      if (appr) {
+        void pushCompletion({
+          chatId: appr.chatId,
+          messageId: appr.messageId,
+          toolName: appr.toolName || String(hook.tool_name ?? ""),
+          command: appr.command,
+          result: summarizeResult(hook.tool_response),
+        }).catch((e) => console.error("[bot] completion failed", e));
+      }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
       return;

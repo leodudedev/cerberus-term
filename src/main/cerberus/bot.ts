@@ -10,6 +10,7 @@ import {
   type SessionInfo,
 } from "../../core/registry.js";
 import { paneAlive, sendKey, sendPrompt } from "../pane-control.js";
+import { putApproval } from "./remote-approvals.js";
 import { mute, unmute, listMuted, parseDuration } from "../../core/mute.js";
 import { iconForProject } from "../../core/icon.js";
 import { t, timeLocale } from "../../core/i18n.js";
@@ -81,6 +82,18 @@ export function initBot(): boolean {
     }
 
     for (const k of keys) await sendKey(s.pane, k);
+
+    // Remote-approved a tool -> remember it so PostToolUse can push the result
+    // back (completion feed). Only approve/always let the tool actually run.
+    if (action === "approve" || action === "always") {
+      putApproval(sessionId!, {
+        toolName: s.toolName,
+        command: s.command,
+        chatId: String(ctx.chat?.id ?? ""),
+        messageId: ctx.callbackQuery.message?.message_id,
+        ts: Date.now(),
+      });
+    }
 
     // Mark the message as handled: swap the buttons for a single inert label so
     // it's obvious at a glance which action was taken, and re-taps are no-ops.
@@ -256,6 +269,36 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
   }
   // Link the message so a reply routes back to this session.
   linkMessage(sent.message_id, s.sessionId);
+}
+
+// Completion feed for a remotely-approved tool: threaded under the original
+// notification. Best-effort; a formatting failure retries as plain text.
+export async function pushCompletion(o: {
+  chatId: string;
+  messageId?: number;
+  toolName: string;
+  command: string;
+  result: string;
+}): Promise<void> {
+  if (!bot) return;
+  const flat = o.command.replace(/\s*\n\s*/g, " ⏎ ");
+  const cmd = flat ? `: \`${escapeCode(truncate(flat, CMD_MAX))}\`` : "";
+  let text = `✅ *${escapeMd(o.toolName || "done")}*${cmd}`;
+  if (o.result) text += `\n${escapeMd(tailText(o.result, 800))}`;
+  const reply = o.messageId ? { reply_parameters: { message_id: o.messageId } } : {};
+  try {
+    await bot.api.sendMessage(o.chatId, text, { parse_mode: "MarkdownV2", ...reply });
+  } catch (e) {
+    console.error("[bot] completion markdown failed, retrying plain:", (e as Error).message);
+    const plain =
+      `✅ ${o.toolName}${flat ? ": " + truncate(flat, CMD_MAX) : ""}` +
+      (o.result ? "\n" + tailText(o.result, 800) : "");
+    try {
+      await bot.api.sendMessage(o.chatId, plain, reply);
+    } catch (e2) {
+      console.error("[bot] completion push failed:", (e2 as Error).message);
+    }
+  }
 }
 
 function cap(s: string): string {
