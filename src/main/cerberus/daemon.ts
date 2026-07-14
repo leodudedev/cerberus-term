@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage } from "node:http";
+import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
 import { upsertSession } from "../../core/registry.js";
@@ -112,10 +113,41 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   return raw ? JSON.parse(raw) : null;
 }
 
+// Bridge to the renderer (set in startDaemon), used by external endpoints like
+// POST /pane to ask the UI to open a follower pane.
+let emit: ((channel: string, payload: unknown) => void) | null = null;
+
 const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, ts: Date.now() }));
+    return;
+  }
+
+  // External driver (e.g. the Trigano orchestrator) asks Cerberus to open a
+  // read-only pane that follows a worker log. Loopback-only; require an absolute
+  // file path so nothing shell-injectable reaches the follower's tail command.
+  if (req.method === "POST" && req.url === "/pane") {
+    let body: { file?: string; title?: string; cwd?: string };
+    try {
+      body = (await readJson(req)) as typeof body;
+    } catch {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "bad_json" }));
+      return;
+    }
+    if (!body?.file || !body.file.startsWith("/")) {
+      res.writeHead(400, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "missing_or_relative_file" }));
+      return;
+    }
+    emit?.("cerberus:open-pane", {
+      file: body.file,
+      title: body.title ?? "",
+      cwd: body.cwd ?? "",
+    });
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
     return;
   }
 
@@ -345,7 +377,8 @@ server.on("error", (e: NodeJS.ErrnoException) => {
 });
 
 // Bind only on loopback: the daemon must never be reachable off-host.
-export function startDaemon(): void {
+export function startDaemon(getWindow: () => BrowserWindow | null): void {
+  emit = (channel, payload) => getWindow()?.webContents.send(channel, payload);
   server.listen(config.port, "127.0.0.1", () => {
     console.log(`[daemon] listening on http://127.0.0.1:${config.port}`);
     initBot();

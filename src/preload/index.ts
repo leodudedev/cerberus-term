@@ -66,15 +66,25 @@ contextBridge.exposeInMainWorld('cerberusSettings', settingsBridge);
 
 // Native-menu -> renderer bridge (Cmd+, opens settings). A contextBridge
 // callback avoids cross-world DOM-event issues.
+interface OpenPanePayload {
+  file: string;
+  title: string;
+  cwd: string;
+}
 let onOpenSettings: (() => void) | null = null;
 let onToggleTheme: (() => void) | null = null;
+let onOpenPane: ((p: OpenPanePayload) => void) | null = null;
 ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
 ipcRenderer.on('cerberus:toggle-theme', () => onToggleTheme?.());
+ipcRenderer.on('cerberus:open-pane', (_e, p: OpenPanePayload) => onOpenPane?.(p));
 contextBridge.exposeInMainWorld('cerberusUI', {
   onOpenSettings: (cb: () => void) => {
     onOpenSettings = cb;
   },
   onToggleTheme: (cb: () => void) => {
     onToggleTheme = cb;
+  },
+  onOpenPane: (cb: (p: OpenPanePayload) => void) => {
+    onOpenPane = cb;
   }
 });

@@ -8,6 +8,15 @@ interface LeafEntry {
   pane: TerminalPane;
 }
 
+// One-shot overrides for a leaf about to be created (follower panes opened via
+// POST /pane): cwd, header title, an initial command to run, read-only.
+export interface PaneSpec {
+  cwd?: string;
+  title?: string;
+  initialCommand?: string;
+  readOnly?: boolean;
+}
+
 function collectLeafIds(node: PaneNode, out: Set<string>): void {
   if (node.type === 'leaf') {
     out.add(node.id);
@@ -32,6 +41,8 @@ function sizeChild(el: HTMLElement, grow: number): void {
 // wrappers, so xterm state + pty survive relayout.
 export class Layout {
   private leaves = new Map<string, LeafEntry>();
+  private paneSpecs = new Map<string, PaneSpec>();
+  private lockedTitles = new Set<string>(); // leaves with a fixed custom title
   private focusedLeafId: string | null = null;
 
   constructor(
@@ -49,6 +60,7 @@ export class Layout {
         const paneId = await entry.pane.paneId;
         const cwd = await window.cerberus.cwd(paneId);
         out[id] = cwd;
+        if (this.lockedTitles.has(id)) continue; // follower panes keep their title
         const title = entry.el.querySelector<HTMLElement>('.pane-title');
         if (title) title.textContent = cwd.split('/').pop() || cwd;
       } catch {
@@ -67,6 +79,8 @@ export class Layout {
         entry.pane.dispose();
         entry.el.remove();
         this.leaves.delete(id);
+        this.lockedTitles.delete(id);
+        this.paneSpecs.delete(id);
       }
     }
 
@@ -86,6 +100,11 @@ export class Layout {
 
   paneIdOf(leafId: string): Promise<string> | null {
     return this.leaves.get(leafId)?.pane.paneId ?? null;
+  }
+
+  // Register overrides for a leaf that will be built on the next render.
+  setPaneSpec(leafId: string, spec: PaneSpec): void {
+    this.paneSpecs.set(leafId, spec);
   }
 
   // Geometric nearest leaf from `fromId` in a direction (for keyboard focus nav).
@@ -166,12 +185,21 @@ export class Layout {
       body.className = 'pane-body';
       body.style.cssText = 'flex:1 1 0;position:relative;overflow:hidden;min-height:0';
 
-      const cwd = this.cwdFor(id);
+      const spec = this.paneSpecs.get(id);
+      const cwd = spec?.cwd ?? this.cwdFor(id);
       const pane = createTerminalPane(body, cwd);
       const header = makePaneHeader(id, () => pane.focus());
-      if (cwd) {
-        const title = header.querySelector<HTMLElement>('.pane-title');
-        if (title) title.textContent = cwd.split('/').pop() || cwd;
+      const titleEl = header.querySelector<HTMLElement>('.pane-title');
+      const initialTitle = spec?.title || (cwd ? cwd.split('/').pop() || cwd : '');
+      if (titleEl && initialTitle) titleEl.textContent = initialTitle;
+
+      if (spec) {
+        this.paneSpecs.delete(id); // one-shot
+        if (spec.title) this.lockedTitles.add(id);
+        if (spec.readOnly) pane.setReadOnly(true);
+        if (spec.initialCommand) {
+          void pane.paneId.then((pid) => window.cerberus.write(pid, spec.initialCommand!));
+        }
       }
 
       el.append(header, body);

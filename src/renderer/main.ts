@@ -92,6 +92,20 @@ if (container) {
   // Native menu (Cmd+,) routes here — the reliable path on macOS.
   window.cerberusUI.onOpenSettings(() => void openSettingsEditor());
 
+  // External driver (POST /pane) -> open a read-only follower pane tailing a log.
+  const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
+  window.cerberusUI.onOpenPane(({ file, title, cwd }) => {
+    const { root: next, newLeafId } = splitLeaf(root, focusedLeafId, 'row');
+    root = next;
+    layout.setPaneSpec(newLeafId, {
+      ...(cwd ? { cwd } : {}),
+      title: title || `tail:${file.split('/').pop() ?? file}`,
+      initialCommand: `tail -f ${shellQuote(file)}\r`,
+      readOnly: true
+    });
+    rerender(focusedLeafId); // render the follower without stealing focus
+  });
+
   // tmux-style keyboard control (leader Ctrl+B).
   const RESIZE_STEP = 0.04;
   installKeymap();

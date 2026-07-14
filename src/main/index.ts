@@ -129,7 +129,7 @@ app.whenReady().then(() => {
 
   // Cerberus remote control (daemon + Telegram bot). Never let it crash the app.
   try {
-    startCerberus();
+    startCerberus(() => mainWindow);
   } catch (e) {
     console.error('[cerberus] failed to start:', (e as Error).message);
   }

@@ -11,6 +11,7 @@ export interface TerminalPane {
   readonly paneId: Promise<string>;
   focus(): void;
   onFocus(cb: () => void): void;
+  setReadOnly(v: boolean): void;
   dispose(): void;
 }
 
@@ -39,6 +40,7 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
 
   let paneId: string | null = null;
   let disposed = false;
+  let readOnly = false;
   const focusCbs: Array<() => void> = [];
   const unsub: Array<() => void> = [];
 
@@ -86,7 +88,10 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
           term.write('\r\n\x1b[90m[process exited]\x1b[0m\r\n')
         )
       );
-      term.onData((data) => window.cerberus.write(id, data));
+      // read-only panes (e.g. a `tail -f` follower) don't forward keystrokes
+      term.onData((data) => {
+        if (!readOnly) window.cerberus.write(id, data);
+      });
       // sync any size drift accumulated before spawn resolved
       window.cerberus.resize(id, term.cols, term.rows);
       return id;
@@ -96,6 +101,9 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
     paneId: paneIdPromise,
     focus: () => term.focus(),
     onFocus: (cb) => focusCbs.push(cb),
+    setReadOnly: (v) => {
+      readOnly = v;
+    },
     dispose: () => {
       disposed = true;
       ro.disconnect();

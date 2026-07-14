@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { applySettingsToEnv } from '../settings.js';
@@ -9,7 +9,7 @@ import { startDaemon } from './daemon.js';
 // Boot the Cerberus remote-control core from the Electron main process:
 // load Telegram creds, point persistence at userData, install CLI hooks,
 // start the loopback daemon + Telegram bot.
-export function startCerberus(): void {
+export function startCerberus(getWindow: () => BrowserWindow | null): void {
   loadEnvFile(); // dev fallback: fills only missing env
   applySettingsToEnv(); // in-app settings override .env
   // persist uses a stable ~/.cerberus-term path resolved at import time, so
@@ -27,5 +27,5 @@ export function startCerberus(): void {
     console.error('[cerberus] notify.sh not found at', notifyScript);
   }
 
-  startDaemon();
+  startDaemon(getWindow);
 }
