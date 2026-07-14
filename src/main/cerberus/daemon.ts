@@ -202,6 +202,24 @@ const server = createServer(async (req, res) => {
     let doneText = "";
     if (isCopilotStop) {
       doneText = await lastCopilotText(String(hook.transcriptPath ?? ""));
+
+      // Copilot has no PostToolUse hook, so the completion feed for a
+      // remotely-approved tool is delivered at turn end (agentStop) instead:
+      // if an approval is pending for this session, push the result threaded
+      // under the original notification and skip the generic "done" push.
+      const appr = takeApproval(sessionId, "");
+      if (appr) {
+        void pushCompletion({
+          chatId: appr.chatId,
+          messageId: appr.messageId,
+          toolName: appr.toolName || "Copilot",
+          command: appr.command,
+          result: doneText,
+        }).catch((e) => console.error("[bot] completion failed", e));
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
     }
 
     const message = isCopilotStop ? doneText : String(hook.message ?? hook.title ?? "");
