@@ -53,7 +53,7 @@ Grab the installer for your OS from the latest release:
 |----|------|
 | macOS (Apple Silicon) | [`Cerberus-mac-arm64.dmg`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-mac-arm64.dmg) |
 | Windows | [`Cerberus-win-x64.exe`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-win-x64.exe) |
-| Linux (AppImage) | [`Cerberus-linux-x64.AppImage`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-linux-x64.AppImage) |
+| Linux (AppImage) | [`Cerberus-linux-x86_64.AppImage`](https://github.com/leodudedev/cerberus-term/releases/latest/download/Cerberus-linux-x86_64.AppImage) |
 
 Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-term/releases/latest).
 
