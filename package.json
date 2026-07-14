@@ -1,8 +1,11 @@
 {
   "name": "cerberus-term",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Cerberus — GUI terminal multiplexer with remote control",
-  "author": "Leonardo Pinori",
+  "author": {
+    "name": "Leonardo Pinori",
+    "email": "pinori@gmail.com"
+  },
   "license": "MIT",
   "private": true,
   "type": "module",

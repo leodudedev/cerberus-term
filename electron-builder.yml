@@ -29,8 +29,11 @@ extraResources:
 npmRebuild: false
 
 # Publish to GitHub Releases (owner/repo inferred from the git remote in CI).
+# releaseType: release publishes immediately so releases/latest/download works
+# (the default 'draft' leaves it invisible to the "latest" URL).
 publish:
   provider: github
+  releaseType: release
 
 # Stable, version-less artifact names so README can link to
 # releases/latest/download/<name> permanently.
@@ -50,4 +53,7 @@ linux:
     - AppImage
     - deb
   category: Development
+  maintainer: Leonardo Pinori <pinori@gmail.com>
+  desktopName: cerberus.desktop
+  synopsis: GUI terminal multiplexer with remote control
   artifactName: ${productName}-linux-${arch}.${ext}
