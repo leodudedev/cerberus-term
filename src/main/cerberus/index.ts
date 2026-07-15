@@ -20,19 +20,27 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
   const base = app.isPackaged
     ? process.resourcesPath
     : join(app.getAppPath(), 'resources');
-  const bundledHooks = join(base, 'hooks');
-  if (existsSync(join(bundledHooks, 'notify.sh'))) {
-    // Copy the scripts to a stable ~/.cerberus-term/hooks and register THAT
-    // path: hooks run in every Claude session, so a path inside the .app would
-    // break them all if the app is moved/removed.
-    try {
-      const stableNotify = syncHookScripts(bundledHooks);
-      installClaudeHooks(stableNotify);
-    } catch (e) {
-      console.error('[cerberus] hook sync failed:', (e as Error).message);
-    }
+
+  // The hooks are POSIX shell scripts, so Claude Code on Windows can't run them
+  // and would log a hook error on every single tool call (in every session, not
+  // just Cerberus ones). Skip installation there until a .ps1/.cmd hook exists.
+  if (process.platform === 'win32') {
+    console.log('[cerberus] hook install skipped on win32 (bash hooks unsupported)');
   } else {
-    console.error('[cerberus] bundled hooks not found at', bundledHooks);
+    const bundledHooks = join(base, 'hooks');
+    if (existsSync(join(bundledHooks, 'notify.sh'))) {
+      // Copy the scripts to a stable ~/.cerberus-term/hooks and register THAT
+      // path: hooks run in every Claude session, so a path inside the .app would
+      // break them all if the app is moved/removed.
+      try {
+        const stableNotify = syncHookScripts(bundledHooks);
+        installClaudeHooks(stableNotify);
+      } catch (e) {
+        console.error('[cerberus] hook sync failed:', (e as Error).message);
+      }
+    } else {
+      console.error('[cerberus] bundled hooks not found at', bundledHooks);
+    }
   }
 
   // jq program for the claude-stream follower projection (shipped as a resource
