@@ -109,6 +109,9 @@ function createWindow(): void {
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
+    // The renderer is gone but the ptys live in main: without this they'd keep
+    // running headless (a `claude` inside one would even keep notifying).
+    killAllPtys();
     mainWindow = null;
   });
 
