@@ -4,7 +4,7 @@
 
 **A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys, and approve, deny, or prompt Claude Code &amp; GitHub Copilot CLI from your phone, over Telegram, straight into the right pane.
 
-<sub>native panes · no tmux · permission prompts · risk-tagged commands · multi-account · session restore · light/dark</sub>
+<sub>native panes · no tmux · permission prompts · risk-tagged commands · orchestration cockpit · session restore · light/dark</sub>
 
 ![CI](https://img.shields.io/github/actions/workflow/status/leodudedev/cerberus-term/build.yml?label=build&logo=github)
 ![Electron](https://img.shields.io/badge/Electron-2C2E3B?logo=electron&logoColor=9FEAF9)
@@ -15,19 +15,26 @@
 ![xterm.js](https://img.shields.io/badge/xterm.js-2E2E2E?logo=gnometerminal&logoColor=white)
 ![license MIT](https://img.shields.io/badge/license-MIT-blue)
 
-[Download](#download) · [First run](#first-run) · [Controls](#controls) · [Config](#per-project-config) · [Development](#development)
+[Download](#download) · [First run](#first-run) · [Controls](#controls) · [Orchestration](#orchestration-cockpit) · [Config](#per-project-config) · [Development](#development)
 
 </div>
 
 > Your company won't enable remote control? No problem — Cerberus is your
 > three-headed guard dog, and it works the night shift for free. 🐕‍🦺
 
-Run your AI coding sessions in native panes — no tmux, every pane is a pty
-Cerberus owns. When a session needs you — a permission prompt, waiting for input
-— it pushes a Telegram notification. From your phone you **approve / deny**, or
-**type a prompt** that lands in the right pane. Every pending command is tagged
-with a risk icon 🟢 🟡 🔴 so you know what you're approving. Approve something
-remotely and the result is pushed back to you.
+Cerberus is one tool with **two jobs** built on the same infrastructure
+(CLI hooks → loopback daemon → Telegram bot; native pty panes):
+
+1. **Remote control** — run your AI coding sessions in native panes. When a
+   session needs you — a permission prompt, waiting for input — Cerberus pushes
+   a Telegram notification. From your phone you **approve / deny**, or **type a
+   prompt** that lands in the right pane. Every pending command is tagged with a
+   risk icon 🟢 🟡 🔴, and remotely-approved tools push their result back to you.
+2. **Orchestration cockpit** — supervise a multi-session orchestrator: one
+   interactive session drives a queue of headless workers (**any** CLI agent —
+   Claude Code, Copilot CLI, aider, plain scripts), each worker streams live
+   into a read-only follower pane, and the human gates (merge/push approvals)
+   arrive on your phone.
 
 ```mermaid
 flowchart LR
@@ -87,6 +94,64 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 
 The layout, per-pane cwds, and theme are restored on relaunch.
 
+## Orchestration cockpit
+
+The second head of the dog: use Cerberus to **supervise a fleet of headless
+workers** with human gates on your phone.
+
+**The model:**
+
+- **Orchestrator** = one *interactive* session (e.g. `claude`) in a Cerberus
+  pane. It's the only interactive session, so it's the only one that prompts →
+  its sensitive gates (merge, push, deploy) reach **Telegram** and you approve
+  from your phone.
+- **Workers** = headless runs (`claude -p`, `copilot -p`, aider, any script)
+  launched by the orchestrator. They never prompt; they're **muted** so they
+  don't spam notifications, and **observable** live in read-only follower panes
+  that auto-tile into a grid.
+
+The orchestrator is **agent-agnostic**: each task carries its own worker
+command, so you can mix Claude, Copilot, and plain scripts in one queue. The
+whole thing also runs *outside* Cerberus (the supervision layer just no-ops).
+
+**Two integration points:**
+
+1. **Mute the workers.** The CLI hooks are gated on `CERBERUS_PANE_ID`, which
+   child processes inherit. Launch workers with it unset so only the
+   orchestrator notifies:
+   ```bash
+   env -u CERBERUS_PANE_ID claude -p "…" --output-format stream-json
+   ```
+2. **Open follower panes.** Ask the daemon (loopback-only) for a read-only pane
+   tailing a worker log — best-effort, no-op outside Cerberus:
+   ```bash
+   curl -fsS -X POST "http://127.0.0.1:$CERBERUS_PORT/pane" \
+     -H 'content-type: application/json' \
+     -d '{"file":"'$PWD'/out/t1.log","title":"t1","format":"claude-stream"}' || true
+   ```
+   `CERBERUS_PORT` is injected into every Cerberus pane. `format` is opt-in:
+   `"claude-stream"` renders Claude Code stream-json as a readable projection
+   (assistant text, `> tool {input}`, a `-- result | turns | cost` footer);
+   omit it (or `"raw"`) for a plain `tail -f` of any other agent's log.
+
+**Try it:** [`examples/orchestrate.sh`](examples/orchestrate.sh) is a minimal
+agent-agnostic driver — it walks a task queue
+([`examples/queue.json`](examples/queue.json)) with per-task `cmd`, dependency
+ordering, and persistent `pending → done | blocked` state (crash-resumable),
+opening a follower pane per worker:
+
+```bash
+cd your-project
+cp path/to/examples/{orchestrate.sh,queue.json} .
+# edit queue.json: one entry per task, any CLI as "cmd"
+./orchestrate.sh
+```
+
+For judgment (diff review) on top of mechanics, run an interactive session in a
+Cerberus pane (`claude --model opus`), and prompt it to read the queue, drive
+the script as its engine, review the outputs, and perform the gated actions —
+which land on your phone as Telegram approvals.
+
 ## Per-project config
 
 Drop a `.cerberus.json` in a project (edit it via the pane's ⚙ gear) to override
@@ -130,9 +195,10 @@ Linux in a matrix.
 
 ## Security
 
-The daemon binds **loopback only** (`127.0.0.1`). Telegram callbacks are checked
-against your allowed chat(s). CLI hooks are gated on `CERBERUS_PANE_ID`, so they
-fire only inside a Cerberus pane and coexist with any tmux-based setup.
+The daemon binds **loopback only** (`127.0.0.1`); `POST /pane` requires an
+absolute file path and shell-quotes everything it runs. Telegram callbacks are
+checked against your allowed chat(s). CLI hooks are gated on `CERBERUS_PANE_ID`,
+so they fire only inside a Cerberus pane and coexist with any tmux-based setup.
 
 ## Stack
 

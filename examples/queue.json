@@ -1,0 +1,26 @@
+[
+  {
+    "id": "t1-claude",
+    "cmd": "claude -p 'Write a haiku about terminals to work/t1.txt. Write the file directly, do not ask for confirmation.' --model haiku --allowedTools Write --output-format stream-json --verbose",
+    "outFile": "work/t1.txt",
+    "logFormat": "claude-stream",
+    "status": "pending",
+    "dependsOn": []
+  },
+  {
+    "id": "t2-copilot",
+    "cmd": "copilot -p 'Create work/t2.txt containing a one-line summary of work/t1.txt' --allow-all-tools",
+    "outFile": "work/t2.txt",
+    "logFormat": "raw",
+    "status": "pending",
+    "dependsOn": ["t1-claude"]
+  },
+  {
+    "id": "t3-script",
+    "cmd": "wc -l work/t1.txt work/t2.txt > work/t3.txt",
+    "outFile": "work/t3.txt",
+    "logFormat": "raw",
+    "status": "pending",
+    "dependsOn": ["t1-claude", "t2-copilot"]
+  }
+]
