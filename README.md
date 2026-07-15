@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐕‍🦺 Cerberus
+<img src="assets/cerberus-logo.png" alt="Cerberus — guard your sessions" width="480">
 
 **A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys, and approve, deny, or prompt Claude Code &amp; GitHub Copilot CLI from your phone, over Telegram, straight into the right pane.
 
