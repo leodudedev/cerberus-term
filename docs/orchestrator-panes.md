@@ -1,7 +1,7 @@
 # Addon — pane auto-aperte per l'orchestratore (`POST /pane`)
 
-> Obiettivo: permettere a un processo **esterno** (es. l'orchestratore multi-sessione del progetto
-> Trigano) di far aprire a Cerberus una **pane read-only** che segue il log di un worker `claude -p`.
+> Obiettivo: permettere a un processo **esterno** (es. un orchestratore
+> multi-sessione) di far aprire a Cerberus una **pane read-only** che segue il log di un worker `claude -p`.
 > Oggi le pane le crea solo il renderer (utente); manca un ingresso esterno. Questa è la spec di
 > implementazione — modifiche piccole, tutte su seam già esistenti.
 
@@ -95,7 +95,7 @@ Riusa la stessa sequenza spawn→attach già usata per le pane manuali; l'unica 
 ### 6) Read-only (nicety, opzionale per l'MVP)
 Aggiungi un flag `readOnly` al modello del leaf e, nell'input handler di `src/renderer/Terminal.ts`, **ignora i keystroke** quando è attivo (lascia passare solo resize/scroll). MVP senza flag: una pane con `tail -f` è di fatto sola-lettura, l'utente semplicemente non digita.
 
-## Lato orchestratore / driver (repo Trigano, NON Cerberus)
+## Lato orchestratore / driver (repo esterno, NON Cerberus)
 
 Dopo aver lanciato il worker con log su file, chiamata **best-effort**:
 ```bash

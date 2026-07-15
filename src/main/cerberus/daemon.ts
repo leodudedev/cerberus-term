@@ -125,7 +125,7 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // External driver (e.g. the Trigano orchestrator) asks Cerberus to open a
+  // External driver (e.g. an orchestrator script) asks Cerberus to open a
   // read-only pane that follows a worker log. Loopback-only; require an absolute
   // file path so nothing shell-injectable reaches the follower's tail command.
   if (req.method === "POST" && req.url === "/pane") {

@@ -98,7 +98,7 @@ sh -c 'command -v jq >/dev/null 2>&1 && tail -f <file> | <FMT> || tail -f <file>
 
 `Layout.ts` e `Terminal.ts` **non si toccano**: la pane resta read-only e one-shot come adesso.
 
-## Lato orchestratore (repo Trigano, non qui)
+## Lato orchestratore (repo esterno, non qui)
 
 La `POST /pane` guadagna un campo; l'orchestratore lo passa solo per i log dei worker:
 ```bash
