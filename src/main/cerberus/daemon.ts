@@ -116,6 +116,7 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 // Bridge to the renderer (set in startDaemon), used by external endpoints like
 // POST /pane to ask the UI to open a follower pane.
 let emit: ((channel: string, payload: unknown) => void) | null = null;
+let claudeStreamFmtPath: string | undefined;
 
 const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
@@ -148,6 +149,7 @@ const server = createServer(async (req, res) => {
       title: body.title ?? "",
       cwd: body.cwd ?? "",
       format,
+      ...(format === "claude-stream" ? { fmtPath: claudeStreamFmtPath } : {}),
     });
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));
@@ -380,8 +382,12 @@ server.on("error", (e: NodeJS.ErrnoException) => {
 });
 
 // Bind only on loopback: the daemon must never be reachable off-host.
-export function startDaemon(getWindow: () => BrowserWindow | null): void {
+export function startDaemon(
+  getWindow: () => BrowserWindow | null,
+  opts: { fmtPath?: string } = {},
+): void {
   emit = (channel, payload) => getWindow()?.webContents.send(channel, payload);
+  claudeStreamFmtPath = opts.fmtPath;
   server.listen(config.port, "127.0.0.1", () => {
     console.log(`[daemon] listening on http://127.0.0.1:${config.port}`);
     initBot();

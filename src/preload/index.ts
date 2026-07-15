@@ -71,6 +71,7 @@ interface OpenPanePayload {
   title: string;
   cwd: string;
   format?: 'raw' | 'claude-stream';
+  fmtPath?: string;
 }
 let onOpenSettings: (() => void) | null = null;
 let onToggleTheme: (() => void) | null = null;

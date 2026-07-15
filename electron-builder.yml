@@ -23,6 +23,10 @@ extraResources:
     to: hooks
     filter:
       - '**/*'
+  - from: resources/bin
+    to: bin
+    filter:
+      - '**/*'
 
 # node-pty is already built against the Electron ABI by the @electron/rebuild
 # postinstall on the build host.

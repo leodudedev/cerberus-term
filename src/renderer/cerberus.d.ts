@@ -16,6 +16,7 @@ declare global {
           title: string;
           cwd: string;
           format?: 'raw' | 'claude-stream';
+          fmtPath?: string;
         }) => void
       ): void;
     };

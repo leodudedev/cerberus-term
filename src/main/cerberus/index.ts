@@ -27,5 +27,9 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
     console.error('[cerberus] notify.sh not found at', notifyScript);
   }
 
-  startDaemon(getWindow);
+  // jq program for the claude-stream follower projection (shipped as a resource
+  // so its non-ASCII-free markers never travel as a string through the pty).
+  const fmtPath = join(base, 'bin', 'claude-stream.jq');
+
+  startDaemon(getWindow, { fmtPath });
 }
