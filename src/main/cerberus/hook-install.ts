@@ -1,12 +1,26 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  copyFileSync,
+  chmodSync
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 
 // Silently install the Claude Code hooks so a native pane's CLI reports back to
-// our daemon. Idempotent + backed up: we APPEND our notify.sh to the existing
-// PreToolUse/Notification arrays without touching unrelated hooks (rtk, mycli).
-// Coexistence with the tmux mycli hook is by env gating (CERBERUS_PANE_ID vs
-// TMUX_PANE), so both can be registered at once.
+// our daemon. Idempotent + backed up: we APPEND to the existing hook arrays
+// without touching unrelated hooks (rtk, mycli). Coexistence with the tmux
+// mycli hook is by env gating (CERBERUS_PANE_ID vs TMUX_PANE).
+//
+// The registered command points at a STABLE copy under ~/.cerberus-term/hooks,
+// refreshed from the app bundle on every launch — never inside the .app or the
+// repo. Hooks are global: every Claude session (VS Code, plain terminal…) runs
+// them, and a path into a moved/deleted .app would error in all of them. The
+// stable copy survives app reinstalls, and outside a Cerberus pane it exits 0
+// instantly (CERBERUS_PANE_ID gate). Stale entries pointing into an app bundle
+// or a repo checkout are migrated to the stable path.
 
 interface HookCmd {
   type: string;
@@ -26,8 +40,37 @@ function claudeSettingsPath(): string {
   return join(dir, 'settings.json');
 }
 
+export function stableHooksDir(): string {
+  return join(homedir(), '.cerberus-term', 'hooks');
+}
+
+// Our own hook registered under a now-obsolete location (inside an .app bundle
+// or a repo checkout). Deliberately narrow so mycli/rtk entries never match.
+function isStaleCerberusCommand(command: string, stablePath: string): boolean {
+  if (command === stablePath) return false;
+  if (!command.endsWith('/notify.sh')) return false;
+  return (
+    command.includes('Cerberus.app/Contents/Resources/hooks/') ||
+    command.includes('cerberus-term/resources/hooks/')
+  );
+}
+
 function groupHasCommand(groups: HookGroup[], command: string): boolean {
   return groups.some((g) => g.hooks?.some((h) => h.command === command));
+}
+
+// Copy the hook scripts from the app bundle to the stable dir (refreshed every
+// launch so updates propagate). Returns the stable notify.sh path.
+export function syncHookScripts(bundledHooksDir: string, targetDir = stableHooksDir()): string {
+  mkdirSync(targetDir, { recursive: true });
+  for (const name of ['notify.sh', 'copilot-notify.sh']) {
+    const src = join(bundledHooksDir, name);
+    if (!existsSync(src)) continue;
+    const dst = join(targetDir, name);
+    copyFileSync(src, dst);
+    chmodSync(dst, 0o755);
+  }
+  return join(targetDir, 'notify.sh');
 }
 
 export function installClaudeHooks(notifyScript: string): void {
@@ -48,7 +91,18 @@ export function installClaudeHooks(notifyScript: string): void {
 
   let changed = false;
   for (const ev of events) {
-    const groups = (settings.hooks[ev] ??= []);
+    let groups = (settings.hooks[ev] ??= []);
+
+    // Migrate stale entries (old .app / repo paths) off every session's hot path.
+    for (const g of groups) {
+      if (!g.hooks) continue;
+      const before = g.hooks.length;
+      g.hooks = g.hooks.filter((h) => !isStaleCerberusCommand(h.command, notifyScript));
+      if (g.hooks.length !== before) changed = true;
+    }
+    groups = groups.filter((g) => !g.hooks || g.hooks.length > 0);
+    settings.hooks[ev] = groups;
+
     if (!groupHasCommand(groups, notifyScript)) {
       groups.push({ matcher: '', hooks: [{ type: 'command', command: notifyScript }] });
       changed = true;
