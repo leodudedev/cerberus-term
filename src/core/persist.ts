@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 
@@ -36,7 +36,12 @@ export function saveState(patch: Partial<PersistedState>): void {
   Object.assign(cur, patch);
   try {
     mkdirSync(dirname(statePath), { recursive: true });
-    writeFileSync(statePath, JSON.stringify(cur));
+    // Atomic: write to a temp file then rename, so a crash mid-write can't
+    // truncate the state file (which loadState would then read as {} — losing
+    // mutes and session links).
+    const tmp = `${statePath}.tmp`;
+    writeFileSync(tmp, JSON.stringify(cur));
+    renameSync(tmp, statePath);
   } catch (e) {
     console.error("[persist] write failed:", (e as Error).message);
   }

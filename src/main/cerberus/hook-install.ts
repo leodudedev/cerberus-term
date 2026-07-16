@@ -4,7 +4,8 @@ import {
   existsSync,
   mkdirSync,
   copyFileSync,
-  chmodSync
+  chmodSync,
+  renameSync
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -117,7 +118,10 @@ export function installClaudeHooks(notifyScript: string): void {
       copyFileSync(file, `${file}.cerberus-bak`);
     }
     mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(settings, null, 2));
+    // Atomic write: never risk leaving the user's Claude settings.json truncated.
+    const tmp = `${file}.cerberus-tmp`;
+    writeFileSync(tmp, JSON.stringify(settings, null, 2));
+    renameSync(tmp, file);
     console.log('[hooks] installed Claude hooks ->', notifyScript);
   } catch (e) {
     console.error('[hooks] install failed:', (e as Error).message);

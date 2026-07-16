@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_SETTINGS, type Settings } from '../core/settings.js';
 
@@ -32,7 +32,10 @@ export function getSettings(): Settings {
 
 export function saveSettings(s: Settings): void {
   cached = merge(s);
-  writeFileSync(file(), JSON.stringify(cached, null, 2));
+  const path = file();
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, JSON.stringify(cached, null, 2));
+  renameSync(tmp, path); // atomic
 }
 
 // Force-set the env the daemon/bot read, so in-app settings win over .env.
