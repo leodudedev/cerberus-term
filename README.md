@@ -135,6 +135,13 @@ absolute file path and shell-quotes everything it runs. Telegram callbacks are
 checked against your allowed chat(s). CLI hooks are gated on `CERBERUS_PANE_ID`,
 so they fire only inside a Cerberus pane and coexist with any tmux-based setup.
 
+Your Telegram bot token (`~/.cerberus-term/cerberus-settings.json` — or platform
+userData) and the session state (`~/.cerberus-term/cerberus-state.json`) are
+stored in **plaintext**, like a `.env`. Anyone with access to your user account
+can read them; keep the machine trusted. The loopback daemon is currently
+**unauthenticated** — any local process can post events or open follower panes,
+so treat it as trusted-local-only.
+
 ## Stack
 
 Electron · xterm.js · node-pty · TypeScript · electron-vite · electron-builder ·
