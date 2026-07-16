@@ -106,9 +106,21 @@ function summarizeResult(resp: unknown): string {
   return "";
 }
 
+// Cap the request body: a local process could otherwise stream an unbounded
+// payload and block the main process on Buffer.concat + JSON.parse (UI freeze).
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
+
 async function readJson(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
+  let size = 0;
+  for await (const c of req) {
+    size += (c as Buffer).length;
+    if (size > MAX_BODY_BYTES) {
+      req.destroy();
+      throw new Error("payload_too_large");
+    }
+    chunks.push(c as Buffer);
+  }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : null;
 }
