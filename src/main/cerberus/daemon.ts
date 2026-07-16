@@ -20,6 +20,19 @@ import { capturePane } from "../pane-control.js";
 const ALWAYS_OPTION_RE =
   /don['’]?t ask again|allow all|always allow|yes,?\s+and\b|non chiedere|consenti sempre|approva sempre/i;
 
+// Narrow the 16KB pane buffer to just the numbered-options block of the current
+// dialog (from its last "1." line to the end). Testing ALWAYS_OPTION_RE on the
+// whole buffer could match "yes, and …" in earlier assistant text and wrongly
+// show the "always" button — whose tap sends "2⏎", i.e. "No" on a 2-option
+// dialog. Falls back to the full buffer if no numbered option is found.
+function dialogOptionsBlock(buf: string): string {
+  const lines = buf.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (/^\s*[❯>»]?\s*1[.)]\s/.test(lines[i]!)) return lines.slice(i).join("\n");
+  }
+  return buf;
+}
+
 // HTTP daemon that receives detection events from the hook scripts.
 // Two producers, one endpoint:
 //  - Claude Code  `Notification` hook (hooks/notify.sh) — snake_case payload,
@@ -141,6 +154,13 @@ const server = createServer(async (req, res) => {
   // read-only pane that follows a worker log. Loopback-only; require an absolute
   // file path so nothing shell-injectable reaches the follower's tail command.
   if (req.method === "POST" && req.url === "/pane") {
+    // Follower panes run POSIX commands (tail -f, jq) — not supported on Windows
+    // yet. Reject cleanly instead of opening a broken pane.
+    if (process.platform === "win32") {
+      res.writeHead(501, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "not_supported_on_windows" }));
+      return;
+    }
     let body: { file?: string; title?: string; cwd?: string; format?: string };
     try {
       body = (await readJson(req)) as typeof body;
@@ -323,7 +343,7 @@ const server = createServer(async (req, res) => {
         await sleep(200);
         dialog = await capturePane(pane);
       }
-      hasAlways = ALWAYS_OPTION_RE.test(dialog);
+      hasAlways = ALWAYS_OPTION_RE.test(dialogOptionsBlock(dialog));
     }
 
     const profile: Profile = agent === "copilot" ? "copilot" : profileFromConfigDir(body?.config_dir);
