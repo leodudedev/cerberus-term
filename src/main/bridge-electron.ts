@@ -2,6 +2,7 @@ import { ipcMain, type BrowserWindow } from 'electron';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { randomUUID } from 'node:crypto';
 import { readlinkSync, existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
@@ -84,8 +85,9 @@ export function getPaneBuffer(paneId: string): string {
 export function registerBridge(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('pty:spawn', (_e, opts: SpawnOptions): string => {
     const paneId = randomUUID();
-    // Restore may hand us a cwd that no longer exists; fall back to $HOME.
-    const home = process.env['HOME'] ?? process.cwd();
+    // Restore may hand us a cwd that no longer exists; fall back to home.
+    // os.homedir() works on Windows too (HOME is usually unset there).
+    const home = homedir() || process.cwd();
     const spawnCwd = opts.cwd && existsSync(opts.cwd) ? opts.cwd : home;
     // Inject the pane identity + daemon port so the CLI hooks report back an
     // exact pane<->event correlation and reach our daemon (not mycli's :8899).
