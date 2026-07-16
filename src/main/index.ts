@@ -98,12 +98,17 @@ function createWindow(): void {
     if (input.type !== 'keyDown') return;
     const mod = process.platform === 'darwin' ? input.meta : input.control;
     if (!mod) return;
-    if (['=', '+', '-', '0'].includes(input.key)) {
-      event.preventDefault();
-    } else if (input.key === ',') {
-      // Reliable Cmd+, even if the menu accelerator doesn't fire.
+    if (input.key === ',') {
+      // Reliable Cmd/Ctrl+, even if the menu accelerator doesn't fire.
       event.preventDefault();
       mainWindow?.webContents.send('cerberus:open-settings');
+      return;
+    }
+    // Block browser zoom only on macOS (Cmd+±/0). On Windows/Linux those are
+    // Ctrl+± which the shell and TUIs use (readline, emacs C-_/C-0…), so leave
+    // them to the terminal — the app menu carries no zoom roles anyway.
+    if (process.platform === 'darwin' && ['=', '+', '-', '0'].includes(input.key)) {
+      event.preventDefault();
     }
   });
 
