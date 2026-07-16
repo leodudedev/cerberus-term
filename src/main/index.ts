@@ -65,8 +65,13 @@ function buildMenu(): void {
     ...(!isMac
       ? [
           {
-            label: 'Settings',
-            submenu: [{ label: 'Settings…', accelerator: 'Ctrl+,', click: openSettings }]
+            label: 'File',
+            submenu: [
+              { label: 'Settings…', accelerator: 'Ctrl+,', click: openSettings },
+              { type: 'separator' },
+              { role: 'about' },
+              { role: 'quit' } // Ctrl+Q, the expected quit on Windows/Linux
+            ]
           } as MenuItemConstructorOptions
         ]
       : [])
