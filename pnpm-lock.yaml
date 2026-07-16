@@ -8,12 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@xterm/addon-fit':
-        specifier: ^0.11.0
-        version: 0.11.0
-      '@xterm/xterm':
-        specifier: ^6.0.0
-        version: 6.0.0
       grammy:
         specifier: ^1.44.0
         version: 1.44.0
@@ -27,6 +21,12 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.1
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
       electron:
         specifier: ^33.3.1
         version: 33.4.11
