@@ -1,12 +1,16 @@
-import { config } from "./config.js";
-
 // Telegram-facing strings only. Text that originates from the CLI (the
 // assistant's recap, the tool command) is passed through untouched — it's
 // already in whatever language the session speaks. Default English; set
 // CERBERUS_LANG=it for Italian.
 
 type Lang = "en" | "it";
-const lang = config.lang as Lang;
+
+// Resolved at CALL time, not import time: the in-app Settings language is
+// applied to the env (applySettingsToEnv) only after this module is imported,
+// so a value captured here would always be stale.
+function langNow(): Lang {
+  return (process.env.CERBERUS_LANG ?? "").toLowerCase().startsWith("it") ? "it" : "en";
+}
 
 const strings = {
   en: {
@@ -71,7 +75,13 @@ const strings = {
   },
 } as const;
 
-export const t = strings[lang];
+// Proxy so every property access re-resolves the current language.
+export const t = new Proxy({} as (typeof strings)["en"], {
+  get: (_t, prop: string | symbol) =>
+    strings[langNow()][prop as keyof (typeof strings)["en"]],
+});
 
-// Locale for time formatting, matched to the chosen language.
-export const timeLocale = lang === "it" ? "it-IT" : "en-GB";
+// Locale for time formatting, matched to the current language.
+export function timeLocale(): string {
+  return langNow() === "it" ? "it-IT" : "en-GB";
+}

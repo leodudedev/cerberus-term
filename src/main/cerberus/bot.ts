@@ -102,7 +102,7 @@ export function initBot(): boolean {
       : { approve: t.markApproved, always: t.markAlways, deny: t.markDenied, esc: t.markCancelled }[
           action
         ] ?? action;
-    const when = new Date().toLocaleTimeString(timeLocale, { hour: "2-digit", minute: "2-digit" });
+    const when = new Date().toLocaleTimeString(timeLocale(), { hour: "2-digit", minute: "2-digit" });
     try {
       await ctx.editMessageReplyMarkup({
         reply_markup: new InlineKeyboard().text(`${label} · ${when}`, `noop:${sessionId}`),
@@ -147,7 +147,7 @@ export function initBot(): boolean {
     const list = listMuted();
     if (!list.length) return void ctx.reply(t.noMutedProjects);
     const lines = list.map((m) => {
-      const when = m.until === Infinity ? "∞" : new Date(m.until).toLocaleTimeString(timeLocale);
+      const when = m.until === Infinity ? "∞" : new Date(m.until).toLocaleTimeString(timeLocale());
       return t.mutedEntry(basename(m.cwd), when);
     });
     await ctx.reply(lines.join("\n"));
