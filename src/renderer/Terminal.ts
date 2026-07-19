@@ -46,6 +46,26 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
 
   el.addEventListener('focusin', () => focusCbs.forEach((cb) => cb()));
 
+  // Drag-and-drop: insert dropped file paths into the pty (e.g. an image onto a
+  // Claude Code session). preventDefault on dragover is required or the browser
+  // swallows the drop; on drop it stops Electron from navigating to file://.
+  el.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  });
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const files = e.dataTransfer?.files;
+    if (!files?.length || !paneId || readOnly) return;
+    const quoted = Array.from(files)
+      .map((f) => window.cerberus.pathForFile(f))
+      .filter(Boolean)
+      // POSIX single-quote so paths with spaces/specials stay one token
+      .map((p) => `'${p.replace(/'/g, "'\\''")}'`)
+      .join(' ');
+    if (quoted) window.cerberus.write(paneId, quoted + ' ');
+  });
+
   const ro = new ResizeObserver(() => {
     if (disposed) return;
     fit.fit();
@@ -56,6 +76,14 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
   // Swallow our Cmd combos so they never reach the shell.
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true;
+    // Shift+Enter -> literal newline. xterm sends CR (\r) for both Enter and
+    // Shift+Enter; TUIs like Claude Code treat CR as "submit" and LF as
+    // "insert newline", so send LF ourselves (what `/terminal-setup` does).
+    if (e.key === 'Enter' && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault(); // stop the hidden textarea from inserting its own newline
+      if (paneId && !readOnly) window.cerberus.write(paneId, '\n');
+      return false;
+    }
     if (e.metaKey && !e.ctrlKey && !e.altKey) {
       const k = e.key.toLowerCase();
       if (k === 'd') {

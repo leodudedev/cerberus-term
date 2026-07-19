@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { SpawnOptions, TerminalBridge } from '../core/terminal-bridge.js';
 import type { ConfigBridge, ConfigTarget, SaveResult } from '../core/config-bridge.js';
 import type {
@@ -45,7 +45,10 @@ const bridge: TerminalBridge = {
   kill: (paneId) => ipcRenderer.send('pty:kill', paneId),
   onData: (paneId, cb) => subscribe(dataListeners, paneId, cb),
   onExit: (paneId, cb) => subscribe(exitListeners, paneId, cb),
-  cwd: (paneId) => ipcRenderer.invoke('pty:cwd', paneId) as Promise<string>
+  cwd: (paneId) => ipcRenderer.invoke('pty:cwd', paneId) as Promise<string>,
+  // Electron 32+ removed File.path; webUtils resolves a dropped File to its
+  // absolute path so drag-and-drop can insert it into the pty.
+  pathForFile: (file) => webUtils.getPathForFile(file)
 };
 
 contextBridge.exposeInMainWorld('cerberus', bridge);

@@ -23,4 +23,6 @@ export interface TerminalBridge {
   onExit(paneId: string, cb: (code: number) => void): () => void;
   /** Live cwd of a pane's shell (for session-restore snapshots + titles). */
   cwd(paneId: string): Promise<string>;
+  /** Absolute path of a dropped File (for drag-and-drop into the pty). */
+  pathForFile(file: File): string;
 }
