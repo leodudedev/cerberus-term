@@ -302,15 +302,15 @@ export async function pushCompletion(o: {
   chatId: string;
   messageId?: number;
 }): Promise<void> {
-  if (!bot) return;
-  // Fixed one-liner threaded under the original request: the command + output
-  // used to be echoed here, but that just cluttered the chat and duplicated the
-  // permission message above. The reply thread already says which request ran.
-  const reply = o.messageId ? { reply_parameters: { message_id: o.messageId } } : {};
+  if (!bot || !o.messageId) return;
+  // React on the original request instead of sending a message: a remotely
+  // approved tool finishing is a low-signal event, and a 👍 on the exact prompt
+  // conveys "done" without adding a line to the chat. (✅ isn't a valid Telegram
+  // reaction; 👍 is.)
   try {
-    await bot.api.sendMessage(o.chatId, t.remoteFeed, reply);
+    await bot.api.setMessageReaction(o.chatId, o.messageId, [{ type: "emoji", emoji: "👍" }]);
   } catch (e) {
-    console.error("[bot] completion push failed:", (e as Error).message);
+    console.error("[bot] completion reaction failed:", (e as Error).message);
   }
 }
 

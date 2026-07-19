@@ -27,8 +27,6 @@ const strings = {
     markCancelled: "⎋ Cancelled",
     markHandledLocal: "💻 Handled on PC",
     markOption: (n: string) => `✅ Option ${n}`,
-    // Completion feed for a remotely-approved tool (threaded under its request)
-    remoteFeed: "✅ Received from the remote session",
     // Callback toasts
     handled: "Already handled",
     noSession: "Session not found",
@@ -60,8 +58,6 @@ const strings = {
     markCancelled: "⎋ Annullato",
     markHandledLocal: "💻 Gestito sul PC",
     markOption: (n: string) => `✅ Opzione ${n}`,
-    // Completion feed for a remotely-approved tool (threaded under its request)
-    remoteFeed: "✅ Ricevuto dalla sessione remota",
     handled: "Già gestito",
     noSession: "Sessione non trovata",
     expired: "Scaduto — richiesta troppo vecchia",
