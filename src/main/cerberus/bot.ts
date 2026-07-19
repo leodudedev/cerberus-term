@@ -24,6 +24,12 @@ let chatId: string | null = null;
 // chat plus TELEGRAM_ALLOWED_CHATS (csv). Guards per-project chatId overrides.
 const allowedChats = new Set<string>();
 
+// Live buttoned permission messages, keyed by session. Lets a LOCAL (keyboard)
+// approval on the PC retire the now-useless Telegram buttons instead of leaving
+// them dangling. Set when a message with buttons is sent; cleared when a tap
+// resolves it or markHandledLocally() fires.
+const livePerm = new Map<string, { chatId: string; messageId: number }>();
+
 export function initBot(): boolean {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   chatId = process.env.TELEGRAM_CHAT_ID ?? null;
@@ -103,6 +109,7 @@ export function initBot(): boolean {
           action
         ] ?? action;
     const when = new Date().toLocaleTimeString(timeLocale(), { hour: "2-digit", minute: "2-digit" });
+    livePerm.delete(sessionId); // tapped -> resolved remotely, never local-mark it
     try {
       await ctx.editMessageReplyMarkup({
         reply_markup: new InlineKeyboard().text(`${label} · ${when}`, `noop:${sessionId}`),
@@ -269,6 +276,24 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
   }
   // Link the message so a reply routes back to this session.
   linkMessage(sent.message_id, s.sessionId);
+  // Buttoned message -> track it so a local approval can retire the buttons.
+  if (kb) livePerm.set(s.sessionId, { chatId: target, messageId: sent.message_id });
+}
+
+// A permission approved/handled on the PC (no remote tap): strip the dangling
+// buttons from its Telegram message so the chat doesn't keep a dead prompt.
+export async function markHandledLocally(sessionId: string): Promise<void> {
+  const m = livePerm.get(sessionId);
+  if (!m || !bot) return;
+  livePerm.delete(sessionId);
+  const when = new Date().toLocaleTimeString(timeLocale(), { hour: "2-digit", minute: "2-digit" });
+  try {
+    await bot.api.editMessageReplyMarkup(m.chatId, m.messageId, {
+      reply_markup: new InlineKeyboard().text(`${t.markHandledLocal} · ${when}`, `noop:${sessionId}`),
+    });
+  } catch {
+    // message too old or already edited — ignore
+  }
 }
 
 // Completion feed for a remotely-approved tool: threaded under the original
@@ -276,28 +301,16 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
 export async function pushCompletion(o: {
   chatId: string;
   messageId?: number;
-  toolName: string;
-  command: string;
-  result: string;
 }): Promise<void> {
   if (!bot) return;
-  const flat = o.command.replace(/\s*\n\s*/g, " ⏎ ");
-  const cmd = flat ? `: \`${escapeCode(truncate(flat, CMD_MAX))}\`` : "";
-  let text = `✅ *${escapeMd(o.toolName || "done")}*${cmd}`;
-  if (o.result) text += `\n${escapeMd(tailText(o.result, 800))}`;
+  // Fixed one-liner threaded under the original request: the command + output
+  // used to be echoed here, but that just cluttered the chat and duplicated the
+  // permission message above. The reply thread already says which request ran.
   const reply = o.messageId ? { reply_parameters: { message_id: o.messageId } } : {};
   try {
-    await bot.api.sendMessage(o.chatId, text, { parse_mode: "MarkdownV2", ...reply });
+    await bot.api.sendMessage(o.chatId, t.remoteFeed, reply);
   } catch (e) {
-    console.error("[bot] completion markdown failed, retrying plain:", (e as Error).message);
-    const plain =
-      `✅ ${o.toolName}${flat ? ": " + truncate(flat, CMD_MAX) : ""}` +
-      (o.result ? "\n" + tailText(o.result, 800) : "");
-    try {
-      await bot.api.sendMessage(o.chatId, plain, reply);
-    } catch (e2) {
-      console.error("[bot] completion push failed:", (e2 as Error).message);
-    }
+    console.error("[bot] completion push failed:", (e as Error).message);
   }
 }
 

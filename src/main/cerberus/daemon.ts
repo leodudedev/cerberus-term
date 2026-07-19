@@ -3,7 +3,7 @@ import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
 import { upsertSession } from "../../core/registry.js";
-import { initBot, pushAttention, pushCompletion } from "./bot.js";
+import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bot.js";
 import { takeApproval } from "./remote-approvals.js";
 import { lastAssistantText, lastCopilotText, type ToolUse } from "../../core/transcript.js";
 import { readProjectConfig } from "../../core/project-config.js";
@@ -98,25 +98,6 @@ function extractQuestionOptions(toolName: string, input: unknown): string[] | un
     .filter(Boolean)
     .slice(0, 8);
   return labels.length ? labels : undefined;
-}
-
-// Pull a short human-readable result out of a PostToolUse tool_response, whose
-// shape varies by tool (string, {stdout}, {filePath}, structured object).
-function summarizeResult(resp: unknown): string {
-  if (typeof resp === "string") return resp.trim();
-  if (resp && typeof resp === "object") {
-    const r = resp as Record<string, unknown>;
-    for (const k of ["stdout", "message", "content", "filePath", "result"]) {
-      const v = r[k];
-      if (typeof v === "string" && v.trim()) return v.trim();
-    }
-    try {
-      return JSON.stringify(r).slice(0, 400);
-    } catch {
-      return "";
-    }
-  }
-  return "";
 }
 
 // Cap the request body: a local process could otherwise stream an unbounded
@@ -247,13 +228,15 @@ const server = createServer(async (req, res) => {
     if (agent === "claude" && hook.hook_event_name === "PostToolUse") {
       const appr = takeApproval(sessionId, String(hook.tool_name ?? ""));
       if (appr) {
-        void pushCompletion({
-          chatId: appr.chatId,
-          messageId: appr.messageId,
-          toolName: appr.toolName || String(hook.tool_name ?? ""),
-          command: appr.command,
-          result: summarizeResult(hook.tool_response),
-        }).catch((e) => console.error("[bot] completion failed", e));
+        void pushCompletion({ chatId: appr.chatId, messageId: appr.messageId }).catch((e) =>
+          console.error("[bot] completion failed", e),
+        );
+      } else {
+        // Not remotely approved -> handled locally on the PC. Strip the now-dead
+        // buttons from the Telegram permission message so the chat stays clean.
+        void markHandledLocally(sessionId).catch((e) =>
+          console.error("[bot] local-mark failed", e),
+        );
       }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
@@ -278,13 +261,9 @@ const server = createServer(async (req, res) => {
       // under the original notification and skip the generic "done" push.
       const appr = takeApproval(sessionId, "");
       if (appr) {
-        void pushCompletion({
-          chatId: appr.chatId,
-          messageId: appr.messageId,
-          toolName: appr.toolName || "Copilot",
-          command: appr.command,
-          result: doneText,
-        }).catch((e) => console.error("[bot] completion failed", e));
+        void pushCompletion({ chatId: appr.chatId, messageId: appr.messageId }).catch((e) =>
+          console.error("[bot] completion failed", e),
+        );
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
         return;
