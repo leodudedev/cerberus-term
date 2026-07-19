@@ -21,15 +21,68 @@ export function setPref(pref: ThemePref): void {
   }
 }
 
+// Dark is the standard-terminal baseline: TUI apps (Claude Code, vim, …) assume a
+// dark background and emit light foreground text, which turns invisible on a light
+// terminal. So 'system' resolves to dark; light applies only when explicitly chosen.
 export function resolve(pref: ThemePref): Theme {
-  if (pref === 'light' || pref === 'dark') return pref;
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  return pref === 'light' ? 'light' : 'dark';
 }
 
+// Full 16-color ANSI palettes. Without these, xterm.js falls back to its built-in
+// palette (tuned for a dark background), so on the light theme the ANSI colors and
+// dimmed text (\x1b[90m / SGR 2 faint) wash out and become unreadable — and neither
+// theme matches the familiar macOS Terminal / VS Code look. The light palette is
+// hand-darkened so every color keeps contrast against the #f5f5f5 background.
+const darkTheme: ITheme = {
+  background: '#1a1a1a',
+  foreground: '#e0e0e0',
+  cursor: '#4a9d7f',
+  cursorAccent: '#1a1a1a',
+  selectionBackground: '#2b3a34',
+  black: '#3a3a3a',
+  red: '#e06c6c',
+  green: '#4a9d7f',
+  yellow: '#d9a441',
+  blue: '#5c9fd6',
+  magenta: '#b48ead',
+  cyan: '#5fb3b3',
+  white: '#d0d0d0',
+  brightBlack: '#6a7070',
+  brightRed: '#f28b82',
+  brightGreen: '#6fce9f',
+  brightYellow: '#f0c674',
+  brightBlue: '#82b1e0',
+  brightMagenta: '#cba6c9',
+  brightCyan: '#8ed1d1',
+  brightWhite: '#ffffff'
+};
+
+const lightTheme: ITheme = {
+  background: '#f5f5f5',
+  foreground: '#1a1a1a',
+  cursor: '#2f7d63',
+  cursorAccent: '#f5f5f5',
+  selectionBackground: '#cfe6dc',
+  black: '#2a2a2a',
+  red: '#c0392b',
+  green: '#2f7d63',
+  yellow: '#9a7a00',
+  blue: '#2e6fb0',
+  magenta: '#8b3d8b',
+  cyan: '#2a7d7d',
+  white: '#5a5a5a',
+  brightBlack: '#767676',
+  brightRed: '#d0432b',
+  brightGreen: '#3a9a7a',
+  brightYellow: '#b08800',
+  brightBlue: '#3d82c4',
+  brightMagenta: '#a34da3',
+  brightCyan: '#3a9a9a',
+  brightWhite: '#1a1a1a'
+};
+
 export function xtermTheme(theme: Theme): ITheme {
-  return theme === 'light'
-    ? { background: '#f5f5f5', foreground: '#1a1a1a', cursor: '#2f7d63', selectionBackground: '#cfe6dc' }
-    : { background: '#1a1a1a', foreground: '#e0e0e0', cursor: '#4a9d7f', selectionBackground: '#2b3a34' };
+  return theme === 'light' ? lightTheme : darkTheme;
 }
 
 // Apply a pref: set <html data-theme> and broadcast so live terminals restyle.
