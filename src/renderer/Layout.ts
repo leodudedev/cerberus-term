@@ -1,11 +1,13 @@
 import { createTerminalPane, type TerminalPane } from './Terminal.js';
 import { makeSplitter } from './Splitter.js';
 import { makePaneHeader } from './PaneHeader.js';
+import { isFavorite } from './favorites.js';
 import type { PaneNode } from './pane-tree.js';
 
 interface LeafEntry {
   el: HTMLElement;
   pane: TerminalPane;
+  setFavoriteActive: (active: boolean) => void;
 }
 
 // One-shot overrides for a leaf about to be created (follower panes opened via
@@ -60,6 +62,7 @@ export class Layout {
         const paneId = await entry.pane.paneId;
         const cwd = await window.cerberus.cwd(paneId);
         out[id] = cwd;
+        entry.setFavoriteActive(isFavorite(cwd));
         if (this.lockedTitles.has(id)) continue; // follower panes keep their title
         const title = entry.el.querySelector<HTMLElement>('.pane-title');
         if (title) title.textContent = cwd.split('/').pop() || cwd;
@@ -210,10 +213,11 @@ export class Layout {
       const spec = this.paneSpecs.get(id);
       const cwd = spec?.cwd ?? this.cwdFor(id);
       const pane = createTerminalPane(body, cwd);
-      const header = makePaneHeader(id, () => pane.focus());
+      const { el: header, setFavoriteActive } = makePaneHeader(id, () => pane.focus());
       const titleEl = header.querySelector<HTMLElement>('.pane-title');
       const initialTitle = spec?.title || (cwd ? cwd.split('/').pop() || cwd : '');
       if (titleEl && initialTitle) titleEl.textContent = initialTitle;
+      if (cwd) setFavoriteActive(isFavorite(cwd));
 
       if (spec) {
         this.paneSpecs.delete(id); // one-shot
@@ -230,7 +234,7 @@ export class Layout {
         this.applyFocusStyles();
         this.onFocusChange(id);
       });
-      entry = { el, pane };
+      entry = { el, pane, setFavoriteActive };
       this.leaves.set(id, entry);
     }
     return entry.el;

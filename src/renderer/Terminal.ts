@@ -1,5 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { CanvasAddon } from '@xterm/addon-canvas';
 import '@xterm/xterm/css/xterm.css';
 import { currentTheme, xtermTheme, type Theme } from './themes.js';
 
@@ -32,6 +33,18 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
   term.loadAddon(fit);
   term.open(el);
   fit.fit();
+
+  // The base DOM renderer has a known dirty-row repaint bug: glyphs land in the
+  // buffer (proven by Enter forcing a redraw that reveals them) but don't paint
+  // to screen right at an autowrap boundary. Canvas addon repaints per-frame
+  // instead of per-DOM-node and doesn't have this gap. addon-canvas's peer range
+  // still says xterm ^5 while we're on 6, so guard activation and keep the DOM
+  // renderer as a fallback if the addon ever throws on load.
+  try {
+    term.loadAddon(new CanvasAddon());
+  } catch {
+    /* fall back to default DOM renderer */
+  }
 
   const onTheme = (e: Event): void => {
     term.options.theme = xtermTheme((e as CustomEvent<Theme>).detail);
@@ -98,6 +111,19 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
       // main.ts — more reliable than xterm focus. Swallow it here so the comma
       // never reaches the shell.
       if (e.key === ',') return false;
+      // xterm has no built-in mapping for Cmd+Arrow (only Alt+Arrow sends a meta
+      // escape natively). Mac terminals conventionally translate Cmd+Left/Right
+      // to readline's start/end-of-line, so replicate that ourselves.
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (paneId && !readOnly) window.cerberus.write(paneId, '\x01');
+        return false;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        if (paneId && !readOnly) window.cerberus.write(paneId, '\x05');
+        return false;
+      }
     }
     return true;
   });

@@ -100,6 +100,7 @@
         background: transparent;
         color: var(--muted);
         font-size: 12px;
+        font-variant-emoji: text;
         line-height: 1;
         cursor: pointer;
       }
@@ -107,8 +108,42 @@
         background: var(--btn-hover);
         color: var(--text);
       }
-      .pane-btn-gear {
-        margin-left: 8px;
+      .pane-btn-star-active {
+        color: #e0b84a;
+      }
+      .pane-btn-star-active:hover {
+        color: #e0b84a;
+      }
+      /* favorites overlay */
+      .favorites-modal {
+        width: min(480px, 90vw);
+        max-height: 60vh;
+      }
+      .favorites-list {
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .favorites-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .favorites-row:hover {
+        background: var(--btn-hover);
+      }
+      .favorites-path {
+        color: var(--text);
+        font-family: Menlo, Monaco, monospace;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       /* config editor modal */
       .config-overlay {

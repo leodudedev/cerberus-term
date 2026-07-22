@@ -15,6 +15,10 @@ import {
 import { installKeymap, type CerberusAction } from './keymap.js';
 import { loadLayout, saveLayout } from './persistence.js';
 import { applyPref, getPref, toggleTheme } from './themes.js';
+import { toggleFavorite } from './favorites.js';
+import { openFavoritesOverlay } from './FavoritesOverlay.js';
+
+const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
 
 // Theme first so the very first paint (and xterm) uses the right palette.
 applyPref(getPref());
@@ -59,9 +63,18 @@ if (container) {
     schedulePersist();
   };
 
-  const split = (dir: Dir, leafId: string): void => {
+  const split = async (dir: Dir, leafId: string): Promise<void> => {
+    // Inherit the source pane's live cwd so the new pane opens in the same dir.
+    let cwd: string | undefined;
+    try {
+      const srcPaneId = await layout.paneIdOf(leafId);
+      if (srcPaneId) cwd = await window.cerberus.cwd(srcPaneId);
+    } catch {
+      /* source pane gone — fall back to default cwd */
+    }
     const { root: next, newLeafId } = splitLeaf(root, leafId, dir);
     root = next;
+    if (cwd) layout.setPaneSpec(newLeafId, { cwd });
     rerender(newLeafId);
   };
 
@@ -79,12 +92,33 @@ if (container) {
   window.addEventListener('pane-cmd', (ev) => {
     const detail = (ev as CustomEvent<{ cmd: string; leafId?: string }>).detail;
     const target = detail.leafId ?? focusedLeafId;
-    if (detail.cmd === 'split-right') split('row', target);
-    else if (detail.cmd === 'split-down') split('column', target);
+    if (detail.cmd === 'split-right') void split('row', target);
+    else if (detail.cmd === 'split-down') void split('column', target);
     else if (detail.cmd === 'kill') kill(target);
     else if (detail.cmd === 'config') {
       const paneIdPromise = layout.paneIdOf(target);
       if (paneIdPromise) void paneIdPromise.then((paneId) => openConfigEditor(paneId));
+    } else if (detail.cmd === 'toggle-favorite') {
+      const paneIdPromise = layout.paneIdOf(target);
+      if (paneIdPromise) {
+        void paneIdPromise
+          .then((paneId) => window.cerberus.cwd(paneId))
+          .then((cwd) => {
+            toggleFavorite(cwd);
+            // Re-sync every pane's star immediately rather than waiting for the
+            // next periodic snapshot (also used for title/persistence refresh).
+            void layout.snapshotCwds();
+          });
+      }
+    } else if (detail.cmd === 'open-favorites') {
+      const paneIdPromise = layout.paneIdOf(target);
+      if (paneIdPromise) {
+        void paneIdPromise.then((paneId) => {
+          openFavoritesOverlay((path) => {
+            window.cerberus.write(paneId, `cd ${shellQuote(path)}\r`);
+          });
+        });
+      }
     }
   });
 
@@ -93,8 +127,6 @@ if (container) {
   window.cerberusUI.onOpenSettings(() => void openSettingsEditor());
 
   // External driver (POST /pane) -> open a read-only follower pane tailing a log.
-  const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
-
   window.cerberusUI.onOpenPane(({ file, title, cwd, format, fmtPath }) => {
     // Auto-tile: split the largest pane along its longer side (grid-ish growth).
     const target = layout.pickTileTarget();
@@ -127,7 +159,7 @@ if (container) {
   window.addEventListener('cerberus-action', (ev) => {
     const { type, dir } = (ev as CustomEvent<CerberusAction>).detail;
     if (type === 'split') {
-      split(dir === 'down' ? 'column' : 'row', focusedLeafId);
+      void split(dir === 'down' ? 'column' : 'row', focusedLeafId);
     } else if (type === 'kill') {
       kill(focusedLeafId);
     } else if (type === 'focus' && dir) {

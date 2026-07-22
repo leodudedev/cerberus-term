@@ -46,7 +46,10 @@ const darkTheme: ITheme = {
   blue: '#5c9fd6',
   magenta: '#b48ead',
   cyan: '#5fb3b3',
-  white: '#d0d0d0',
+  // Claude Code's slash menu marks the matched prefix and the selected row with
+  // brightWhite (SGR 97) over white (SGR 37) base — no bg, no color. Keep white a
+  // clear grey so bright-white highlights actually pop instead of blending in.
+  white: '#9e9e9e',
   brightBlack: '#6a7070',
   brightRed: '#f28b82',
   brightGreen: '#6fce9f',
