@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, type MenuItemConstructorOptions } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys } from './bridge-electron.js';
@@ -17,6 +17,7 @@ function buildMenu(): void {
   const isMac = process.platform === 'darwin';
   const openSettings = (): void => mainWindow?.webContents.send('cerberus:open-settings');
   const toggleTheme = (): void => mainWindow?.webContents.send('cerberus:toggle-theme');
+  const tab = (action: string): void => mainWindow?.webContents.send('cerberus:tab', action);
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -61,7 +62,27 @@ function buildMenu(): void {
         { role: 'togglefullscreen' }
       ]
     },
-    { role: 'windowMenu' },
+    {
+      label: 'Tab',
+      submenu: [
+        { label: 'New Tab', accelerator: 'CmdOrCtrl+T', click: () => tab('new') },
+        { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', click: () => tab('close') },
+        { type: 'separator' },
+        { label: 'Next Tab', accelerator: 'CmdOrCtrl+Shift+]', click: () => tab('next') },
+        { label: 'Previous Tab', accelerator: 'CmdOrCtrl+Shift+[', click: () => tab('prev') }
+      ]
+    },
+    // Custom Window submenu instead of role:'windowMenu' so Cmd+W is free for
+    // Close Tab; the window closes on Cmd+Shift+W (or when the last tab closes).
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'close', accelerator: 'CmdOrCtrl+Shift+W', label: 'Close Window' }
+      ]
+    },
     ...(!isMac
       ? [
           {
@@ -109,6 +130,13 @@ function createWindow(): void {
       mainWindow?.webContents.send('cerberus:open-settings');
       return;
     }
+    // Cmd/Ctrl+1..9 -> jump to tab N (9 items would clutter the menu, so this
+    // stays a keyboard-only binding routed straight to the renderer).
+    if (!input.shift && !input.alt && /^[1-9]$/.test(input.key)) {
+      event.preventDefault();
+      mainWindow?.webContents.send('cerberus:tab', 'select', Number(input.key) - 1);
+      return;
+    }
     // Block browser zoom only on macOS (Cmd+±/0). On Windows/Linux those are
     // Ctrl+± which the shell and TUIs use (readline, emacs C-_/C-0…), so leave
     // them to the terminal — the app menu carries no zoom roles anyway.
@@ -137,6 +165,8 @@ app.whenReady().then(() => {
   registerBridge(() => mainWindow);
   registerConfigIpc();
   registerSettingsIpc();
+  // Renderer asks to close the window after the last tab is closed.
+  ipcMain.on('cerberus:close-window', () => mainWindow?.close());
   buildMenu();
   createWindow();
 

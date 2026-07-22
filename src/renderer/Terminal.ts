@@ -13,6 +13,10 @@ export interface TerminalPane {
   focus(): void;
   onFocus(cb: () => void): void;
   setReadOnly(v: boolean): void;
+  // Re-measure and resize the pty to the container. Called on tab activation:
+  // a pane living in a display:none tab can't measure, so its fit is deferred
+  // until the tab is shown again.
+  refit(): void;
   dispose(): void;
 }
 
@@ -32,7 +36,11 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(el);
-  fit.fit();
+  // A detached/hidden container (a background tab) measures 0 — fitting against
+  // it would resize the pty to a garbage 1x1. Only fit while actually visible;
+  // refit() re-runs this the moment the pane's tab is shown.
+  const isVisible = (): boolean => el.isConnected && el.offsetParent !== null;
+  if (isVisible()) fit.fit();
 
   // The base DOM renderer has a known dirty-row repaint bug: glyphs land in the
   // buffer (proven by Enter forcing a redraw that reveals them) but don't paint
@@ -82,11 +90,12 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
     if (quoted) window.cerberus.write(paneId, quoted + ' ');
   });
 
-  const ro = new ResizeObserver(() => {
-    if (disposed) return;
+  const fitNow = (): void => {
+    if (disposed || !isVisible()) return;
     fit.fit();
     if (paneId) window.cerberus.resize(paneId, term.cols, term.rows);
-  });
+  };
+  const ro = new ResizeObserver(fitNow);
   ro.observe(el);
 
   // Swallow our Cmd combos so they never reach the shell.
@@ -161,6 +170,7 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
     setReadOnly: (v) => {
       readOnly = v;
     },
+    refit: () => fitNow(),
     dispose: () => {
       disposed = true;
       ro.disconnect();

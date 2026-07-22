@@ -30,6 +30,18 @@ function defaultShell(): string {
   return process.env['SHELL'] ?? '/bin/zsh';
 }
 
+// Spawn the shell as a LOGIN shell (like Terminal.app / iTerm do). Without this
+// ~/.zprofile / ~/.profile never run, so PATH additions, brew shellenv, and
+// interactive plugins (zsh-autosuggestions, fish) aren't loaded — which is why
+// the greyed-out next-command suggestion is missing. Interactivity is implied
+// by the pty tty. PowerShell/other shells: no login flag.
+function shellArgs(shell: string): string[] {
+  if (process.platform === 'win32') return [];
+  const base = shell.split('/').pop() ?? '';
+  if (base === 'zsh' || base === 'bash' || base === 'fish') return ['-l'];
+  return [];
+}
+
 // node-pty wants a fully-defined string env; drop undefined values.
 function cleanEnv(extra?: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
@@ -91,13 +103,19 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
     const spawnCwd = opts.cwd && existsSync(opts.cwd) ? opts.cwd : home;
     // Inject the pane identity + daemon port so the CLI hooks report back an
     // exact pane<->event correlation and reach our daemon (not mycli's :8899).
-    const proc = ptySpawn(opts.shell ?? defaultShell(), [], {
-      name: 'xterm-color',
+    const shell = opts.shell ?? defaultShell();
+    const proc = ptySpawn(shell, shellArgs(shell), {
+      name: 'xterm-256color',
       cols: opts.cols,
       rows: opts.rows,
       cwd: spawnCwd,
       env: cleanEnv({
         ...(opts.env ?? {}),
+        // Advertise 24-bit color so TUIs (Claude Code, bat, delta, syntax
+        // highlighters) emit truecolor instead of collapsing onto the 16-color
+        // ANSI palette — what iTerm/VS Code set. This is the main reason output
+        // looked flat.
+        COLORTERM: 'truecolor',
         CERBERUS_PANE_ID: paneId,
         CERBERUS_PORT: String(config.port)
       })

@@ -13,11 +13,13 @@ export interface Settings {
   telegram: TelegramSettings;
   launchCmds: Record<string, string>; // agent -> command (claude, copilot, …)
   defaultShell?: string; // pty shell when a pane doesn't specify one
+  skipCloseConfirm?: boolean; // when true, closing a pane/tab skips the confirm
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
-  launchCmds: { claude: 'claude', copilot: 'copilot' }
+  launchCmds: { claude: 'claude', copilot: 'copilot' },
+  skipCloseConfirm: false
 };
 
 export type SaveResult = { ok: true } | { ok: false; error: string };

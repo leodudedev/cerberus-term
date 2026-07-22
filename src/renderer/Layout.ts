@@ -165,6 +165,12 @@ export class Layout {
     return best;
   }
 
+  // Re-measure every live pane. Called when this layout's tab becomes visible
+  // again: panes deferred their fit while the tab was display:none.
+  refit(): void {
+    for (const entry of this.leaves.values()) entry.pane.refit();
+  }
+
   focusLeaf(leafId: string): void {
     this.focusedLeafId = leafId;
     this.leaves.get(leafId)?.pane.focus();

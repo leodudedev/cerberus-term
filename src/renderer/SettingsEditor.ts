@@ -54,6 +54,10 @@ export async function openSettingsEditor(): Promise<void> {
   shell.placeholder = '$SHELL';
   const claudeCmd = textInput(s.launchCmds['claude'] ?? 'claude');
   const copilotCmd = textInput(s.launchCmds['copilot'] ?? 'copilot');
+  const skipConfirm = document.createElement('input');
+  skipConfirm.type = 'checkbox';
+  skipConfirm.className = 'settings-checkbox';
+  skipConfirm.checked = s.skipCloseConfirm ?? false;
 
   const hint = document.createElement('div');
   hint.className = 'settings-hint';
@@ -83,6 +87,7 @@ export async function openSettingsEditor(): Promise<void> {
     row('Default shell', shell),
     row('Launch: claude', claudeCmd),
     row('Launch: copilot', copilotCmd),
+    row('Skip confirm on close', skipConfirm),
     hint,
     error,
     buttons
@@ -121,10 +126,14 @@ export async function openSettingsEditor(): Promise<void> {
         claude: claudeCmd.value.trim() || 'claude',
         copilot: copilotCmd.value.trim() || 'copilot'
       },
-      defaultShell: shell.value.trim() || undefined
+      defaultShell: shell.value.trim() || undefined,
+      skipCloseConfirm: skipConfirm.checked
     };
     const res = await window.cerberusSettings.save(next);
-    if (res.ok) close();
-    else error.textContent = res.error;
+    if (res.ok) {
+      // Let live components (Workspace close-confirm gate) pick up the change.
+      window.dispatchEvent(new CustomEvent('settings-changed'));
+      close();
+    } else error.textContent = res.error;
   });
 }

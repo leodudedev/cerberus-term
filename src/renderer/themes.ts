@@ -39,24 +39,26 @@ const darkTheme: ITheme = {
   cursor: '#4a9d7f',
   cursorAccent: '#1a1a1a',
   selectionBackground: '#2b3a34',
+  // Vivid ANSI palette (VS Code-family hues) so apps that only use the 16-color
+  // ANSI set don't look washed-out. Truecolor apps bypass this via COLORTERM.
   black: '#3a3a3a',
-  red: '#e06c6c',
-  green: '#4a9d7f',
-  yellow: '#d9a441',
-  blue: '#5c9fd6',
-  magenta: '#b48ead',
-  cyan: '#5fb3b3',
+  red: '#e05561',
+  green: '#22c98b',
+  yellow: '#e5b95c',
+  blue: '#4aa5f0',
+  magenta: '#c678dd',
+  cyan: '#33c5d8',
   // Claude Code's slash menu marks the matched prefix and the selected row with
   // brightWhite (SGR 97) over white (SGR 37) base — no bg, no color. Keep white a
   // clear grey so bright-white highlights actually pop instead of blending in.
   white: '#9e9e9e',
   brightBlack: '#6a7070',
-  brightRed: '#f28b82',
-  brightGreen: '#6fce9f',
-  brightYellow: '#f0c674',
-  brightBlue: '#82b1e0',
-  brightMagenta: '#cba6c9',
-  brightCyan: '#8ed1d1',
+  brightRed: '#ff6b7a',
+  brightGreen: '#3ae3a0',
+  brightYellow: '#f5cf78',
+  brightBlue: '#6cb6ff',
+  brightMagenta: '#d68fee',
+  brightCyan: '#4fdde3',
   brightWhite: '#ffffff'
 };
 

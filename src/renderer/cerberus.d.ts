@@ -2,6 +2,16 @@ import type { TerminalBridge } from '../core/terminal-bridge.js';
 import type { ConfigBridge } from '../core/config-bridge.js';
 import type { SettingsBridge } from '../core/settings.js';
 
+export interface OpenPanePayload {
+  file: string;
+  title: string;
+  cwd: string;
+  format?: 'raw' | 'claude-stream';
+  fmtPath?: string;
+}
+
+export type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
+
 declare global {
   interface Window {
     cerberus: TerminalBridge;
@@ -10,15 +20,9 @@ declare global {
     cerberusUI: {
       onOpenSettings(cb: () => void): void;
       onToggleTheme(cb: () => void): void;
-      onOpenPane(
-        cb: (p: {
-          file: string;
-          title: string;
-          cwd: string;
-          format?: 'raw' | 'claude-stream';
-          fmtPath?: string;
-        }) => void
-      ): void;
+      onOpenPane(cb: (p: OpenPanePayload) => void): void;
+      onTab(cb: (action: TabAction, index?: number) => void): void;
+      closeWindow(): void;
     };
   }
 }

@@ -76,12 +76,15 @@ interface OpenPanePayload {
   format?: 'raw' | 'claude-stream';
   fmtPath?: string;
 }
+type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
 let onOpenSettings: (() => void) | null = null;
 let onToggleTheme: (() => void) | null = null;
 let onOpenPane: ((p: OpenPanePayload) => void) | null = null;
+let onTab: ((action: TabAction, index?: number) => void) | null = null;
 ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
 ipcRenderer.on('cerberus:toggle-theme', () => onToggleTheme?.());
 ipcRenderer.on('cerberus:open-pane', (_e, p: OpenPanePayload) => onOpenPane?.(p));
+ipcRenderer.on('cerberus:tab', (_e, action: TabAction, index?: number) => onTab?.(action, index));
 contextBridge.exposeInMainWorld('cerberusUI', {
   onOpenSettings: (cb: () => void) => {
     onOpenSettings = cb;
@@ -91,5 +94,9 @@ contextBridge.exposeInMainWorld('cerberusUI', {
   },
   onOpenPane: (cb: (p: OpenPanePayload) => void) => {
     onOpenPane = cb;
-  }
+  },
+  onTab: (cb: (action: TabAction, index?: number) => void) => {
+    onTab = cb;
+  },
+  closeWindow: () => ipcRenderer.send('cerberus:close-window')
 });

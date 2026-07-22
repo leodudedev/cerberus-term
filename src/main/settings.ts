@@ -16,7 +16,8 @@ function merge(parsed: Partial<Settings>): Settings {
   return {
     telegram: { ...DEFAULT_SETTINGS.telegram, ...(parsed.telegram ?? {}) },
     launchCmds: { ...DEFAULT_SETTINGS.launchCmds, ...(parsed.launchCmds ?? {}) },
-    defaultShell: parsed.defaultShell ?? DEFAULT_SETTINGS.defaultShell
+    defaultShell: parsed.defaultShell ?? DEFAULT_SETTINGS.defaultShell,
+    skipCloseConfirm: parsed.skipCloseConfirm ?? DEFAULT_SETTINGS.skipCloseConfirm
   };
 }
 
