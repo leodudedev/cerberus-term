@@ -358,6 +358,13 @@ const server = createServer(async (req, res) => {
     const contentless =
       !isPermission && !message && !detail && !tool && options.length === 0;
 
+    // Local branch: flash the requesting pane in the renderer. Independent of
+    // the Telegram gating below — "mute" silences the phone, not the screen in
+    // front of you. Only real permission prompts with a known pane qualify.
+    if (isPermission && pane) {
+      emit?.("cerberus:pane-attention", { pane, sessionId: session.sessionId });
+    }
+
     // Per-project overrides (.cerberus.json) + runtime mute applied before pushing.
     const pcfg = readProjectConfig(session.cwd);
     if (pcfg.mute || isMuted(session.cwd)) {

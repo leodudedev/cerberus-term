@@ -33,6 +33,9 @@ interface Tab {
   savedCwds: Record<string, string>;
   // User-set label; when unset the tab shows a positional "Terminale N".
   customTitle?: string;
+  // A pane in this (inactive) tab is asking for a permission. Drives the tab
+  // chip's attention blink; cleared when the tab is activated.
+  attention?: boolean;
 }
 
 // A browser/iTerm-style tab strip on top of a splittable pane layout. Owns the
@@ -104,7 +107,11 @@ export class Workspace {
       container,
       (leafId) => {
         const t = this.byId(id);
-        if (t) t.focusedLeafId = leafId;
+        if (t) {
+          t.focusedLeafId = leafId;
+          // Focusing a pane clears its pending-permission highlight.
+          t.layout.clearLeafAttention(leafId);
+        }
       },
       (splitId, ratio) => {
         const t = this.byId(id);
@@ -173,9 +180,30 @@ export class Workspace {
   selectTab(id: string): void {
     if (id === this.activeId || !this.byId(id)) return;
     this.activeId = id;
+    // Viewing the tab clears its chip blink; per-pane borders stay until each
+    // pane is focused.
+    const t = this.byId(id);
+    if (t) t.attention = false;
     this.showActive();
     this.renderTabBar();
     this.schedulePersist();
+  }
+
+  // Daemon fork: a pane (by paneId) is asking for a permission. Flash it, and
+  // blink its tab chip when that tab isn't the one on screen.
+  async markPaneAttention(paneId: string): Promise<void> {
+    for (const t of this.tabs) {
+      const leafId = await t.layout.leafForPaneId(paneId);
+      if (!leafId) continue;
+      const isActiveFocused = t.id === this.activeId && t.focusedLeafId === leafId;
+      if (isActiveFocused) return; // you're already looking at it
+      t.layout.markLeafAttention(leafId);
+      if (t.id !== this.activeId) {
+        t.attention = true;
+        this.renderTabBar();
+      }
+      return;
+    }
   }
 
   private cycle(delta: number): void {
@@ -216,7 +244,10 @@ export class Workspace {
     this.tabBarEl.replaceChildren();
     this.tabs.forEach((t, index) => {
       const chip = document.createElement('div');
-      chip.className = 'tab-chip' + (t.id === this.activeId ? ' active' : '');
+      chip.className =
+        'tab-chip' +
+        (t.id === this.activeId ? ' active' : '') +
+        (t.attention ? ' attention' : '');
 
       const label = this.titleOf(t, index);
       const title = document.createElement('span');

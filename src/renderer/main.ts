@@ -25,6 +25,9 @@ if (host) {
   // External driver (POST /pane) -> read-only follower pane.
   window.cerberusUI.onOpenPane((p) => ws.openFollowerPane(p));
 
+  // Permission-hook fork: flash the requesting pane (and its tab chip).
+  window.cerberusUI.onPaneAttention((p) => void ws.markPaneAttention(p.pane));
+
   // tmux-style keyboard control (leader Ctrl+B).
   installKeymap();
   window.addEventListener('cerberus-action', (ev) => {

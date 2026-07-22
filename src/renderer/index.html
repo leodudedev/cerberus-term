@@ -102,6 +102,20 @@
         background: var(--header-focus);
         color: var(--text);
       }
+      /* A pane in this inactive tab is asking for a permission. */
+      .tab-chip.attention {
+        color: var(--text);
+        animation: chip-attention 1s ease-in-out infinite;
+      }
+      @keyframes chip-attention {
+        0%,
+        100% {
+          background: transparent;
+        }
+        50% {
+          background: rgba(240, 190, 40, 0.4);
+        }
+      }
       .tab-chip-title {
         overflow: hidden;
         text-overflow: ellipsis;
@@ -166,6 +180,22 @@
       .pane.focused {
         outline: 1px solid var(--accent);
         outline-offset: -1px;
+      }
+      /* pending-permission highlight; cleared when the pane is focused.
+         Wins over .focused via source order + !important on the color. */
+      .pane.attention {
+        outline: 2px solid rgba(240, 190, 40, 0.9) !important;
+        outline-offset: -2px;
+        animation: pane-attention 1s ease-in-out infinite;
+      }
+      @keyframes pane-attention {
+        0%,
+        100% {
+          outline-color: rgba(240, 190, 40, 0.9);
+        }
+        50% {
+          outline-color: rgba(240, 190, 40, 0.35);
+        }
       }
       .splitter:hover {
         background: var(--accent) !important;

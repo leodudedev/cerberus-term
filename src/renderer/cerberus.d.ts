@@ -12,6 +12,11 @@ export interface OpenPanePayload {
 
 export type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
 
+export interface PaneAttentionPayload {
+  pane: string;
+  sessionId: string;
+}
+
 declare global {
   interface Window {
     cerberus: TerminalBridge;
@@ -22,6 +27,7 @@ declare global {
       onToggleTheme(cb: () => void): void;
       onOpenPane(cb: (p: OpenPanePayload) => void): void;
       onTab(cb: (action: TabAction, index?: number) => void): void;
+      onPaneAttention(cb: (p: PaneAttentionPayload) => void): void;
       closeWindow(): void;
     };
   }

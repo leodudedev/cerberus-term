@@ -77,14 +77,20 @@ interface OpenPanePayload {
   fmtPath?: string;
 }
 type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
+interface PaneAttentionPayload {
+  pane: string;
+  sessionId: string;
+}
 let onOpenSettings: (() => void) | null = null;
 let onToggleTheme: (() => void) | null = null;
 let onOpenPane: ((p: OpenPanePayload) => void) | null = null;
 let onTab: ((action: TabAction, index?: number) => void) | null = null;
+let onPaneAttention: ((p: PaneAttentionPayload) => void) | null = null;
 ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
 ipcRenderer.on('cerberus:toggle-theme', () => onToggleTheme?.());
 ipcRenderer.on('cerberus:open-pane', (_e, p: OpenPanePayload) => onOpenPane?.(p));
 ipcRenderer.on('cerberus:tab', (_e, action: TabAction, index?: number) => onTab?.(action, index));
+ipcRenderer.on('cerberus:pane-attention', (_e, p: PaneAttentionPayload) => onPaneAttention?.(p));
 contextBridge.exposeInMainWorld('cerberusUI', {
   onOpenSettings: (cb: () => void) => {
     onOpenSettings = cb;
@@ -97,6 +103,9 @@ contextBridge.exposeInMainWorld('cerberusUI', {
   },
   onTab: (cb: (action: TabAction, index?: number) => void) => {
     onTab = cb;
+  },
+  onPaneAttention: (cb: (p: PaneAttentionPayload) => void) => {
+    onPaneAttention = cb;
   },
   closeWindow: () => ipcRenderer.send('cerberus:close-window')
 });

@@ -177,6 +177,27 @@ export class Layout {
     this.applyFocusStyles();
   }
 
+  // Reverse lookup paneId -> leafId. paneId is async (resolved once at spawn);
+  // only called on rare permission events, so the linear scan is fine.
+  async leafForPaneId(paneId: string): Promise<string | null> {
+    for (const [leafId, entry] of this.leaves) {
+      try {
+        if ((await entry.pane.paneId) === paneId) return leafId;
+      } catch {
+        /* pane gone */
+      }
+    }
+    return null;
+  }
+
+  markLeafAttention(leafId: string): void {
+    this.leaves.get(leafId)?.el.classList.add('attention');
+  }
+
+  clearLeafAttention(leafId: string): void {
+    this.leaves.get(leafId)?.el.classList.remove('attention');
+  }
+
   private build(node: PaneNode): HTMLElement {
     if (node.type === 'leaf') return this.leafEl(node.id);
 
