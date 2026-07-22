@@ -108,16 +108,24 @@ if (container) {
             // Re-sync every pane's star immediately rather than waiting for the
             // next periodic snapshot (also used for title/persistence refresh).
             void layout.snapshotCwds();
+          })
+          .catch(() => {
+            /* pane died before cwd resolved — nothing to toggle */
           });
       }
     } else if (detail.cmd === 'open-favorites') {
       const paneIdPromise = layout.paneIdOf(target);
       if (paneIdPromise) {
-        void paneIdPromise.then((paneId) => {
-          openFavoritesOverlay((path) => {
-            window.cerberus.write(paneId, `cd ${shellQuote(path)}\r`);
+        void paneIdPromise
+          .then((paneId) => {
+            openFavoritesOverlay((path) => {
+              window.cerberus.write(paneId, `cd ${shellQuote(path)}\r`);
+              layout.focusLeaf(target); // focus the pane we just cd'd
+            });
+          })
+          .catch(() => {
+            /* pane died before it resolved */
           });
-        });
       }
     }
   });

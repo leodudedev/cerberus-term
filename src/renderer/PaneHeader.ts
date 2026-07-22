@@ -48,7 +48,11 @@ export interface PaneHeader {
   setFavoriteActive: (active: boolean) => void;
 }
 
-export function makePaneHeader(leafId: string, focus: () => void): PaneHeader {
+export function makePaneHeader(
+  leafId: string,
+  focus: () => void,
+  opts: { favorites?: boolean } = {}
+): PaneHeader {
   const header = document.createElement('div');
   header.className = 'pane-header';
 
@@ -59,13 +63,15 @@ export function makePaneHeader(leafId: string, focus: () => void): PaneHeader {
   const buttons = document.createElement('div');
   buttons.className = 'pane-buttons';
 
+  // Favorites act on a pane's live cwd; follower/read-only panes tail a log and
+  // have no interactive shell to cd, so they don't get the star/heart buttons.
+  const showFavorites = opts.favorites !== false;
   const star = button('☆', 'Add to favorites', 'toggle-favorite', leafId);
   star.classList.add('pane-btn-star');
   const heart = button('♡', 'Open favorites', 'open-favorites', leafId);
 
+  if (showFavorites) buttons.append(star, heart);
   buttons.append(
-    star,
-    heart,
     button('◧', 'Split right', 'split-right', leafId),
     button('⬓', 'Split down', 'split-down', leafId),
     button('✕', 'Close pane', 'kill', leafId)

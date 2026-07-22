@@ -145,6 +145,26 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .favorites-remove {
+        flex: 0 0 auto;
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 2px 5px;
+        border-radius: 3px;
+        opacity: 0;
+        transition: opacity 0.1s;
+      }
+      .favorites-row:hover .favorites-remove {
+        opacity: 1;
+      }
+      .favorites-remove:hover {
+        background: var(--btn-hover);
+        color: var(--error);
+      }
       /* config editor modal */
       .config-overlay {
         position: fixed;

@@ -1,6 +1,6 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { CanvasAddon } from '@xterm/addon-canvas';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { currentTheme, xtermTheme, type Theme } from './themes.js';
 
@@ -36,14 +36,17 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
 
   // The base DOM renderer has a known dirty-row repaint bug: glyphs land in the
   // buffer (proven by Enter forcing a redraw that reveals them) but don't paint
-  // to screen right at an autowrap boundary. Canvas addon repaints per-frame
-  // instead of per-DOM-node and doesn't have this gap. addon-canvas's peer range
-  // still says xterm ^5 while we're on 6, so guard activation and keep the DOM
-  // renderer as a fallback if the addon ever throws on load.
+  // to screen right at an autowrap boundary. The GPU renderer repaints per-frame
+  // instead of per-DOM-node and doesn't have this gap. Guard both failure modes:
+  // a synchronous throw on load, and an async WebGL context loss at runtime —
+  // dispose on the latter so xterm transparently falls back to the DOM renderer
+  // instead of freezing on a dead GL context.
   try {
-    term.loadAddon(new CanvasAddon());
+    const webgl = new WebglAddon();
+    webgl.onContextLoss(() => webgl.dispose());
+    term.loadAddon(webgl);
   } catch {
-    /* fall back to default DOM renderer */
+    /* GPU unavailable — fall back to default DOM renderer */
   }
 
   const onTheme = (e: Event): void => {

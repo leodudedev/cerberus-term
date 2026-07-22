@@ -1,7 +1,7 @@
 // Favorites list overlay (same modal pattern as SettingsEditor). Clicking a
 // row hands its path back to the caller (which cds the owning pane) and closes.
 
-import { loadFavorites } from './favorites.js';
+import { loadFavorites, removeFavorite } from './favorites.js';
 
 let isOpen = false;
 
@@ -52,7 +52,20 @@ export function openFavoritesOverlay(onSelect: (path: string) => void): void {
       label.textContent = path;
       label.title = path;
 
-      row.append(label);
+      // Hover-revealed remove control (kept out of the resting visual so the
+      // list stays clean, but favorites remain removable without cd-ing back).
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'favorites-remove';
+      remove.textContent = '✕';
+      remove.title = 'Remove from favorites';
+      remove.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFavorite(path);
+        renderList();
+      });
+
+      row.append(label, remove);
       row.addEventListener('click', () => {
         onSelect(path);
         close();

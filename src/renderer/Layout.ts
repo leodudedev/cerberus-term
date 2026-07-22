@@ -213,7 +213,9 @@ export class Layout {
       const spec = this.paneSpecs.get(id);
       const cwd = spec?.cwd ?? this.cwdFor(id);
       const pane = createTerminalPane(body, cwd);
-      const { el: header, setFavoriteActive } = makePaneHeader(id, () => pane.focus());
+      const { el: header, setFavoriteActive } = makePaneHeader(id, () => pane.focus(), {
+        favorites: !spec?.readOnly
+      });
       const titleEl = header.querySelector<HTMLElement>('.pane-title');
       const initialTitle = spec?.title || (cwd ? cwd.split('/').pop() || cwd : '');
       if (titleEl && initialTitle) titleEl.textContent = initialTitle;
