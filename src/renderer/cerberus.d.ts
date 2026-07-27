@@ -12,7 +12,10 @@ export interface OpenPanePayload {
 
 export type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
 
-export type EditAction = 'copy' | 'paste';
+// 'find' rides the Edit channel rather than a channel of its own: same menu,
+// same one-way main -> renderer shape. Only copy/paste can fall back to
+// Chromium, so editFallback still takes just those two.
+export type EditAction = 'copy' | 'paste' | 'find';
 
 export interface PaneAttentionPayload {
   pane: string;

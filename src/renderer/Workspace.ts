@@ -249,6 +249,12 @@ export class Workspace {
   // `.xterm` is the one wrapper that tells the two apart. Returns false so the
   // caller can hand the action back to Chromium.
   handleEdit(action: EditAction, text?: string): boolean {
+    // Find is unconditional: it targets the focused pane, and the whole point of
+    // the shortcut is that it works while the find bar's own input has focus.
+    if (action === 'find') {
+      this.active()?.layout.openSearch();
+      return true;
+    }
     if (!document.activeElement?.closest('.xterm')) return false;
     const pane = this.byId(this.activeId)?.layout.focusedPane();
     if (!pane) return false;

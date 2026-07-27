@@ -1,8 +1,28 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { SearchAddon } from '@xterm/addon-search';
 import '@xterm/xterm/css/xterm.css';
-import { currentTheme, xtermTheme, type Theme } from './themes.js';
+import { currentTheme, searchDecorations, xtermTheme, type Theme } from './themes.js';
+
+// Scrollback search, as the find bar needs it. Deliberately narrower than the
+// addon's own surface: the overlay shouldn't have to know about decorations or
+// carry the addon import.
+export interface PaneSearchOptions {
+  caseSensitive?: boolean;
+  regex?: boolean;
+  incremental?: boolean;
+}
+export interface PaneSearch {
+  findNext(query: string, opts?: PaneSearchOptions): boolean;
+  findPrevious(query: string, opts?: PaneSearchOptions): boolean;
+  // Drops the highlights and the active-match selection.
+  clear(): void;
+  selection(): string;
+  // Returns an unsubscribe. index is -1 once the addon stops tracking position
+  // (more matches than it will decorate).
+  onResults(cb: (r: { index: number; count: number }) => void): () => void;
+}
 
 // A live terminal pane: xterm bound to one pty, with a lifecycle the pane tree
 // can manage (focus, dispose). The tree owns creation/teardown; this owns the
@@ -20,6 +40,7 @@ export interface TerminalPane {
   // selected, so the caller can fall back to Chromium's native handler.
   copySelection(): boolean;
   pasteText(text: string): void;
+  readonly search: PaneSearch;
   // Re-measure and resize the pty to the container. Called on tab activation:
   // a pane living in a display:none tab can't measure, so its fit is deferred
   // until the tab is shown again.
@@ -53,6 +74,8 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  const searchAddon = new SearchAddon();
+  term.loadAddon(searchAddon);
   term.open(el);
   // A detached/hidden container (a background tab) measures 0 — fitting against
   // it would resize the pty to a garbage 1x1. Only fit while actually visible;
@@ -223,6 +246,20 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
     });
   };
 
+  // A half-typed regex ("(", "[a-") is a normal state of the find bar, and the
+  // addon throws on it rather than returning false. No match and no valid
+  // pattern look the same to the caller.
+  const runSearch = (q: string, opts: PaneSearchOptions | undefined, back: boolean): boolean => {
+    const searchOptions = { ...opts, decorations: searchDecorations(currentTheme()) };
+    try {
+      return back
+        ? searchAddon.findPrevious(q, searchOptions)
+        : searchAddon.findNext(q, searchOptions);
+    } catch {
+      return false;
+    }
+  };
+
   const paneIdPromise = attachPaneId ? reattach(attachPaneId) : spawnFresh();
 
   return {
@@ -247,6 +284,24 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
     pasteText: (text) => {
       if (readOnly || !text) return;
       term.paste(text);
+    },
+    search: {
+      // Decorations are resolved per call rather than captured once: the theme
+      // can change while the find bar is open, and the addon only reads these
+      // colors at search time.
+      findNext: (q, opts) => runSearch(q, opts, false),
+      findPrevious: (q, opts) => runSearch(q, opts, true),
+      clear: () => {
+        searchAddon.clearDecorations();
+        term.clearSelection();
+      },
+      selection: () => term.getSelection(),
+      onResults: (cb) => {
+        const sub = searchAddon.onDidChangeResults(({ resultIndex, resultCount }) =>
+          cb({ index: resultIndex, count: resultCount })
+        );
+        return () => sub.dispose();
+      }
     },
     refit: () => fitNow(),
     dispose: () => {

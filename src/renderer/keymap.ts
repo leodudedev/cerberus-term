@@ -15,6 +15,17 @@ function isLeader(e: KeyboardEvent): boolean {
   return e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'b';
 }
 
+// Typing in one of our own text fields (find bar, settings, config editor) must
+// not arm the leader — otherwise the following keystroke is eaten as a command
+// instead of landing in the field. xterm's own hidden textarea is excluded: keys
+// there are meant for the pty, which is exactly what the leader is for.
+function inTextField(e: KeyboardEvent): boolean {
+  const t = e.target as HTMLElement | null;
+  if (!t?.tagName) return false;
+  const editable = t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable;
+  return editable && !t.closest('.xterm');
+}
+
 // Map a command key (while pending) to an action. Returns null to cancel.
 function resolve(e: KeyboardEvent): CerberusAction | null | undefined {
   const k = e.key;
@@ -55,6 +66,10 @@ export function installKeymap(): void {
   window.addEventListener(
     'keydown',
     (e) => {
+      if (inTextField(e)) {
+        clearPending();
+        return;
+      }
       if (!pending) {
         if (!isLeader(e)) return;
         e.preventDefault();

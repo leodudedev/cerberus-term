@@ -46,6 +46,7 @@
     "vitest": "^3"
   },
   "dependencies": {
+    "@xterm/addon-search": "^0.16.0",
     "grammy": "^1.44.0",
     "node-pty": "^1.1.0"
   }

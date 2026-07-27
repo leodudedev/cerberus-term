@@ -1,6 +1,7 @@
 import { createTerminalPane, type TerminalPane } from './Terminal.js';
 import { makeSplitter } from './Splitter.js';
 import { makePaneHeader } from './PaneHeader.js';
+import { openSearchOverlay } from './SearchOverlay.js';
 import { isFavorite } from './favorites.js';
 import type { PaneNode } from './pane-tree.js';
 
@@ -110,6 +111,16 @@ export class Layout {
   focusedPane(): TerminalPane | null {
     if (!this.focusedLeafId) return null;
     return this.leaves.get(this.focusedLeafId)?.pane ?? null;
+  }
+
+  // Find bar on the focused pane. The bar is hosted by the leaf element rather
+  // than the window so each pane keeps its own query and its own highlights.
+  openSearch(): void {
+    const entry = this.focusedLeafId ? this.leaves.get(this.focusedLeafId) : null;
+    // Anchored to the body, not the leaf: the leaf's first row is the pane
+    // header, and the bar should float over the terminal itself.
+    const body = entry?.el.querySelector<HTMLElement>('.pane-body');
+    if (entry && body) openSearchOverlay(body, entry.pane.search);
   }
 
   // leafId -> paneId for every live pane. Persisted so the next renderer can

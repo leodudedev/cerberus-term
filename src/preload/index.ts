@@ -81,7 +81,7 @@ interface OpenPanePayload {
   fmtPath?: string;
 }
 type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
-type EditAction = 'copy' | 'paste';
+type EditAction = 'copy' | 'paste' | 'find';
 interface PaneAttentionPayload {
   pane: string;
   sessionId: string;

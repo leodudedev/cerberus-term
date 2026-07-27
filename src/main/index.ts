@@ -33,7 +33,7 @@ function buildMenu(): void {
   // editing command has nothing to act on. Route the action to the renderer,
   // which knows whether a terminal or a settings input has focus; the paste text
   // is read here so the renderer never needs the clipboard-read permission.
-  const edit = (action: 'copy' | 'paste'): void =>
+  const edit = (action: 'copy' | 'paste' | 'find'): void =>
     mainWindow?.webContents.send(
       'cerberus:edit',
       action,
@@ -71,15 +71,21 @@ function buildMenu(): void {
             { role: 'cut' },
             { label: 'Copy', accelerator: 'Cmd+C', click: () => edit('copy') },
             { label: 'Paste', accelerator: 'Cmd+V', click: () => edit('paste') },
-            { role: 'selectAll' }
+            { role: 'selectAll' },
+            { type: 'separator' },
+            { label: 'Find…', accelerator: 'Cmd+F', click: () => edit('find') }
           ]
         : // Ctrl+C/X/Z/A are control characters the shell owns (SIGINT, the
           // emacs prefix, SIGTSTP, beginning-of-line): a menu accelerator on any
           // of them takes the key before the pty ever sees it. Only the
           // Ctrl+Shift pair every Linux terminal uses.
           [
+            // Ctrl+F is forward-char in emacs-mode readline, so Find takes the
+            // same Ctrl+Shift seat as the clipboard items.
             { label: 'Copy', accelerator: 'Ctrl+Shift+C', click: () => edit('copy') },
-            { label: 'Paste', accelerator: 'Ctrl+Shift+V', click: () => edit('paste') }
+            { label: 'Paste', accelerator: 'Ctrl+Shift+V', click: () => edit('paste') },
+            { type: 'separator' },
+            { label: 'Find…', accelerator: 'Ctrl+Shift+F', click: () => edit('find') }
           ]
     },
     {

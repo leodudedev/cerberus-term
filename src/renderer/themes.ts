@@ -90,6 +90,30 @@ export function xtermTheme(theme: Theme): ITheme {
   return theme === 'light' ? lightTheme : darkTheme;
 }
 
+// Find-bar highlight colors. Amber rather than the accent green: the accent is
+// already the cursor and the pane focus ring, and a match has to read as a
+// different kind of mark. #RRGGBB only — the search addon rejects rgba().
+const darkSearch = {
+  matchBackground: '#4d3c12',
+  matchBorder: '#6d551a',
+  matchOverviewRuler: '#c79a2e',
+  activeMatchBackground: '#b3831f',
+  activeMatchBorder: '#f0c14b',
+  activeMatchColorOverviewRuler: '#f0c14b'
+};
+const lightSearch = {
+  matchBackground: '#ffe9a8',
+  matchBorder: '#e0c069',
+  matchOverviewRuler: '#b08800',
+  activeMatchBackground: '#f5c04a',
+  activeMatchBorder: '#9a7a00',
+  activeMatchColorOverviewRuler: '#9a7a00'
+};
+
+export function searchDecorations(theme: Theme): typeof darkSearch {
+  return theme === 'light' ? lightSearch : darkSearch;
+}
+
 // Apply a pref: set <html data-theme> and broadcast so live terminals restyle.
 export function applyPref(pref: ThemePref): Theme {
   const theme = resolve(pref);
