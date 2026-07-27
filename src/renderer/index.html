@@ -106,14 +106,47 @@
         background: var(--btn-hover);
         color: var(--text);
       }
-      /* every project silenced — loud enough to notice on the way past */
-      .tabbar-btn.muted {
-        background: rgba(240, 190, 40, 0.18);
-        color: #e0b84a;
+      /* Telegram toggle: the plane says which channel, the colour says whether
+         it's live. Brand blue = pushing, grey + a cut through the plane = every
+         session silenced. Same footprint in both states, so the bar never jumps. */
+      .tabbar-telegram {
+        color: #26a5e4;
       }
-      .tabbar-btn.muted:hover {
-        background: rgba(240, 190, 40, 0.3);
-        color: #e0b84a;
+      .tabbar-telegram:hover {
+        color: #26a5e4;
+      }
+      .tabbar-telegram svg {
+        width: 15px;
+        height: 15px;
+        display: block;
+      }
+      .tabbar-telegram .mute-slash,
+      .tabbar-telegram .mute-slash-bg {
+        display: none;
+        stroke-linecap: round;
+      }
+      .tabbar-telegram.muted {
+        color: var(--muted);
+      }
+      .tabbar-telegram.muted:hover {
+        color: var(--text);
+      }
+      .tabbar-telegram.muted .mute-slash,
+      .tabbar-telegram.muted .mute-slash-bg {
+        display: block;
+      }
+      .tabbar-telegram.muted .mute-slash {
+        stroke: currentColor;
+        stroke-width: 2;
+      }
+      /* Painted under the slash in the bar's own colour so the cut reads as a
+         gap in the plane. Follows :hover, where the button gets a lighter bg. */
+      .tabbar-telegram.muted .mute-slash-bg {
+        stroke: var(--panel);
+        stroke-width: 4.5;
+      }
+      .tabbar-telegram.muted:hover .mute-slash-bg {
+        stroke: var(--btn-hover);
       }
       .tabs-viewport {
         flex: 1 1 auto;
