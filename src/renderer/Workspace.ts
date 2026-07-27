@@ -65,10 +65,20 @@ export class Workspace {
   }
 
   // Restore persisted tabs (or start with one) and begin periodic snapshots.
-  start(): void {
+  async start(): Promise<void> {
     const saved = loadWorkspace();
+    // Ptys that outlived the previous renderer (a reload, a crash, dev HMR).
+    // Any leaf whose saved pty is in here reattaches to the running shell
+    // instead of spawning a fresh one, so the session inside it survives.
+    let alive = new Set<string>();
+    try {
+      alive = new Set(await window.cerberus.list());
+    } catch {
+      /* no surviving ptys — every pane spawns clean */
+    }
+
     if (saved && saved.tabs.length) {
-      for (const st of saved.tabs) this.createTab(st);
+      for (const st of saved.tabs) this.createTab(st, alive);
       this.activeId = this.tabs.some((t) => t.id === saved.activeTabId)
         ? saved.activeTabId
         : this.tabs[0]!.id;
@@ -82,6 +92,9 @@ export class Workspace {
     for (const t of this.tabs) t.layout.render(t.root);
     this.showActive();
     this.renderTabBar();
+    // Anything the restore didn't claim is a leftover from a layout that no
+    // longer exists: kill it rather than leave a headless shell running.
+    void this.reapOrphanPtys();
 
     // Close-confirm preference (cached; refreshed when settings are saved).
     void this.loadCloseConfirm();
@@ -94,7 +107,7 @@ export class Workspace {
 
   // ---- tab lifecycle ------------------------------------------------------
 
-  private createTab(saved?: SavedTab): Tab {
+  private createTab(saved?: SavedTab, alivePtys?: Set<string>): Tab {
     const id = saved?.id ?? genTabId();
     const container = document.createElement('div');
     container.className = 'tab-container';
@@ -122,6 +135,14 @@ export class Workspace {
       },
       (leafId) => savedCwds[leafId]
     );
+
+    // Mark the leaves whose pty is still running: Layout hands the id to the
+    // pane, which reattaches and replays instead of starting a new shell.
+    if (saved?.ptys && alivePtys) {
+      for (const [leafId, paneId] of Object.entries(saved.ptys)) {
+        if (alivePtys.has(paneId)) layout.setPaneSpec(leafId, { attachPaneId: paneId });
+      }
+    }
 
     const focusedLeafId =
       saved?.focusedLeafId && leaves(root).some((l) => l.id === saved.focusedLeafId)
@@ -502,10 +523,23 @@ export class Workspace {
         id: t.id,
         tree: t.root,
         cwds,
+        ptys: await t.layout.snapshotPtyIds(),
         focusedLeafId: t.focusedLeafId,
         ...(t.customTitle ? { title: t.customTitle } : {})
       });
     }
-    saveWorkspace({ version: 2, tabs: savedTabs, activeTabId: this.activeId });
+    saveWorkspace({ version: 3, tabs: savedTabs, activeTabId: this.activeId });
+  }
+
+  // Kill every surviving pty no pane ended up owning. Runs once the restore has
+  // settled, so a pane still resolving its attach can't be reaped from under it.
+  private async reapOrphanPtys(): Promise<void> {
+    try {
+      const keep: string[] = [];
+      for (const t of this.tabs) keep.push(...Object.values(await t.layout.snapshotPtyIds()));
+      await window.cerberus.reap(keep);
+    } catch {
+      /* best effort — a leftover pty is better than a failed startup */
+    }
   }
 }

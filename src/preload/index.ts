@@ -40,6 +40,10 @@ function subscribe<T>(map: Map<string, Set<T>>, paneId: string, cb: T): () => vo
 
 const bridge: TerminalBridge = {
   spawn: (opts: SpawnOptions) => ipcRenderer.invoke('pty:spawn', opts) as Promise<string>,
+  list: () => ipcRenderer.invoke('pty:list') as Promise<string[]>,
+  attach: (paneId, cols, rows) =>
+    ipcRenderer.invoke('pty:attach', paneId, cols, rows) as Promise<string | null>,
+  reap: (keep) => ipcRenderer.invoke('pty:reap', keep) as Promise<number>,
   write: (paneId, data) => ipcRenderer.send('pty:write', paneId, data),
   resize: (paneId, cols, rows) => ipcRenderer.send('pty:resize', paneId, cols, rows),
   kill: (paneId) => ipcRenderer.send('pty:kill', paneId),

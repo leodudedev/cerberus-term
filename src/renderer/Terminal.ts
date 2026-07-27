@@ -26,7 +26,18 @@ function emitPaneCmd(cmd: 'split-right' | 'split-down' | 'kill'): void {
   window.dispatchEvent(new CustomEvent('pane-cmd', { detail: { cmd } }));
 }
 
-export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane {
+export interface PaneInit {
+  cwd?: string;
+  /**
+   * A pty that survived the previous renderer (reload/crash). When it's still
+   * alive the pane reattaches and replays its output instead of spawning a new
+   * shell, so the running session — a `claude`, a build — is never lost.
+   */
+  attachPaneId?: string;
+}
+
+export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): TerminalPane {
+  const { cwd, attachPaneId } = init;
   const term = new Terminal({
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     fontSize: 13,
@@ -140,28 +151,72 @@ export function createTerminalPane(el: HTMLElement, cwd?: string): TerminalPane 
     return true;
   });
 
-  const paneIdPromise = window.cerberus
-    .spawn({ cols: term.cols, rows: term.rows, ...(cwd ? { cwd } : {}) })
-    .then((id) => {
-      paneId = id;
-      if (disposed) {
-        window.cerberus.kill(id);
-        return id;
+  // Wire a resolved pty to this xterm. `onOutput` decides what happens to
+  // incoming data: live panes write straight through, a reattaching pane holds
+  // chunks back until its replay has landed so the order stays right.
+  const bind = (id: string, onOutput: (data: string) => void): string => {
+    paneId = id;
+    if (disposed) {
+      window.cerberus.kill(id);
+      return id;
+    }
+    unsub.push(window.cerberus.onData(id, onOutput));
+    unsub.push(
+      window.cerberus.onExit(id, () => term.write('\r\n\x1b[90m[process exited]\x1b[0m\r\n'))
+    );
+    // sync any size drift accumulated before the pty resolved
+    window.cerberus.resize(id, term.cols, term.rows);
+    return id;
+  };
+
+  // Keystrokes follow whatever pty the pane currently owns (it changes once if
+  // a reattach falls back to a fresh spawn). read-only panes (a `tail -f`
+  // follower) don't forward them at all.
+  term.onData((data) => {
+    if (!readOnly && paneId) window.cerberus.write(paneId, data);
+  });
+
+  const spawnFresh = (): Promise<string> =>
+    window.cerberus
+      .spawn({ cols: term.cols, rows: term.rows, ...(cwd ? { cwd } : {}) })
+      .then((id) => bind(id, (data) => term.write(data)));
+
+  // Reattach: subscribe *before* asking main to resume the pty, so no chunk
+  // falls in the gap between the buffer snapshot and the live feed. Anything
+  // that arrives early is queued and flushed right after the replay.
+  const reattach = (id: string): Promise<string> => {
+    let replayed = false;
+    const queued: string[] = [];
+    bind(id, (data) => {
+      if (replayed) term.write(data);
+      else queued.push(data);
+    });
+    if (disposed) return Promise.resolve(id);
+    return window.cerberus.attach(id, term.cols, term.rows).then((replay) => {
+      if (replay === null) {
+        // The shell exited while the window was down — start a clean one.
+        unsub.splice(0).forEach((u) => u());
+        return spawnFresh();
       }
-      unsub.push(window.cerberus.onData(id, (data) => term.write(data)));
-      unsub.push(
-        window.cerberus.onExit(id, () =>
-          term.write('\r\n\x1b[90m[process exited]\x1b[0m\r\n')
-        )
-      );
-      // read-only panes (e.g. a `tail -f` follower) don't forward keystrokes
-      term.onData((data) => {
-        if (!readOnly) window.cerberus.write(id, data);
-      });
-      // sync any size drift accumulated before spawn resolved
-      window.cerberus.resize(id, term.cols, term.rows);
+      term.write(replay);
+      replayed = true;
+      for (const chunk of queued) term.write(chunk);
+      queued.length = 0;
+      // A full-screen TUI (Claude Code, vim, htop) paints on demand, so the
+      // replay alone leaves a stale frame. Nudging the size makes it redraw
+      // from scratch on SIGWINCH; the delay lets it settle between the two.
+      window.setTimeout(() => {
+        if (disposed || !isVisible()) return;
+        window.cerberus.resize(id, term.cols, Math.max(1, term.rows - 1));
+        window.setTimeout(() => {
+          if (!disposed) window.cerberus.resize(id, term.cols, term.rows);
+        }, 60);
+      }, 60);
       return id;
     });
+  };
+
+  const paneIdPromise = attachPaneId ? reattach(attachPaneId) : spawnFresh();
 
   return {
     paneId: paneIdPromise,

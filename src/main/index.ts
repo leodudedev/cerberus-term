@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, type MenuItemConstructorOptions } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { registerBridge, killAllPtys } from './bridge-electron.js';
+import { registerBridge, killAllPtys, detachAllPtys } from './bridge-electron.js';
 import { registerConfigIpc } from './config-ipc.js';
 import { registerSettingsIpc } from './settings-ipc.js';
 import { startCerberus } from './cerberus/index.js';
@@ -156,6 +156,30 @@ function createWindow(): void {
     if (process.platform === 'darwin' && ['=', '+', '-', '0'].includes(input.key)) {
       event.preventDefault();
     }
+  });
+
+  // The ptys live in main and outlive the page. Whenever the renderer restarts
+  // — reload, crash, dev HMR — orphan them so their output is buffered until
+  // the fresh renderer reattaches, instead of being fired at a dead frame.
+  mainWindow.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame) detachAllPtys();
+  });
+
+  // A crashed renderer would otherwise sit on the "Aw, snap" page with every
+  // shell still alive but unreachable. Reload it: the restore reattaches the
+  // surviving ptys and the sessions come back. Rate-limited, so a page that
+  // crashes on load can't spin here forever.
+  let lastCrashReload = 0;
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    if (details.reason === 'clean-exit' || details.reason === 'killed') return;
+    const now = Date.now();
+    if (now - lastCrashReload < 10_000) {
+      console.error('[main] renderer crashed again (%s) — not reloading', details.reason);
+      return;
+    }
+    lastCrashReload = now;
+    console.error('[main] renderer gone (%s) — reloading to reattach', details.reason);
+    mainWindow?.webContents.reload();
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());

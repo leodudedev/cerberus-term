@@ -17,6 +17,8 @@ export interface PaneSpec {
   title?: string;
   initialCommand?: string;
   readOnly?: boolean;
+  // Session restore: adopt this still-running pty instead of spawning a shell.
+  attachPaneId?: string;
 }
 
 function collectLeafIds(node: PaneNode, out: Set<string>): void {
@@ -103,6 +105,20 @@ export class Layout {
 
   paneIdOf(leafId: string): Promise<string> | null {
     return this.leaves.get(leafId)?.pane.paneId ?? null;
+  }
+
+  // leafId -> paneId for every live pane. Persisted so the next renderer can
+  // reattach these ptys, and used to tell main which ones are still claimed.
+  async snapshotPtyIds(): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    for (const [id, entry] of this.leaves) {
+      try {
+        out[id] = await entry.pane.paneId;
+      } catch {
+        /* pane never resolved */
+      }
+    }
+    return out;
   }
 
   // Register overrides for a leaf that will be built on the next render.
@@ -239,7 +255,10 @@ export class Layout {
 
       const spec = this.paneSpecs.get(id);
       const cwd = spec?.cwd ?? this.cwdFor(id);
-      const pane = createTerminalPane(body, cwd);
+      const pane = createTerminalPane(body, {
+        ...(cwd ? { cwd } : {}),
+        ...(spec?.attachPaneId ? { attachPaneId: spec.attachPaneId } : {})
+      });
       const { el: header, setFavoriteActive } = makePaneHeader(id, () => pane.focus(), {
         favorites: !spec?.readOnly
       });

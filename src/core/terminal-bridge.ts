@@ -14,6 +14,15 @@ export interface SpawnOptions {
 export interface TerminalBridge {
   /** Spawn a pty, returns its paneId. */
   spawn(opts: SpawnOptions): Promise<string>;
+  /** paneIds of ptys that outlived the previous renderer, for session restore. */
+  list(): Promise<string[]>;
+  /**
+   * Re-own a surviving pty and get its raw output tail to replay into the
+   * terminal. Null when the pty no longer exists — spawn a fresh one instead.
+   */
+  attach(paneId: string, cols: number, rows: number): Promise<string | null>;
+  /** Kill every unclaimed leftover pty once a restore has settled. */
+  reap(keep: string[]): Promise<number>;
   write(paneId: string, data: string): void;
   resize(paneId: string, cols: number, rows: number): void;
   kill(paneId: string): void;

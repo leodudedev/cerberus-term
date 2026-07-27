@@ -10,7 +10,7 @@ const host = document.querySelector<HTMLDivElement>('#app');
 
 if (host) {
   const ws = new Workspace(host);
-  ws.start();
+  void ws.start();
 
   // Per-pane header buttons (and Cmd+D/Cmd+K in Terminal) dispatch 'pane-cmd'.
   window.addEventListener('pane-cmd', (ev) => {

@@ -14,12 +14,19 @@ interface PaneProc {
   proc: IPty;
   spawnCwd: string;
   buf: string; // rolling raw-output tail; feeds capturePane (no tmux)
+  // False while no renderer owns this pane (between a reload/crash and the
+  // reattach). Output still accumulates in buf and is replayed on attach, so
+  // nothing is lost while the window is gone.
+  attached: boolean;
 }
 const ptys = new Map<string, PaneProc>();
 
-// Keep the last ~16KB of each pane's output so the Cerberus daemon can read the
-// live permission dialog (the native replacement for `tmux capture-pane`).
-const BUFFER_MAX = 16 * 1024;
+// Rolling per-pane output tail. It serves two readers: the Cerberus daemon,
+// which only needs the current screen to spot a permission dialog, and the
+// reattach replay after a renderer restart, which wants real scrollback — hence
+// the generous size, with CAPTURE_MAX slicing the small window back out.
+const BUFFER_MAX = 256 * 1024;
+const CAPTURE_MAX = 16 * 1024;
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB0]|\x1b[<=>]|[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
 
@@ -91,7 +98,14 @@ export function writeKeys(paneId: string, data: string): void {
 // ANSI-stripped tail of a pane's output (replaces `tmux capture-pane`).
 export function getPaneBuffer(paneId: string): string {
   const buf = ptys.get(paneId)?.buf ?? '';
-  return buf.replace(ANSI_RE, '');
+  return buf.slice(-CAPTURE_MAX).replace(ANSI_RE, '');
+}
+
+// A renderer restart (reload, crash, dev HMR) leaves every pty without an
+// owner. Mark them so their output is buffered instead of shouted at a dead
+// webContents, and so an unclaimed pane can be reaped once the restore settles.
+export function detachAllPtys(): void {
+  for (const entry of ptys.values()) entry.attached = false;
 }
 
 export function registerBridge(getWindow: () => BrowserWindow | null): void {
@@ -120,19 +134,55 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
         CERBERUS_PORT: String(config.port)
       })
     });
-    const entry: PaneProc = { proc, spawnCwd, buf: '' };
+    const entry: PaneProc = { proc, spawnCwd, buf: '', attached: true };
     ptys.set(paneId, entry);
 
     proc.onData((data) => {
       entry.buf = (entry.buf + data).slice(-BUFFER_MAX);
-      getWindow()?.webContents.send('pty:data', paneId, data);
+      // While detached the buffer is the only sink: the replay on attach hands
+      // this same output to the terminal, so forwarding now would duplicate it.
+      if (entry.attached) getWindow()?.webContents.send('pty:data', paneId, data);
     });
     proc.onExit(({ exitCode }) => {
-      getWindow()?.webContents.send('pty:exit', paneId, exitCode);
+      if (entry.attached) getWindow()?.webContents.send('pty:exit', paneId, exitCode);
       ptys.delete(paneId);
     });
 
     return paneId;
+  });
+
+  // Panes that outlived the previous renderer, for the restore to claim.
+  ipcMain.handle('pty:list', (): string[] => [...ptys.keys()]);
+
+  // Re-own a surviving pty: flips it back to attached and returns its raw
+  // output tail for the terminal to replay. Null means the pty is gone (it
+  // exited while the window was down) and the caller should spawn a fresh one.
+  ipcMain.handle('pty:attach', (_e, paneId: string, cols: number, rows: number): string | null => {
+    const entry = ptys.get(paneId);
+    if (!entry) return null;
+    try {
+      entry.proc.resize(cols, rows);
+    } catch {
+      /* pty gone between the lookup and here */
+    }
+    // Flipping the flag in the same tick as the buf read is what makes the
+    // handoff lossless: no chunk can slip between the snapshot and the resume.
+    entry.attached = true;
+    return entry.buf;
+  });
+
+  // Kill whatever the restore didn't claim, so a pane dropped from the layout
+  // can't keep a headless shell (and its `claude`) running forever.
+  ipcMain.handle('pty:reap', (_e, keep: string[]): number => {
+    const claimed = new Set(keep);
+    let killed = 0;
+    for (const [id, entry] of ptys) {
+      if (claimed.has(id) || entry.attached) continue;
+      entry.proc.kill();
+      ptys.delete(id);
+      killed++;
+    }
+    return killed;
   });
 
   ipcMain.on('pty:write', (_e, paneId: string, data: string) => {
