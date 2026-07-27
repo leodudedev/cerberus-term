@@ -98,6 +98,14 @@ export function getPaneCwd(paneId: string): string {
   return liveCwd(entry.proc.pid, entry.spawnCwd);
 }
 
+// Live cwds of every pane, for the follower-path check: a project outside home
+// is legitimate only while a pane is actually sitting in it. Uses the spawn cwd
+// rather than liveCwd() — this runs on a request path and liveCwd shells out to
+// lsof per pane on macOS.
+export function paneSpawnCwds(): string[] {
+  return [...ptys.values()].map((e) => e.spawnCwd);
+}
+
 // --- Cerberus core seam (used by pane-control.ts) ---
 
 export function paneExists(paneId: string): boolean {

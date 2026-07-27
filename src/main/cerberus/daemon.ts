@@ -11,6 +11,8 @@ import { isMuted } from "../../core/mute.js";
 import { putPendingTool, peekPendingTool, summarizeToolArgs } from "../../core/pending-tools.js";
 import { capturePane } from "../pane-control.js";
 import { ALWAYS_OPTION_RE, dialogOptionsBlock, extractQuestionOptions } from "../../core/dialog.js";
+import { resolveFollowPath } from "../../core/follow-path.js";
+import { paneSpawnCwds } from "../bridge-electron.js";
 import { getDaemonToken } from "./token.js";
 
 // HTTP daemon that receives detection events from the hook scripts.
@@ -135,10 +137,19 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: "missing_or_relative_file" }));
       return;
     }
+    // Symlinks resolved, and the target confined to home or a live pane's cwd,
+    // minus the directories that hold keys and tokens. See core/follow-path.ts
+    // for what this does and does not defend against.
+    const resolved = resolveFollowPath(body.file, { paneCwds: paneSpawnCwds() });
+    if (!resolved.ok) {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "forbidden_file", reason: resolved.reason }));
+      return;
+    }
     // Opt-in readable projection; any unknown value falls back to raw tail.
     const format = body.format === "claude-stream" ? "claude-stream" : "raw";
     emit?.("cerberus:open-pane", {
-      file: body.file,
+      file: resolved.path,
       title: body.title ?? "",
       cwd: body.cwd ?? "",
       format,

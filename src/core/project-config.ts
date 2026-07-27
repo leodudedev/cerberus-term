@@ -1,5 +1,5 @@
-import { readFileSync, statSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { join, dirname, isAbsolute, sep } from 'node:path';
 import { homedir } from 'node:os';
 
 // Copied from mycli/src/project-config.ts, adapted: Risk is inlined here so this
@@ -19,9 +19,40 @@ const FILENAME = '.cerberus.json';
 const cache = new Map<string, { mtimeMs: number; cfg: ProjectConfig }>();
 
 // Walk up from cwd to $HOME looking for the nearest config file.
+//
+// `startDir` reaches us from the hook payload (`session.cwd`), so it is only as
+// trustworthy as the caller — with the daemon token that means a process
+// running as this user, but the walk should still not be steerable. A relative
+// or non-existent path is rejected outright, symlinks are resolved, and a
+// directory outside home gets no walk at all: the old loop compared against
+// $HOME to stop, which silently never matched for a path outside it and let the
+// search climb to `/`, so a cwd of /tmp/x picked up /tmp/.cerberus.json. A
+// config can mute notifications and raise minRisk, so choosing which one is
+// read means choosing what never reaches the phone.
 export function findConfigFile(startDir: string): string | null {
+  if (!startDir || !isAbsolute(startDir)) return null;
+
   const stop = homedir();
-  let dir = startDir;
+  let dir: string;
+  try {
+    const real = realpathSync(startDir);
+    if (!statSync(real).isDirectory()) return null;
+    dir = real;
+  } catch {
+    return null; // gone, or not a path we can resolve
+  }
+
+  // Outside home there is no meaningful boundary to stop the walk at, so don't
+  // walk: only the directory itself is consulted.
+  if (dir !== stop && !dir.startsWith(stop.endsWith(sep) ? stop : stop + sep)) {
+    try {
+      const p = join(dir, FILENAME);
+      return statSync(p).isFile() ? p : null;
+    } catch {
+      return null;
+    }
+  }
+
   while (true) {
     const p = join(dir, FILENAME);
     try {
