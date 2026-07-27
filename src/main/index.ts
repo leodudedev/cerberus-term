@@ -18,6 +18,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
 
+const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
+
 // A native menu is the only reliable way to bind Cmd+, on macOS (the OS routes
 // it to the app menu before the web page ever sees the keydown). Zoom roles are
 // deliberately omitted so the terminal UI can't be zoomed.
@@ -85,12 +87,13 @@ function buildMenu(): void {
       submenu: [
         { label: 'Toggle Theme', accelerator: 'CmdOrCtrl+Shift+L', click: toggleTheme },
         { type: 'separator' },
-        // Reload used to lose every running session: the ptys keep going
-        // headless in main, but the fresh renderer spawned new panes and
-        // orphaned them. They are reattached now — the renderer persists its
-        // pane->pty map on beforeunload and claims the survivors on restore —
-        // so this is a repaint, not a session wipe.
-        { role: 'reload' },
+        // Dev only. Not because reload is dangerous any more — panes reattach
+        // to their ptys now, so it's a repaint — but because the role carries a
+        // CmdOrCtrl+R accelerator, and Ctrl+R is the shell's reverse-i-search.
+        // A menu item is the only thing binding that key, so leaving it out of
+        // the production menu is what keeps the key free. Crash recovery
+        // doesn't go through here: it calls webContents.reload() directly.
+        ...(isDev ? [{ role: 'reload' } as MenuItemConstructorOptions] : []),
         { role: 'toggleDevTools' },
         { role: 'togglefullscreen' }
       ]
