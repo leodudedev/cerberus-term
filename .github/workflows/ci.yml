@@ -25,4 +25,6 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm test
+
       - run: pnpm exec electron-vite build

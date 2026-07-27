@@ -22,6 +22,8 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "pack": "electron-vite build && electron-builder --dir",
     "dist": "electron-vite build && electron-builder",
     "dist:mac": "electron-vite build && electron-builder --mac",
@@ -40,7 +42,8 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^2.3.0",
     "typescript": "^5.7.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^3"
   },
   "dependencies": {
     "grammy": "^1.44.0",

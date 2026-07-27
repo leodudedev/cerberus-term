@@ -10,29 +10,8 @@ import { readProjectConfig } from "../../core/project-config.js";
 import { isMuted } from "../../core/mute.js";
 import { putPendingTool, peekPendingTool, summarizeToolArgs } from "../../core/pending-tools.js";
 import { capturePane } from "../pane-control.js";
+import { ALWAYS_OPTION_RE, dialogOptionsBlock, extractQuestionOptions } from "../../core/dialog.js";
 import { getDaemonToken } from "./token.js";
-
-// A permission dialog offers a "don't ask again" / "allow all" option only
-// sometimes, and whether it does can't be inferred from the tool or command —
-// Claude attaches it to whatever sub-command it can turn into an allow rule. So
-// we read the option straight from the pane instead of guessing.
-// Match both the straight and typographic apostrophe (Claude renders "don’t"
-// with U+2019), plus the "Yes, and …" allow-rule option and the Italian wording.
-const ALWAYS_OPTION_RE =
-  /don['’]?t ask again|allow all|always allow|yes,?\s+and\b|non chiedere|consenti sempre|approva sempre/i;
-
-// Narrow the 16KB pane buffer to just the numbered-options block of the current
-// dialog (from its last "1." line to the end). Testing ALWAYS_OPTION_RE on the
-// whole buffer could match "yes, and …" in earlier assistant text and wrongly
-// show the "always" button — whose tap sends "2⏎", i.e. "No" on a 2-option
-// dialog. Falls back to the full buffer if no numbered option is found.
-function dialogOptionsBlock(buf: string): string {
-  const lines = buf.split("\n");
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (/^\s*[❯>»]?\s*1[.)]\s/.test(lines[i]!)) return lines.slice(i).join("\n");
-  }
-  return buf;
-}
 
 // HTTP daemon that receives detection events from the hook scripts.
 // Two producers, one endpoint:
@@ -81,25 +60,6 @@ const COPILOT_NOTIFY_TYPES = new Set([
 ]);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// Pull the answer labels out of an AskUserQuestion tool_input so the bot can
-// render one button per real option. Only the simple single-question,
-// single-select shape is supported; anything else falls back to no options
-// (the user can still reply with free text), because multi-select and
-// multi-question dialogs need more than a single "digit + Enter" keystroke.
-function extractQuestionOptions(toolName: string, input: unknown): string[] | undefined {
-  if (toolName !== "AskUserQuestion" || !input || typeof input !== "object") return undefined;
-  const qs = (input as { questions?: unknown }).questions;
-  if (!Array.isArray(qs) || qs.length !== 1) return undefined;
-  const q = qs[0] as { multiSelect?: boolean; options?: unknown };
-  if (q?.multiSelect) return undefined;
-  if (!Array.isArray(q?.options)) return undefined;
-  const labels = q.options
-    .map((o) => String((o as { label?: unknown })?.label ?? "").trim())
-    .filter(Boolean)
-    .slice(0, 8);
-  return labels.length ? labels : undefined;
-}
 
 // Cap the request body: a local process could otherwise stream an unbounded
 // payload and block the main process on Buffer.concat + JSON.parse (UI freeze).

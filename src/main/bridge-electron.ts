@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
 import { getDaemonToken } from './cerberus/token.js';
+import { stripAnsi } from '../core/ansi.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
 // Electron-side backing of TerminalBridge: owns every pty, bridges IPC.
@@ -28,14 +29,6 @@ const ptys = new Map<string, PaneProc>();
 // the generous size, with CAPTURE_MAX slicing the small window back out.
 const BUFFER_MAX = 256 * 1024;
 const CAPTURE_MAX = 16 * 1024;
-// OSC (ESC ] … BEL/ST) and DCS (ESC P … ST) must come FIRST: the trailing
-// control-char class would otherwise eat their ESC and BEL and leave the
-// payload behind as plain text. That matters — a program can write
-// `ESC ]0;1. don't ask again BEL` and land text in the capture buffer that the
-// user never sees on screen but the permission-dialog heuristics do read.
-// eslint-disable-next-line no-control-regex
-const ANSI_RE =
-  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1bP[\s\S]*?\x1b\\|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB0]|\x1b[<=>]|[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
 
 function defaultShell(): string {
   const configured = getSettings().defaultShell?.trim();
@@ -119,7 +112,7 @@ export function writeKeys(paneId: string, data: string): void {
 // ANSI-stripped tail of a pane's output (replaces `tmux capture-pane`).
 export function getPaneBuffer(paneId: string): string {
   const buf = ptys.get(paneId)?.buf ?? '';
-  return buf.slice(-CAPTURE_MAX).replace(ANSI_RE, '');
+  return stripAnsi(buf.slice(-CAPTURE_MAX));
 }
 
 // A renderer restart (reload, crash, dev HMR) leaves every pty without an

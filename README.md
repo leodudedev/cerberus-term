@@ -105,7 +105,12 @@ the global settings for sessions running there:
 pnpm install     # postinstall rebuilds node-pty for the Electron ABI
 pnpm dev         # launch the app (HMR)
 pnpm typecheck
+pnpm test        # vitest, unit tests over src/core + the pure renderer modules
 ```
+
+Tests live in `tests/` and cover the Electron-free logic — risk classification,
+escape-sequence stripping, permission-dialog parsing, the pane tree, and the
+workspace snapshot migrations. `typecheck` and `test` both run in CI.
 
 Build installers locally:
 
