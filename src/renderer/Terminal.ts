@@ -1,4 +1,4 @@
-import { Terminal } from '@xterm/xterm';
+import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { SearchAddon } from '@xterm/addon-search';
@@ -64,14 +64,25 @@ export interface PaneInit {
   attachPaneId?: string;
 }
 
-export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): TerminalPane {
-  const { cwd, attachPaneId } = init;
-  const term = new Terminal({
+// Shared with the tests, which assert the search addon works against exactly
+// these options.
+export function terminalOptions(): ITerminalOptions {
+  return {
     fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     fontSize: 13,
     cursorBlink: true,
+    // Required by the find bar: the search addon paints its match highlights
+    // with registerDecoration, which xterm 6 still gates behind this flag. Off,
+    // every search throws and the bar reports "no matches" for text that is
+    // plainly on screen.
+    allowProposedApi: true,
     theme: xtermTheme(currentTheme())
-  });
+  };
+}
+
+export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): TerminalPane {
+  const { cwd, attachPaneId } = init;
+  const term = new Terminal(terminalOptions());
   const fit = new FitAddon();
   term.loadAddon(fit);
   const searchAddon = new SearchAddon();
@@ -247,15 +258,18 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
   };
 
   // A half-typed regex ("(", "[a-") is a normal state of the find bar, and the
-  // addon throws on it rather than returning false. No match and no valid
-  // pattern look the same to the caller.
+  // addon throws a SyntaxError on it rather than returning false. No match and
+  // no valid pattern look the same to the caller. Anything else that throws is
+  // a real fault and must be visible: swallowing it silently is how a missing
+  // allowProposedApi turned every search into "no matches".
   const runSearch = (q: string, opts: PaneSearchOptions | undefined, back: boolean): boolean => {
     const searchOptions = { ...opts, decorations: searchDecorations(currentTheme()) };
     try {
       return back
         ? searchAddon.findPrevious(q, searchOptions)
         : searchAddon.findNext(q, searchOptions);
-    } catch {
+    } catch (e) {
+      if (!(e instanceof SyntaxError)) console.error('[search]', e);
       return false;
     }
   };
