@@ -37,6 +37,11 @@ npmRebuild: false
 # (the default 'draft' leaves it invisible to the "latest" URL).
 publish:
   provider: github
+  # Explicit: a local clone may use an SSH host alias (git@github-personal:...),
+  # which electron-builder can't parse into owner/repo — it then fails the build
+  # while computing the update-info channel.
+  owner: leodudedev
+  repo: cerberus-term
   releaseType: release
 
 # Stable, version-less artifact names so README can link to
