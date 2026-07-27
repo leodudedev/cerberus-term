@@ -100,7 +100,9 @@ Telegram, so you can work at the keyboard undisturbed, and one click restores
 every session at once when you walk away. It's independent of the per-project
 `mute` and of `/mute` from the chat — turning it off leaves those exactly as they
 were. Panes still flash locally when a session asks for a permission, and the
-state survives a restart.
+state survives a restart. Without a bot token and chat ID the toggle is dimmed
+and inert — nothing pushes anyway; set them in Settings and it wakes up without
+a restart.
 
 The layout, per-pane cwds, and theme are restored on relaunch. Panes also
 survive a window reload — the shells keep running and reattach.

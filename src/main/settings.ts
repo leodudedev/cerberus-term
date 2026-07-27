@@ -39,6 +39,16 @@ export function saveSettings(s: Settings): void {
   renameSync(tmp, path); // atomic
 }
 
+// Does the bot have what it needs to push at all? Same pair initBot() checks,
+// read from settings first because the env is only populated once startCerberus
+// runs — the renderer can ask earlier than that.
+export function telegramConfigured(): boolean {
+  const tg = getSettings().telegram;
+  const token = tg.token || process.env['TELEGRAM_BOT_TOKEN'];
+  const chatId = tg.chatId || process.env['TELEGRAM_CHAT_ID'];
+  return Boolean(token && chatId);
+}
+
 // Force-set the env the daemon/bot read, so in-app settings win over .env.
 export function applySettingsToEnv(): void {
   const tg = getSettings().telegram;

@@ -25,13 +25,22 @@ export function makeMuteToggle(): HTMLElement {
 
   let muted = false;
   let busy = false;
+  // Without a bot token + chat id nothing pushes anywhere, so a live switch
+  // would promise a silence it isn't causing. Stay visible but inert, and say
+  // why — hiding it would just make the feature invisible to whoever hasn't
+  // set Telegram up yet.
+  let configured = true;
 
   const paint = (): void => {
-    btn.title = muted
-      ? 'Telegram notifications OFF for every session — click to re-enable'
-      : 'Telegram notifications ON — click to silence every session';
-    btn.classList.toggle('muted', muted);
-    btn.setAttribute('aria-pressed', String(muted));
+    btn.disabled = !configured;
+    btn.classList.toggle('unconfigured', !configured);
+    btn.title = !configured
+      ? 'Telegram not configured — add a bot token and chat ID in Settings (Cmd+,)'
+      : muted
+        ? 'Telegram notifications OFF for every session — click to re-enable'
+        : 'Telegram notifications ON — click to silence every session';
+    btn.classList.toggle('muted', muted && configured);
+    btn.setAttribute('aria-pressed', String(muted && configured));
     // Icon-only button: the label is the only thing a screen reader gets.
     btn.setAttribute('aria-label', 'Telegram notifications');
   };
@@ -40,15 +49,32 @@ export function makeMuteToggle(): HTMLElement {
 
   // Initial state from main. A failure leaves the plane showing "on", which is
   // the honest default: the daemon only mutes when it knows the flag is set.
-  void window.cerberusMute
-    .getAll()
-    .then((on) => {
-      muted = on;
-      paint();
-    })
-    .catch(() => {
-      /* bridge unavailable — keep the default */
-    });
+  const refresh = (): void => {
+    void window.cerberusMute
+      .getAll()
+      .then((on) => {
+        muted = on;
+        paint();
+      })
+      .catch(() => {
+        /* bridge unavailable — keep the default */
+      });
+    void window.cerberusMute
+      .configured()
+      .then((ok) => {
+        configured = ok;
+        paint();
+      })
+      .catch(() => {
+        /* assume configured rather than disable a working toggle */
+      });
+  };
+
+  refresh();
+
+  // Credentials can arrive (or leave) while the app is up: Settings saves and
+  // fires this, no restart needed for the button to catch up.
+  window.addEventListener('settings-changed', refresh);
 
   // Flipped from elsewhere (a future remote command): follow along.
   window.cerberusMute.onChange((active) => {
@@ -80,7 +106,7 @@ export function makeMuteToggle(): HTMLElement {
         );
 
   btn.addEventListener('click', () => {
-    if (busy) return;
+    if (busy || !configured) return;
     busy = true;
     const next = !muted;
     void confirmFlip(next)

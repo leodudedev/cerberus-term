@@ -5,6 +5,9 @@
 export interface MuteBridge {
   getAll(): Promise<boolean>;
   setAll(on: boolean): Promise<boolean>;
+  // Whether a bot token + chat id exist at all. Without them nothing pushes,
+  // so the toggle has nothing to silence and says so instead of lying.
+  configured(): Promise<boolean>;
   // Fired when the flag changes outside this window's own toggle.
   onChange(cb: (active: boolean) => void): void;
 }

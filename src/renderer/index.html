@@ -148,6 +148,15 @@
       .tabbar-telegram.muted:hover .mute-slash-bg {
         stroke: var(--btn-hover);
       }
+      /* No token/chat id: nothing to silence. Dimmed and inert, but still there
+         with a tooltip pointing at Settings. */
+      .tabbar-telegram.unconfigured,
+      .tabbar-telegram.unconfigured:hover {
+        color: var(--muted);
+        opacity: 0.45;
+        cursor: default;
+        background: transparent;
+      }
       .tabs-viewport {
         flex: 1 1 auto;
         position: relative;

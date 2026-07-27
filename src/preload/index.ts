@@ -78,6 +78,7 @@ ipcRenderer.on('cerberus:mute-all', (_e, active: boolean) => onMuteAll?.(active)
 const muteBridge: MuteBridge = {
   getAll: () => ipcRenderer.invoke('mute:get-all') as Promise<boolean>,
   setAll: (on) => ipcRenderer.invoke('mute:set-all', on) as Promise<boolean>,
+  configured: () => ipcRenderer.invoke('mute:configured') as Promise<boolean>,
   onChange: (cb) => {
     onMuteAll = cb;
   }
