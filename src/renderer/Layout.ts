@@ -114,6 +114,18 @@ export class Layout {
 
   // leafId -> paneId for every live pane. Persisted so the next renderer can
   // reattach these ptys, and used to tell main which ones are still claimed.
+  // Sync counterpart of snapshotPtyIds, for the beforeunload persist. Panes
+  // whose spawn hasn't resolved yet are simply absent — there is no pty id to
+  // record for them anyway.
+  snapshotPtyIdsSync(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [id, entry] of this.leaves) {
+      const paneId = entry.pane.paneIdNow();
+      if (paneId) out[id] = paneId;
+    }
+    return out;
+  }
+
   async snapshotPtyIds(): Promise<Record<string, string>> {
     const out: Record<string, string> = {};
     for (const [id, entry] of this.leaves) {

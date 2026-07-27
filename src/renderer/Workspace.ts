@@ -103,6 +103,11 @@ export class Workspace {
     // Periodic snapshot: refresh cwds/titles/favorites and persist (catches a
     // bare `cd` with no structural change) across all tabs.
     window.setInterval(() => void this.persistNow(), 4000);
+
+    // Last write before the renderer goes away (Cmd+R, window close). The ptys
+    // outlive it in main, so this snapshot is what decides which of them get
+    // reattached and which get reaped.
+    window.addEventListener('beforeunload', () => this.persistSync());
   }
 
   // ---- tab lifecycle ------------------------------------------------------
@@ -525,6 +530,24 @@ export class Workspace {
   private schedulePersist(): void {
     if (this.persistTimer !== undefined) window.clearTimeout(this.persistTimer);
     this.persistTimer = window.setTimeout(() => void this.persistNow(), 800);
+  }
+
+  // A reload (or a window close) gives us no chance to await anything, and the
+  // periodic snapshot can be up to 4s stale — a pane split moments earlier
+  // wouldn't be in it, so on restore its pty would be reaped instead of
+  // reattached. Rewrite the snapshot synchronously from the last known cwds
+  // plus the live pty ids; a cwd being one cycle old is harmless, losing a pty
+  // is not.
+  private persistSync(): void {
+    const savedTabs: SavedTab[] = this.tabs.map((t) => ({
+      id: t.id,
+      tree: t.root,
+      cwds: t.savedCwds,
+      ptys: t.layout.snapshotPtyIdsSync(),
+      focusedLeafId: t.focusedLeafId,
+      ...(t.customTitle ? { title: t.customTitle } : {})
+    }));
+    saveWorkspace({ version: 3, tabs: savedTabs, activeTabId: this.activeId });
   }
 
   private async persistNow(): Promise<void> {

@@ -10,6 +10,9 @@ import { currentTheme, xtermTheme, type Theme } from './themes.js';
 // relayout, and Step 3 splitter drags through a single path).
 export interface TerminalPane {
   readonly paneId: Promise<string>;
+  // The resolved pty id, or null while the spawn/attach is still in flight.
+  // beforeunload has no time to await the promise.
+  paneIdNow(): string | null;
   focus(): void;
   onFocus(cb: () => void): void;
   setReadOnly(v: boolean): void;
@@ -224,6 +227,7 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
 
   return {
     paneId: paneIdPromise,
+    paneIdNow: () => paneId,
     focus: () => term.focus(),
     onFocus: (cb) => focusCbs.push(cb),
     setReadOnly: (v) => {

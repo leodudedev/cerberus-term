@@ -18,8 +18,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let mainWindow: BrowserWindow | null = null;
 
-const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
-
 // A native menu is the only reliable way to bind Cmd+, on macOS (the OS routes
 // it to the app menu before the web page ever sees the keydown). Zoom roles are
 // deliberately omitted so the terminal UI can't be zoomed.
@@ -87,9 +85,12 @@ function buildMenu(): void {
       submenu: [
         { label: 'Toggle Theme', accelerator: 'CmdOrCtrl+Shift+L', click: toggleTheme },
         { type: 'separator' },
-        // Reload wipes every pane while the ptys keep running headless in main,
-        // so the running sessions are lost. Dev-only, where it's actually needed.
-        ...(isDev ? [{ role: 'reload' } as MenuItemConstructorOptions] : []),
+        // Reload used to lose every running session: the ptys keep going
+        // headless in main, but the fresh renderer spawned new panes and
+        // orphaned them. They are reattached now — the renderer persists its
+        // pane->pty map on beforeunload and claims the survivors on restore —
+        // so this is a repaint, not a session wipe.
+        { role: 'reload' },
         { role: 'toggleDevTools' },
         { role: 'togglefullscreen' }
       ]
@@ -156,15 +157,6 @@ function createWindow(): void {
     if (input.type !== 'keyDown') return;
     const mod = process.platform === 'darwin' ? input.meta : input.control;
     if (!mod) return;
-    // Cmd+R (and Cmd+Shift+R) would restart the renderer and orphan every pty:
-    // the shells keep running headless and the sessions inside them (a `claude`
-    // for instance) become unreachable. macOS only — on Windows/Linux Ctrl+R is
-    // the shell's reverse-i-search and must reach the pty; there the missing
-    // menu role is enough, since nothing else binds reload.
-    if (!isDev && process.platform === 'darwin' && (input.key === 'r' || input.key === 'R')) {
-      event.preventDefault();
-      return;
-    }
     if (input.key === ',') {
       // Reliable Cmd/Ctrl+, even if the menu accelerator doesn't fire.
       event.preventDefault();
