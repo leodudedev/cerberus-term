@@ -82,10 +82,20 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 | Focus pane | click | `Ctrl+B` then `h/j/k/l` or arrows |
 | Resize | drag the divider | `Ctrl+B` then `H/J/K/L` |
 | Edit `.cerberus.json` | ⚙ | — |
+| Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
+| Find in pane | menu → Edit → Find… | `Cmd+F` (`Ctrl+Shift+F`) |
 | Settings | menu → Settings… | `Cmd+,` |
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
 
-The layout, per-pane cwds, and theme are restored on relaunch.
+Where two keys are listed, the second is Windows/Linux: `Ctrl+C`, `Ctrl+F` and
+friends are control characters the shell owns, so those bindings move to
+`Ctrl+Shift`.
+
+Find searches the focused pane's scrollback: Enter and Shift+Enter walk the
+matches, `Aa` and `.*` toggle case sensitivity and regex, Esc closes.
+
+The layout, per-pane cwds, and theme are restored on relaunch. Panes also
+survive a window reload — the shells keep running and reattach.
 
 ## Per-project config
 
