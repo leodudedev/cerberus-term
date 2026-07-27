@@ -3,6 +3,8 @@
 // keyboard); one more restores them all (you walked away). The flag lives in
 // main, so the state survives a reload and applies to every project at once.
 
+import { confirmDialog } from './ConfirmDialog.js';
+
 // Telegram's paper plane, inline so it inherits currentColor and needs no
 // network fetch (the CSP forbids one anyway). The slash is part of the same
 // drawing: its backing stroke is painted in the bar's own colour so the cut
@@ -54,12 +56,35 @@ export function makeMuteToggle(): HTMLElement {
     paint();
   });
 
+  // An icon alone can't say what a global switch does, and getting it backwards
+  // is expensive in both directions: silence you didn't want, or a phone that
+  // stays quiet while a session waits for you. So the click opens a dialog that
+  // spells out what changes — and, just as importantly, what doesn't.
+  const confirmFlip = (next: boolean): Promise<boolean> =>
+    next
+      ? confirmDialog(
+          'No session will notify Telegram until you turn this back on.\n\n' +
+            'Permission prompts and idle notices still show up here: the pane ' +
+            'flashes and its tab blinks, exactly as now. Only the phone goes quiet.\n\n' +
+            'Projects you muted individually stay muted when you switch this back on.',
+          'Silence Telegram',
+          { danger: false, title: 'Silence Telegram for every session?' }
+        )
+      : confirmDialog(
+          'Every session goes back to pushing permission prompts and ' +
+            'notifications to your phone, with the approve/deny buttons.\n\n' +
+            'Projects muted individually (/mute from the chat, or "mute" in ' +
+            'their .cerberus.json) stay muted — this only lifts the global switch.',
+          'Re-enable Telegram',
+          { danger: false, title: 'Re-enable Telegram for every session?' }
+        );
+
   btn.addEventListener('click', () => {
     if (busy) return;
     busy = true;
     const next = !muted;
-    void window.cerberusMute
-      .setAll(next)
+    void confirmFlip(next)
+      .then((ok) => (ok ? window.cerberusMute.setAll(next) : muted))
       .then((state) => {
         muted = state;
         paint();

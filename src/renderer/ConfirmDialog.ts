@@ -4,7 +4,20 @@
 
 let isOpen = false;
 
-export function confirmDialog(message: string, confirmLabel = 'Close'): Promise<boolean> {
+export interface ConfirmOptions {
+  // Closing a pane destroys a session, so the default action button is red.
+  // Reversible choices (a toggle) pass danger:false and get the accent button.
+  danger?: boolean;
+  // Optional heading above the message, for dialogs that explain rather than
+  // just ask. Newlines in `message` are preserved, so it can carry paragraphs.
+  title?: string;
+}
+
+export function confirmDialog(
+  message: string,
+  confirmLabel = 'Close',
+  opts: ConfirmOptions = {}
+): Promise<boolean> {
   return new Promise((resolve) => {
     if (isOpen) {
       resolve(false);
@@ -29,10 +42,16 @@ export function confirmDialog(message: string, confirmLabel = 'Close'): Promise<
     cancelBtn.textContent = 'Cancel';
     const okBtn = document.createElement('button');
     okBtn.type = 'button';
-    okBtn.className = 'confirm-danger';
+    okBtn.className = opts.danger === false ? 'config-save' : 'confirm-danger';
     okBtn.textContent = confirmLabel;
     buttons.append(cancelBtn, okBtn);
 
+    if (opts.title) {
+      const h = document.createElement('div');
+      h.className = 'settings-title';
+      h.textContent = opts.title;
+      modal.append(h);
+    }
     modal.append(msg, buttons);
     overlay.append(modal);
     document.body.append(overlay);
