@@ -15,7 +15,7 @@ import {
 } from './pane-tree.js';
 import { loadWorkspace, saveWorkspace, type SavedTab } from './persistence.js';
 import { confirmDialog } from './ConfirmDialog.js';
-import type { OpenPanePayload, TabAction } from './cerberus.js';
+import type { EditAction, OpenPanePayload, TabAction } from './cerberus.js';
 
 const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
 
@@ -237,6 +237,19 @@ export class Workspace {
   private selectIndex(i: number): void {
     const t = this.tabs[i];
     if (t) this.selectTab(t.id);
+  }
+
+  // Edit menu -> clipboard. Only claims the action when a terminal actually has
+  // focus: the settings modal's inputs must keep the native behaviour, and
+  // `.xterm` is the one wrapper that tells the two apart. Returns false so the
+  // caller can hand the action back to Chromium.
+  handleEdit(action: EditAction, text?: string): boolean {
+    if (!document.activeElement?.closest('.xterm')) return false;
+    const pane = this.byId(this.activeId)?.layout.focusedPane();
+    if (!pane) return false;
+    if (action === 'copy') return pane.copySelection();
+    pane.pasteText(text ?? '');
+    return true;
   }
 
   handleTabAction(action: TabAction, index?: number): void {

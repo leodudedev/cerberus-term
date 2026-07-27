@@ -13,6 +13,10 @@ export interface TerminalPane {
   focus(): void;
   onFocus(cb: () => void): void;
   setReadOnly(v: boolean): void;
+  // Edit menu clipboard. copySelection() reports false when there's nothing
+  // selected, so the caller can fall back to Chromium's native handler.
+  copySelection(): boolean;
+  pasteText(text: string): void;
   // Re-measure and resize the pty to the container. Called on tab activation:
   // a pane living in a display:none tab can't measure, so its fit is deferred
   // until the tab is shown again.
@@ -224,6 +228,21 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
     onFocus: (cb) => focusCbs.push(cb),
     setReadOnly: (v) => {
       readOnly = v;
+    },
+    // Writing the clipboard is allowed for the focused document without a
+    // permission prompt; reading isn't, which is why main hands us the text.
+    copySelection: () => {
+      const sel = term.getSelection();
+      if (!sel) return false;
+      void navigator.clipboard.writeText(sel);
+      return true;
+    },
+    // term.paste() (not a raw write) so xterm normalises newlines and wraps the
+    // text in bracketed-paste markers when the app asked for them — without it a
+    // multi-line paste is executed line by line by the shell.
+    pasteText: (text) => {
+      if (readOnly || !text) return;
+      term.paste(text);
     },
     refit: () => fitNow(),
     dispose: () => {

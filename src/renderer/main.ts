@@ -39,4 +39,10 @@ if (host) {
 
   // Theme toggle (native menu View -> Toggle Theme).
   window.cerberusUI.onToggleTheme(() => toggleTheme());
+
+  // Edit menu -> the focused terminal, or back to Chromium when no pane wants it
+  // (settings modal inputs, or a copy with nothing selected).
+  window.cerberusUI.onEdit((action, text) => {
+    if (!ws.handleEdit(action, text)) window.cerberusUI.editFallback(action);
+  });
 }

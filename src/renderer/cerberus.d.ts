@@ -12,6 +12,8 @@ export interface OpenPanePayload {
 
 export type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
 
+export type EditAction = 'copy' | 'paste';
+
 export interface PaneAttentionPayload {
   pane: string;
   sessionId: string;
@@ -28,6 +30,8 @@ declare global {
       onOpenPane(cb: (p: OpenPanePayload) => void): void;
       onTab(cb: (action: TabAction, index?: number) => void): void;
       onPaneAttention(cb: (p: PaneAttentionPayload) => void): void;
+      onEdit(cb: (action: EditAction, text?: string) => void): void;
+      editFallback(action: EditAction): void;
       closeWindow(): void;
     };
   }

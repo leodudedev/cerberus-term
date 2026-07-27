@@ -2,6 +2,7 @@ import {
   app,
   BrowserWindow,
   Menu,
+  clipboard,
   ipcMain,
   shell,
   type MenuItemConstructorOptions
@@ -27,6 +28,17 @@ function buildMenu(): void {
   const openSettings = (): void => mainWindow?.webContents.send('cerberus:open-settings');
   const toggleTheme = (): void => mainWindow?.webContents.send('cerberus:toggle-theme');
   const tab = (action: string): void => mainWindow?.webContents.send('cerberus:tab', action);
+  // Clipboard can't go through role:'copy'/'paste': with the WebGL renderer a
+  // terminal selection is drawn by xterm, not a DOM selection, so Chromium's
+  // editing command has nothing to act on. Route the action to the renderer,
+  // which knows whether a terminal or a settings input has focus; the paste text
+  // is read here so the renderer never needs the clipboard-read permission.
+  const edit = (action: 'copy' | 'paste'): void =>
+    mainWindow?.webContents.send(
+      'cerberus:edit',
+      action,
+      action === 'paste' ? clipboard.readText() : undefined
+    );
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -51,15 +63,24 @@ function buildMenu(): void {
       : []),
     {
       label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' }
-      ]
+      submenu: isMac
+        ? [
+            { role: 'undo' },
+            { role: 'redo' },
+            { type: 'separator' },
+            { role: 'cut' },
+            { label: 'Copy', accelerator: 'Cmd+C', click: () => edit('copy') },
+            { label: 'Paste', accelerator: 'Cmd+V', click: () => edit('paste') },
+            { role: 'selectAll' }
+          ]
+        : // Ctrl+C/X/Z/A are control characters the shell owns (SIGINT, the
+          // emacs prefix, SIGTSTP, beginning-of-line): a menu accelerator on any
+          // of them takes the key before the pty ever sees it. Only the
+          // Ctrl+Shift pair every Linux terminal uses.
+          [
+            { label: 'Copy', accelerator: 'Ctrl+Shift+C', click: () => edit('copy') },
+            { label: 'Paste', accelerator: 'Ctrl+Shift+V', click: () => edit('paste') }
+          ]
     },
     {
       label: 'View',
@@ -231,6 +252,14 @@ app.whenReady().then(() => {
   registerSettingsIpc();
   // Renderer asks to close the window after the last tab is closed.
   ipcMain.on('cerberus:close-window', () => mainWindow?.close());
+  // No terminal claimed the Edit action (focus is in the settings modal, or
+  // there was no selection to copy) — hand it back to Chromium's native path.
+  ipcMain.on('cerberus:edit-fallback', (_e, action: 'copy' | 'paste') => {
+    const wc = mainWindow?.webContents;
+    if (!wc) return;
+    if (action === 'copy') wc.copy();
+    else wc.paste();
+  });
   buildMenu();
   createWindow();
 

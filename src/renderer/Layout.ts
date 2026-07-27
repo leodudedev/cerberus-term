@@ -107,6 +107,11 @@ export class Layout {
     return this.leaves.get(leafId)?.pane.paneId ?? null;
   }
 
+  focusedPane(): TerminalPane | null {
+    if (!this.focusedLeafId) return null;
+    return this.leaves.get(this.focusedLeafId)?.pane ?? null;
+  }
+
   // leafId -> paneId for every live pane. Persisted so the next renderer can
   // reattach these ptys, and used to tell main which ones are still claimed.
   async snapshotPtyIds(): Promise<Record<string, string>> {

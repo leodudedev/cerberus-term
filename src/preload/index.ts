@@ -81,6 +81,7 @@ interface OpenPanePayload {
   fmtPath?: string;
 }
 type TabAction = 'new' | 'close' | 'next' | 'prev' | 'select';
+type EditAction = 'copy' | 'paste';
 interface PaneAttentionPayload {
   pane: string;
   sessionId: string;
@@ -90,11 +91,13 @@ let onToggleTheme: (() => void) | null = null;
 let onOpenPane: ((p: OpenPanePayload) => void) | null = null;
 let onTab: ((action: TabAction, index?: number) => void) | null = null;
 let onPaneAttention: ((p: PaneAttentionPayload) => void) | null = null;
+let onEdit: ((action: EditAction, text?: string) => void) | null = null;
 ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
 ipcRenderer.on('cerberus:toggle-theme', () => onToggleTheme?.());
 ipcRenderer.on('cerberus:open-pane', (_e, p: OpenPanePayload) => onOpenPane?.(p));
 ipcRenderer.on('cerberus:tab', (_e, action: TabAction, index?: number) => onTab?.(action, index));
 ipcRenderer.on('cerberus:pane-attention', (_e, p: PaneAttentionPayload) => onPaneAttention?.(p));
+ipcRenderer.on('cerberus:edit', (_e, action: EditAction, text?: string) => onEdit?.(action, text));
 contextBridge.exposeInMainWorld('cerberusUI', {
   onOpenSettings: (cb: () => void) => {
     onOpenSettings = cb;
@@ -111,5 +114,9 @@ contextBridge.exposeInMainWorld('cerberusUI', {
   onPaneAttention: (cb: (p: PaneAttentionPayload) => void) => {
     onPaneAttention = cb;
   },
+  onEdit: (cb: (action: EditAction, text?: string) => void) => {
+    onEdit = cb;
+  },
+  editFallback: (action: EditAction) => ipcRenderer.send('cerberus:edit-fallback', action),
   closeWindow: () => ipcRenderer.send('cerberus:close-window')
 });
