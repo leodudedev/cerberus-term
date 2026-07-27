@@ -1,4 +1,11 @@
-import { app, BrowserWindow, Menu, ipcMain, type MenuItemConstructorOptions } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  ipcMain,
+  shell,
+  type MenuItemConstructorOptions
+} from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys, detachAllPtys } from './bridge-electron.js';
@@ -157,6 +164,26 @@ function createWindow(): void {
       event.preventDefault();
     }
   });
+
+  // The preload hands this window spawn/write/kill over the ptys, so letting any
+  // other document load here would hand a page arbitrary command execution.
+  // contextIsolation doesn't help with that — it protects the bridge, not which
+  // origin gets to hold it. Keep navigation pinned to our own renderer and push
+  // every link out to the OS browser.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const devUrl = process.env['ELECTRON_RENDERER_URL'];
+    if (devUrl && url.startsWith(devUrl)) return;
+    if (url.startsWith('file://')) return;
+    event.preventDefault();
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+  });
+  // No <webview> anywhere in the app; anything trying to attach one is a bug or
+  // an injection.
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
   // The ptys live in main and outlive the page. Whenever the renderer restarts
   // — reload, crash, dev HMR — orphan them so their output is buffered until

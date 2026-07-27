@@ -27,8 +27,14 @@ const ptys = new Map<string, PaneProc>();
 // the generous size, with CAPTURE_MAX slicing the small window back out.
 const BUFFER_MAX = 256 * 1024;
 const CAPTURE_MAX = 16 * 1024;
+// OSC (ESC ] … BEL/ST) and DCS (ESC P … ST) must come FIRST: the trailing
+// control-char class would otherwise eat their ESC and BEL and leave the
+// payload behind as plain text. That matters — a program can write
+// `ESC ]0;1. don't ask again BEL` and land text in the capture buffer that the
+// user never sees on screen but the permission-dialog heuristics do read.
 // eslint-disable-next-line no-control-regex
-const ANSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB0]|\x1b[<=>]|[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
+const ANSI_RE =
+  /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1bP[\s\S]*?\x1b\\|\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[()][AB0]|\x1b[<=>]|[\x00-\x08\x0b\x0c\x0e-\x1f]/g;
 
 function defaultShell(): string {
   const configured = getSettings().defaultShell?.trim();
@@ -49,11 +55,25 @@ function shellArgs(shell: string): string[] {
   return [];
 }
 
+// The app's own secrets, which a pane must never inherit. Settings and .env are
+// loaded into process.env at boot, and a pty gets a copy of it — so without this
+// every shell, every `claude`, every npm postinstall and every `env` typed
+// during a screen share would hand out the Telegram bot token. With token and
+// chat id, anything running in a pane can poll the bot (stealing the taps on the
+// approval buttons) and push forged permission requests to the phone.
+// CERBERUS_PANE_ID / CERBERUS_PORT stay: the hooks need them.
+const PRIVATE_ENV = new Set([
+  'TELEGRAM_BOT_TOKEN',
+  'TELEGRAM_CHAT_ID',
+  'TELEGRAM_ALLOWED_CHATS',
+  'CERBERUS_ENV_FILE'
+]);
+
 // node-pty wants a fully-defined string env; drop undefined values.
 function cleanEnv(extra?: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (v !== undefined) out[k] = v;
+    if (v !== undefined && !PRIVATE_ENV.has(k)) out[k] = v;
   }
   return { ...out, ...(extra ?? {}) };
 }
