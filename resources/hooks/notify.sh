@@ -22,6 +22,7 @@ EOF
 
 curl -s -m 3 -X POST "http://127.0.0.1:${CERBERUS_PORT:-8898}/event" \
   -H 'content-type: application/json' \
+  -H "x-cerberus-token: ${CERBERUS_TOKEN:-}" \
   -d "$body" >/dev/null 2>&1 &
 
 exit 0

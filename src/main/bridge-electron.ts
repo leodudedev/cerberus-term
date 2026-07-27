@@ -6,6 +6,7 @@ import { homedir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
+import { getDaemonToken } from './cerberus/token.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
 // Electron-side backing of TerminalBridge: owns every pty, bridges IPC.
@@ -151,7 +152,12 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
         // looked flat.
         COLORTERM: 'truecolor',
         CERBERUS_PANE_ID: paneId,
-        CERBERUS_PORT: String(config.port)
+        CERBERUS_PORT: String(config.port),
+        // Lets the CLI hooks authenticate to the daemon. Deliberately readable
+        // by anything in the pane: it isn't a defence against this user's own
+        // processes, it's what keeps a web page from POSTing to our loopback
+        // port. See cerberus/token.ts.
+        CERBERUS_TOKEN: getDaemonToken()
       })
     });
     const entry: PaneProc = { proc, spawnCwd, buf: '', attached: true };

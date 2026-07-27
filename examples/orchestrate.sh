@@ -25,6 +25,7 @@ open_follower() { # $1=log file  $2=title  $3=format
   [ -n "${CERBERUS_PORT:-}" ] || return 0
   curl -fsS -X POST "http://127.0.0.1:$CERBERUS_PORT/pane" \
     -H 'content-type: application/json' \
+    -H "x-cerberus-token: $CERBERUS_TOKEN" \
     -d "{\"file\":\"$1\",\"title\":\"$2\",\"format\":\"$3\"}" >/dev/null 2>&1 || true
 }
 

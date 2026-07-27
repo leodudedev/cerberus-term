@@ -135,12 +135,19 @@ absolute file path and shell-quotes everything it runs. Telegram callbacks are
 checked against your allowed chat(s). CLI hooks are gated on `CERBERUS_PANE_ID`,
 so they fire only inside a Cerberus pane and coexist with any tmux-based setup.
 
+`POST /event` and `POST /pane` require a per-run token in an `x-cerberus-token`
+header and reject any request carrying an `Origin`. That is aimed at the one
+genuinely remote path into a loopback server: a web page POSTing to
+`127.0.0.1` in the background. It is **not** a defence against processes running
+as you — those can read the token from the pane env or from
+`~/.cerberus-term/token` (mode 0600). Cerberus injects `CERBERUS_TOKEN` into
+every pane so hooks and orchestrator scripts authenticate transparently.
+
 Your Telegram bot token (`~/.cerberus-term/cerberus-settings.json` — or platform
 userData) and the session state (`~/.cerberus-term/cerberus-state.json`) are
 stored in **plaintext**, like a `.env`. Anyone with access to your user account
-can read them; keep the machine trusted. The loopback daemon is currently
-**unauthenticated** — any local process can post events or open follower panes,
-so treat it as trusted-local-only.
+can read them; keep the machine trusted. The bot token is kept out of the pane
+environment, so a shell (or a `claude` running in one) never sees it.
 
 ## Stack
 
@@ -186,9 +193,11 @@ whole thing also runs *outside* Cerberus (the supervision layer just no-ops).
    ```bash
    curl -fsS -X POST "http://127.0.0.1:$CERBERUS_PORT/pane" \
      -H 'content-type: application/json' \
+     -H "x-cerberus-token: $CERBERUS_TOKEN" \
      -d '{"file":"'$PWD'/out/t1.log","title":"t1","format":"claude-stream"}' || true
    ```
-   `CERBERUS_PORT` is injected into every Cerberus pane. `format` is opt-in:
+   `CERBERUS_PORT` and `CERBERUS_TOKEN` are injected into every Cerberus pane
+   (outside one, read the token from `~/.cerberus-term/token`). `format` is opt-in:
    `"claude-stream"` renders Claude Code stream-json as a readable projection
    (assistant text, `> tool {input}`, a `-- result | turns | cost` footer);
    omit it (or `"raw"`) for a plain `tail -f` of any other agent's log.

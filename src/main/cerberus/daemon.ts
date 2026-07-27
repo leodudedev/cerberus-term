@@ -10,6 +10,7 @@ import { readProjectConfig } from "../../core/project-config.js";
 import { isMuted } from "../../core/mute.js";
 import { putPendingTool, peekPendingTool, summarizeToolArgs } from "../../core/pending-tools.js";
 import { capturePane } from "../pane-control.js";
+import { getDaemonToken } from "./token.js";
 
 // A permission dialog offers a "don't ask again" / "allow all" option only
 // sometimes, and whether it does can't be inferred from the tool or command —
@@ -124,10 +125,29 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 let emit: ((channel: string, payload: unknown) => void) | null = null;
 let claudeStreamFmtPath: string | undefined;
 
+// Gate for everything that has a side effect. Two independent checks:
+//  - the shared token, which a web page cannot know;
+//  - the absence of an Origin header, which a browser always attaches to a
+//    cross-origin request and a curl from a hook never does.
+// Either one alone would do; together they make a browser-driven POST to our
+// loopback port a non-event. See token.ts for why that's the threat we care
+// about (a process running as this user can read the token anyway).
+function authorized(req: IncomingMessage): boolean {
+  if (req.headers["origin"]) return false;
+  const got = req.headers["x-cerberus-token"];
+  return typeof got === "string" && got === getDaemonToken();
+}
+
 const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, ts: Date.now() }));
+    return;
+  }
+
+  if (!authorized(req)) {
+    res.writeHead(401, { "content-type": "application/json" });
+    res.end(JSON.stringify({ error: "unauthorized" }));
     return;
   }
 
@@ -314,8 +334,15 @@ const server = createServer(async (req, res) => {
     // Read the actual dialog from the pane to know whether a "don't ask again"
     // option is present — the only reliable source. Skip when we already have
     // AskUserQuestion options (those drive per-option buttons instead).
+    //
+    // The pane buffer is untrusted: it's whatever processes chose to print, and
+    // a program can forge a numbered block offering "don't ask again". So only
+    // consult it when a PreToolUse for this session landed moments ago, which is
+    // the one signal that a real dialog is actually waiting. Without it there is
+    // nothing to allow-always and the button must not appear.
     let hasAlways = false;
-    if (isPermission && options.length === 0 && pane) {
+    const freshTool = !!pend && Date.now() - pend.ts < 4000;
+    if (isPermission && options.length === 0 && pane && freshTool) {
       let dialog = await capturePane(pane);
       // The dialog may not be painted yet when the hook fires; retry once.
       if (!/\b\d+\.\s/.test(dialog)) {
