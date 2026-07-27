@@ -1,6 +1,7 @@
 import type { TerminalBridge } from '../core/terminal-bridge.js';
 import type { ConfigBridge } from '../core/config-bridge.js';
 import type { SettingsBridge } from '../core/settings.js';
+import type { MuteBridge } from '../core/mute-bridge.js';
 
 export interface OpenPanePayload {
   file: string;
@@ -27,6 +28,7 @@ declare global {
     cerberus: TerminalBridge;
     cerberusConfig: ConfigBridge;
     cerberusSettings: SettingsBridge;
+    cerberusMute: MuteBridge;
     cerberusUI: {
       onOpenSettings(cb: () => void): void;
       onToggleTheme(cb: () => void): void;

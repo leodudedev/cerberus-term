@@ -2,6 +2,7 @@ import { Layout } from './Layout.js';
 import { openConfigEditor } from './ConfigEditor.js';
 import { toggleFavorite } from './favorites.js';
 import { openFavoritesOverlay } from './FavoritesOverlay.js';
+import { makeMuteToggle } from './MuteToggle.js';
 import {
   newLeaf,
   splitLeaf,
@@ -54,13 +55,25 @@ export class Workspace {
     const wrap = document.createElement('div');
     wrap.className = 'workspace';
 
+    const bar = document.createElement('div');
+    bar.className = 'tabbar';
+
+    // Chips scroll; the trailing actions stay pinned to the right edge. The
+    // mute toggle is built once and lives outside the chip strip, so a tab-bar
+    // re-render can't tear it down mid-flight.
     this.tabBarEl = document.createElement('div');
-    this.tabBarEl.className = 'tabbar';
+    this.tabBarEl.className = 'tabbar-tabs';
+
+    const actions = document.createElement('div');
+    actions.className = 'tabbar-actions';
+    actions.append(makeMuteToggle());
+
+    bar.append(this.tabBarEl, actions);
 
     this.viewport = document.createElement('div');
     this.viewport.className = 'tabs-viewport';
 
-    wrap.append(this.tabBarEl, this.viewport);
+    wrap.append(bar, this.viewport);
     host.replaceChildren(wrap);
   }
 

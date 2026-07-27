@@ -18,6 +18,7 @@ export function setStatePath(path: string): void {
 
 export interface PersistedState {
   muted?: Record<string, number | null>; // cwd -> expiry epoch ms, null = forever
+  muteAll?: boolean; // global do-not-disturb: silences every project at once
   sessions?: Record<string, unknown>; // sessionId -> SessionInfo
 }
 

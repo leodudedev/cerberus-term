@@ -65,13 +65,55 @@
         display: flex;
         align-items: center;
         flex: 0 0 34px;
-        gap: 2px;
         padding: 0 4px;
         background: var(--panel);
         border-bottom: 1px solid var(--header-border);
         font-family: system-ui, sans-serif;
-        overflow-x: auto;
         user-select: none;
+      }
+      /* chips scroll horizontally; the actions block never does */
+      .tabbar-tabs {
+        display: flex;
+        align-items: center;
+        flex: 1 1 auto;
+        gap: 2px;
+        min-width: 0;
+        overflow-x: auto;
+      }
+      .tabbar-actions {
+        display: flex;
+        align-items: center;
+        flex: 0 0 auto;
+        gap: 2px;
+        padding-left: 6px;
+      }
+      .tabbar-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: var(--muted);
+        font-size: 13px;
+        font-variant-emoji: text;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .tabbar-btn:hover {
+        background: var(--btn-hover);
+        color: var(--text);
+      }
+      /* every project silenced — loud enough to notice on the way past */
+      .tabbar-btn.muted {
+        background: rgba(240, 190, 40, 0.18);
+        color: #e0b84a;
+      }
+      .tabbar-btn.muted:hover {
+        background: rgba(240, 190, 40, 0.3);
+        color: #e0b84a;
       }
       .tabs-viewport {
         flex: 1 1 auto;

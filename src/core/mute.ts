@@ -16,6 +16,34 @@ function persist(): void {
   saveState({ muted: out });
 }
 
+// Global do-not-disturb. One switch that silences every project's Telegram
+// push, orthogonal to the per-project mute set above: flipping it off restores
+// exactly the mutes that were there before. Meant for "I'm at the keyboard" —
+// the local pane flash is unaffected, only the phone goes quiet.
+let mutedAll = loadState().muteAll === true;
+
+type MuteAllListener = (active: boolean) => void;
+const allListeners = new Set<MuteAllListener>();
+
+// Lets main mirror a flip back to the renderer, so the UI toggle stays in sync
+// when the flag is changed from somewhere else.
+export function onMuteAllChange(cb: MuteAllListener): () => void {
+  allListeners.add(cb);
+  return () => void allListeners.delete(cb);
+}
+
+export function isMutedAll(): boolean {
+  return mutedAll;
+}
+
+export function setMutedAll(on: boolean): boolean {
+  if (mutedAll === on) return mutedAll;
+  mutedAll = on;
+  saveState({ muteAll: on });
+  for (const cb of allListeners) cb(on);
+  return mutedAll;
+}
+
 export function mute(cwd: string, ttlMs?: number): void {
   muted.set(cwd, ttlMs && ttlMs > 0 ? Date.now() + ttlMs : Infinity);
   persist();
@@ -27,8 +55,10 @@ export function unmute(cwd: string): boolean {
   return removed;
 }
 
-// A cwd is muted if it matches a muted entry or sits under one.
+// A cwd is muted if the global switch is on, or it matches a muted entry or
+// sits under one.
 export function isMuted(cwd: string): boolean {
+  if (mutedAll) return true;
   const now = Date.now();
   for (const [dir, until] of muted) {
     if (until <= now) {

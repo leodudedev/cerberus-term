@@ -82,6 +82,7 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 | Focus pane | click | `Ctrl+B` then `h/j/k/l` or arrows |
 | Resize | drag the divider | `Ctrl+B` then `H/J/K/L` |
 | Edit `.cerberus.json` | ⚙ | — |
+| Mute every Telegram push | 🔔 / 🔕 at the right of the tab bar | — |
 | Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
 | Find in pane | menu → Edit → Find… | `Cmd+F` (`Ctrl+Shift+F`) |
 | Settings | menu → Settings… | `Cmd+,` |
@@ -93,6 +94,13 @@ friends are control characters the shell owns, so those bindings move to
 
 Find searches the focused pane's scrollback: Enter and Shift+Enter walk the
 matches, `Aa` and `.*` toggle case sensitivity and regex, Esc closes.
+
+The 🔔 toggle is a global do-not-disturb: while it shows 🔕 no session pushes to
+Telegram, so you can work at the keyboard undisturbed, and one click restores
+every session at once when you walk away. It's independent of the per-project
+`mute` and of `/mute` from the chat — turning it off leaves those exactly as they
+were. Panes still flash locally when a session asks for a permission, and the
+state survives a restart.
 
 The layout, per-pane cwds, and theme are restored on relaunch. Panes also
 survive a window reload — the shells keep running and reattach.

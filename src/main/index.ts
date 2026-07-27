@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys, detachAllPtys } from './bridge-electron.js';
 import { registerConfigIpc } from './config-ipc.js';
 import { registerSettingsIpc } from './settings-ipc.js';
+import { registerMuteIpc } from './mute-ipc.js';
 import { startCerberus } from './cerberus/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -251,6 +252,7 @@ app.whenReady().then(() => {
   registerBridge(() => mainWindow);
   registerConfigIpc();
   registerSettingsIpc();
+  registerMuteIpc(() => mainWindow);
   // Renderer asks to close the window after the last tab is closed.
   ipcMain.on('cerberus:close-window', () => mainWindow?.close());
   // No terminal claimed the Edit action (focus is in the settings modal, or
