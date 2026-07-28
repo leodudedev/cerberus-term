@@ -10,6 +10,7 @@ import {
   installedTargets,
   stableScript
 } from '../src/main/cerberus/hook-install.js';
+import type { TargetId } from '../src/core/hook-targets.js';
 
 // install/uninstall/status all take the home dir, so a tmpdir keeps the real
 // ~/.claude and ~/.copilot out of it. The registered command still points at
@@ -144,6 +145,31 @@ describe('hook install / uninstall', () => {
     expect(installedTargets(home)).toEqual([]);
     installAgentHooks(['claude'], home);
     expect(installedTargets(home)).toEqual(['claude']);
+  });
+
+  // The shape settings-ipc applies on every answer: register what's ticked,
+  // strip what isn't. Deliberately not a diff against the previously ticked
+  // list — reading a full "before" as "nothing new to add" is what once made
+  // the first-run "yes" record consent and then install nothing.
+  it('converges the config files onto the ticked list', () => {
+    withConfigDir('.claude');
+    withConfigDir('.copilot');
+    const converge = (chosen: readonly TargetId[]): void => {
+      installAgentHooks(chosen, home);
+      uninstallAgentHooks(
+        ALL.filter((id) => !chosen.includes(id)),
+        home
+      );
+    };
+
+    converge(ALL);
+    expect(installedTargets(home)).toEqual(['claude', 'copilot']);
+    converge(ALL); // idempotent: saying the same thing twice changes nothing
+    expect(installedTargets(home)).toEqual(['claude', 'copilot']);
+    converge(['claude']);
+    expect(installedTargets(home)).toEqual(['claude']);
+    converge([]);
+    expect(installedTargets(home)).toEqual([]);
   });
 
   it('appends to existing hooks instead of replacing them', () => {
