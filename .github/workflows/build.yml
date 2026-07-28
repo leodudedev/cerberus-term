@@ -55,3 +55,53 @@ jobs:
             dist/*.AppImage
             dist/*.deb
           if-no-files-found: ignore
+
+  # electron-builder publishes the installers but leaves the release body empty,
+  # and all three matrix jobs write to the same release — so the notes are set
+  # once, here, after the last one lands.
+  notes:
+    needs: dist
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the tag history to compute the previous tag
+
+      - name: Set the release body from CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+
+          # Everything between this version's heading and the next one, with
+          # the blank lines around it trimmed but the ones inside it kept.
+          section=$(awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found {
+              if ($0 ~ /[^[:space:]]/) {
+                while (blanks-- > 0) print ""
+                blanks = 0
+                started = 1
+                print
+              } else if (started) blanks++
+            }
+          ' CHANGELOG.md)
+
+          if [ -z "$section" ]; then
+            echo "::error file=CHANGELOG.md::No '## [$version]' section — add one before tagging $tag"
+            exit 1
+          fi
+
+          prev=$(git describe --tags --abbrev=0 "$tag^" 2>/dev/null || true)
+
+          {
+            printf '%s\n' "$section"
+            if [ -n "$prev" ]; then
+              printf '\n**Full changelog**: https://github.com/%s/compare/%s...%s\n' \
+                "$GITHUB_REPOSITORY" "$prev" "$tag"
+            fi
+          } | gh release edit "$tag" --notes-file -
