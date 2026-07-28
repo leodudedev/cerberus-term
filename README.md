@@ -76,10 +76,11 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 - **macOS, Windows, or Linux.** On Windows the panes run over ConPTY; the shell
   hooks that power notifications are bash-based, so remote control there works
   through WSL.
-- **An AI CLI** in your `PATH` — [Claude Code](https://claude.com/claude-code)
-  and [GitHub Copilot CLI](https://github.com/github/copilot-cli) get
-  notification hooks installed automatically. Any other CLI still runs in a pane;
-  it just won't push.
+- **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code) is
+  wired up for you: Cerberus registers its notification hooks on first launch.
+  [GitHub Copilot CLI](https://github.com/github/copilot-cli) is supported too,
+  but its hook has to be registered by hand — see below. Any other CLI still
+  runs in a pane; it just won't push.
 - **A Telegram bot** for the remote half: talk to
   [@BotFather](https://t.me/BotFather) for a token, and to
   [@userinfobot](https://t.me/userinfobot) for your chat ID. Without them
@@ -91,9 +92,30 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 2. **Cmd+,** (or menu → **Settings…**) → set your Telegram **bot token** and
    **chat ID**, and pick the bot's language (English or Italian). Restart the app
    so the bot starts polling with the new token.
-3. In any pane run `claude` (or `copilot`). Cerberus installs the CLI hooks
-   silently on first run; when a session needs you, you get a Telegram push with
-   🟢 🟡 🔴 risk and Approve / Deny / prompt buttons that land in that pane.
+3. In any pane run `claude`. When the session needs you, you get a Telegram push
+   with 🟢 🟡 🔴 risk and Approve / Deny / prompt buttons that land in that pane.
+
+The Claude Code hooks are registered when the app starts, not the first time you
+run `claude` — any hooks you already had keep working alongside them.
+
+### Copilot CLI
+
+Copilot's hook isn't registered automatically — add it yourself to
+`~/.copilot/settings.json`, pointing at the script Cerberus keeps in
+`~/.cerberus-term/hooks/`:
+
+```json
+{
+  "hooks": {
+    "preToolUse": [{ "type": "command", "bash": "~/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }],
+    "notification": [{ "type": "command", "bash": "~/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }],
+    "agentStop": [{ "type": "command", "bash": "~/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }]
+  }
+}
+```
+
+Use the absolute path — expand `~` yourself. The script is copied there on every
+launch, so it survives app updates.
 
 ## Controls
 
