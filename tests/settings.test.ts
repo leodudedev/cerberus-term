@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { mergeSettings, DEFAULT_SETTINGS, type Settings } from '../src/core/settings.js';
+import {
+  mergeSettings,
+  migrateHookTargets,
+  parseTargetIds,
+  DEFAULT_SETTINGS,
+  type Settings
+} from '../src/core/settings.js';
 
 describe('mergeSettings', () => {
   it('fills an empty object with the defaults', () => {
@@ -23,29 +29,61 @@ describe('mergeSettings', () => {
       telegram: { token: 't', chatId: '1', allowedChats: '1,2', lang: 'it' },
       defaultShell: '/bin/zsh',
       skipCloseConfirm: true,
-      agentHooks: false
+      hookTargets: ['claude']
     };
     expect(mergeSettings(saved)).toEqual(saved);
     // …and again, as it would be on the next app start.
     expect(mergeSettings(mergeSettings(saved))).toEqual(saved);
   });
 
-  it('defaults agentHooks to on only when it was never set', () => {
-    expect(mergeSettings({}).agentHooks).toBe(true);
-    expect(mergeSettings({ agentHooks: false }).agentHooks).toBe(false);
+  // The three states are all meaningful and all different: never asked, asked
+  // and said no, asked and picked something. Collapsing the first two would
+  // either nag on every launch or install without an answer.
+  it('keeps hookTargets undefined and empty apart', () => {
+    expect(mergeSettings({}).hookTargets).toBeUndefined();
+    expect(mergeSettings({ hookTargets: [] }).hookTargets).toEqual([]);
+    expect(mergeSettings({ hookTargets: ['copilot'] }).hookTargets).toEqual(['copilot']);
   });
 
-  // claudeHooks was the pre-Copilot name. Someone who had opted out must not
-  // get the hooks reinstalled just because the field was renamed.
-  it('reads the legacy claudeHooks field when agentHooks is absent', () => {
-    const legacy = { claudeHooks: false } as Partial<Settings>;
-    expect(mergeSettings(legacy).agentHooks).toBe(false);
-    // Once both exist, the new name wins.
-    expect(mergeSettings({ ...legacy, agentHooks: true }).agentHooks).toBe(true);
+  it('drops ids it has no target for', () => {
+    expect(parseTargetIds(['claude', 'codex', 42, null])).toEqual(['claude']);
+    expect(parseTargetIds('claude')).toEqual([]);
+    expect(parseTargetIds(undefined)).toEqual([]);
   });
 
   it('drops fields that are no longer part of Settings', () => {
     const legacy = { launchCmds: { claude: 'claude' } } as Partial<Settings>;
     expect(mergeSettings(legacy)).not.toHaveProperty('launchCmds');
+  });
+});
+
+describe('migrateHookTargets', () => {
+  // Someone upgrading already has the hooks in their config. Asking after the
+  // fact would be theatre, so they're converted silently to the equivalent
+  // explicit list — every agent they have installed right now.
+  it('turns the old master switch into the installed agents', () => {
+    expect(migrateHookTargets(mergeSettings({ agentHooks: true }), ['claude'])).toEqual(['claude']);
+  });
+
+  it('turns an opt-out into a recorded no', () => {
+    expect(migrateHookTargets(mergeSettings({ agentHooks: false }), ['claude'])).toEqual([]);
+  });
+
+  // claudeHooks was the pre-Copilot name, read through mergeSettings. Someone
+  // who had opted out under that name must not come back as opted in.
+  it('honours the legacy claudeHooks name', () => {
+    const legacy = mergeSettings({ claudeHooks: false } as Partial<Settings>);
+    expect(migrateHookTargets(legacy, ['claude', 'copilot'])).toEqual([]);
+  });
+
+  it('leaves a fresh install undecided, so the consent dialog runs', () => {
+    expect(migrateHookTargets(mergeSettings({}), ['claude'])).toBeNull();
+  });
+
+  it('never overwrites an answer already given, empty included', () => {
+    expect(migrateHookTargets(mergeSettings({ hookTargets: [] }), ['claude'])).toBeNull();
+    expect(
+      migrateHookTargets(mergeSettings({ hookTargets: ['claude'], agentHooks: false }), ['copilot'])
+    ).toBeNull();
   });
 });

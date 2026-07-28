@@ -1,3 +1,5 @@
+import { HOOK_TARGETS, type TargetId } from './hook-targets.js';
+
 // Global app settings, edited in-app and persisted to userData. Per-project
 // .cerberus.json still overrides the overlapping fields (chatId/minRisk/…) in
 // the daemon; this is the global default that used to come from .env.
@@ -13,17 +15,21 @@ export interface Settings {
   telegram: TelegramSettings;
   defaultShell?: string; // pty shell when a pane doesn't specify one
   skipCloseConfirm?: boolean; // when true, closing a pane/tab skips the confirm
-  // Register the notification hooks in each installed agent CLI's config on
-  // every launch. Turning this off also removes the ones already there —
-  // without the flag the next launch would just put them back. Undefined
-  // counts as on. Was `claudeHooks` before Copilot joined the list.
+  // The agent CLIs we register notification hooks in. These are files outside
+  // the app, owned by other tools, so the list is only ever what someone
+  // explicitly ticked. Undefined means nobody has been asked yet — that, and
+  // only that, opens the first-run consent dialog. An empty array is a
+  // recorded "no" and stays one.
+  hookTargets?: TargetId[];
+  // Pre-0.9 master switch (and `claudeHooks` before that). Read once at boot to
+  // build hookTargets, then dropped — never written back. Deliberately has no
+  // default: undefined is what tells a fresh install apart from an upgrade.
   agentHooks?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
-  skipCloseConfirm: false,
-  agentHooks: true
+  skipCloseConfirm: false
 };
 
 // Fill the gaps in a settings object read off disk (or handed over by the
@@ -39,16 +45,41 @@ export function mergeSettings(parsed: Partial<Settings> | null | undefined): Set
     telegram: { ...DEFAULT_SETTINGS.telegram, ...(p.telegram ?? {}) },
     defaultShell: p.defaultShell ?? DEFAULT_SETTINGS.defaultShell,
     skipCloseConfirm: p.skipCloseConfirm ?? DEFAULT_SETTINGS.skipCloseConfirm,
-    agentHooks: p.agentHooks ?? legacyHooks ?? DEFAULT_SETTINGS.agentHooks
+    // No default on either: undefined is meaningful for both, and an empty
+    // hookTargets must survive as an empty array rather than fall through.
+    hookTargets: p.hookTargets ? parseTargetIds(p.hookTargets) : undefined,
+    agentHooks: p.agentHooks ?? legacyHooks
   };
+}
+
+// Keep only ids we actually have a target for. The list round-trips through
+// IPC and a JSON file on disk, so an unknown string is a real possibility —
+// a downgrade after an agent was added is enough to produce one.
+export function parseTargetIds(value: unknown): TargetId[] {
+  if (!Array.isArray(value)) return [];
+  const known = HOOK_TARGETS.map((t) => t.id) as string[];
+  return value.filter((v): v is TargetId => typeof v === 'string' && known.includes(v));
+}
+
+// One-shot upgrade from the old master switch to the explicit per-agent list.
+// Someone who already had hooks on keeps every agent they have installed right
+// now, and is never shown the consent dialog: the hooks are already in their
+// config, asking after the fact would be theatre. Returns null when there's
+// nothing to migrate — including a fresh install, which must go to the dialog.
+export function migrateHookTargets(s: Settings, available: TargetId[]): TargetId[] | null {
+  if (s.hookTargets) return null; // already decided, [] included
+  if (s.agentHooks === undefined) return null; // never asked — the dialog's job
+  return s.agentHooks ? available : [];
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
 export interface HookTargetStatus {
-  id: string;
+  id: TargetId;
   label: string; // "Claude Code"
   file: string; // the config we'd edit
+  events: string[]; // the events we'd register under, in that file
+  command: string; // the exact command the entries run
   available: boolean; // its config dir exists — the CLI is installed here
   installed: boolean;
 }
@@ -57,4 +88,10 @@ export interface SettingsBridge {
   get(): Promise<Settings>;
   save(s: Settings): Promise<SaveResult>;
   hooksStatus(): Promise<HookTargetStatus[]>;
+  // The agents to ask about at first run, or null when there's nothing to ask:
+  // already decided, no agent CLI on this machine, or a platform we don't
+  // install on.
+  hooksConsent(): Promise<HookTargetStatus[] | null>;
+  // Record the answer and act on it. Also the "no" path, with an empty array.
+  setHookTargets(ids: string[]): Promise<SaveResult>;
 }

@@ -57,30 +57,48 @@ export async function openSettingsEditor(): Promise<void> {
   skipConfirm.className = 'settings-checkbox';
   skipConfirm.checked = s.skipCloseConfirm ?? false;
 
-  const agentHooks = document.createElement('input');
-  agentHooks.type = 'checkbox';
-  agentHooks.className = 'settings-checkbox';
-  agentHooks.checked = s.agentHooks !== false;
+  // One row per agent, each naming the file it writes to and its real state.
+  // These live outside the app, in other tools' config — nobody should have to
+  // guess which ones we touched, and the list grows as agents are added.
+  const hooksTitle = document.createElement('div');
+  hooksTitle.className = 'settings-title';
+  hooksTitle.textContent = 'Agent CLI hooks';
 
-  // Name every file the checkbox writes to, and its real state. These live
-  // outside the app, in other tools' config — nobody should have to guess which
-  // ones we touched, and the list grows as agents are added.
-  const hooksHint = document.createElement('div');
-  hooksHint.className = 'settings-hint';
-  for (const t of await window.cerberusSettings.hooksStatus()) {
-    const line = document.createElement('div');
+  const status = await window.cerberusSettings.hooksStatus();
+  // Undefined means the consent dialog hasn't been answered yet (it can only be
+  // reached before the first window). Mirror its defaults so the two agree.
+  const chosen = s.hookTargets ?? status.filter((t) => t.available).map((t) => t.id);
+
+  const hookRows: { id: string; input: HTMLInputElement }[] = [];
+  const hooksBlock = document.createDocumentFragment();
+  for (const t of status) {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'settings-checkbox';
+    input.checked = chosen.includes(t.id);
+    // Its config folder is gone, so we can't register there — but leave the
+    // stored answer alone. Reinstalling that CLI shouldn't silently cost the
+    // choice already made about it.
+    input.disabled = !t.available;
+
     const state = !t.available
-      ? 'not installed here — skipped'
+      ? 'not installed here'
       : t.installed
         ? 'registered'
-        : 'not registered yet';
-    line.textContent = `${t.label}: ${t.file} — ${state}`;
-    hooksHint.append(line);
+        : 'not registered';
+    const detail = document.createElement('div');
+    detail.className = 'settings-hint';
+    detail.textContent = `${t.file} — ${state}`;
+
+    hooksBlock.append(row(t.label, input), detail);
+    hookRows.push({ id: t.id, input });
   }
+
   const hooksNote = document.createElement('div');
+  hooksNote.className = 'settings-hint';
   hooksNote.textContent =
-    'Only agents whose config folder already exists are touched; unchecking removes our entries and leaves every other hook alone.';
-  hooksHint.append(hooksNote);
+    'Unchecking removes our entries from that file and leaves every other hook alone.';
+  hooksBlock.append(hooksNote);
 
   const hint = document.createElement('div');
   hint.className = 'settings-hint';
@@ -109,8 +127,8 @@ export async function openSettingsEditor(): Promise<void> {
     row('Language', lang),
     row('Default shell', shell),
     row('Skip confirm on close', skipConfirm),
-    row('Register agent CLI hooks', agentHooks),
-    hooksHint,
+    hooksTitle,
+    hooksBlock,
     hint,
     error,
     buttons
@@ -147,7 +165,9 @@ export async function openSettingsEditor(): Promise<void> {
       },
       defaultShell: shell.value.trim() || undefined,
       skipCloseConfirm: skipConfirm.checked,
-      agentHooks: agentHooks.checked
+      // Disabled rows keep reporting .checked, so an agent that's currently
+      // uninstalled carries its stored answer through untouched.
+      hookTargets: hookRows.filter((r) => r.input.checked).map((r) => r.id) as Settings['hookTargets']
     };
     const res = await window.cerberusSettings.save(next);
     if (res.ok) {

@@ -1,5 +1,6 @@
 import { Workspace } from './Workspace.js';
 import { openSettingsEditor } from './SettingsEditor.js';
+import { openHooksConsent } from './HooksConsent.js';
 import { installKeymap, type CerberusAction } from './keymap.js';
 import { applyPref, getPref, toggleTheme } from './themes.js';
 
@@ -17,6 +18,15 @@ if (host) {
     const { cmd, leafId } = (ev as CustomEvent<{ cmd: string; leafId?: string }>).detail;
     ws.handlePaneCmd(cmd, leafId);
   });
+
+  // Nothing has been written to any agent CLI's config yet if we've never
+  // asked. Main answers null unless there's a real question, so this is a
+  // no-op on every launch after the first.
+  void (async () => {
+    const targets = await window.cerberusSettings.hooksConsent();
+    if (!targets) return;
+    await window.cerberusSettings.setHookTargets(await openHooksConsent(targets));
+  })();
 
   window.addEventListener('open-settings', () => void openSettingsEditor());
   // Native menu (Cmd+,) routes here — the reliable path on macOS.

@@ -6,6 +6,7 @@ import {
   installAgentHooks,
   uninstallAgentHooks,
   hooksStatus,
+  availableTargets,
   stableScript
 } from '../src/main/cerberus/hook-install.js';
 
@@ -15,6 +16,9 @@ import {
 let home: string;
 const NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'notify.sh');
 const COPILOT_NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'copilot-notify.sh');
+
+// Every agent, i.e. what the consent dialog produces when nothing is unticked.
+const ALL = ['claude', 'copilot'] as const;
 
 const claudeFile = (): string => join(home, '.claude', 'settings.json');
 const copilotFile = (): string => join(home, '.copilot', 'settings.json');
@@ -52,7 +56,7 @@ describe('hook install / uninstall', () => {
   });
 
   it('skips an agent whose config dir does not exist, and never creates it', () => {
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
     expect(existsSync(join(home, '.claude'))).toBe(false);
     expect(existsSync(join(home, '.copilot'))).toBe(false);
 
@@ -63,19 +67,19 @@ describe('hook install / uninstall', () => {
 
   it('registers one entry per event and is idempotent', () => {
     withConfigDir('.claude');
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
     const first = read<ClaudeSettings>(claudeFile());
     expect(Object.keys(first.hooks)).toEqual(['PreToolUse', 'PostToolUse', 'Notification']);
     expect(hooksStatus(home).find((t) => t.id === 'claude')?.installed).toBe(true);
 
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
     expect(read<ClaudeSettings>(claudeFile())).toEqual(first);
   });
 
   it('registers Copilot in its own flat shape, on its own events', () => {
     withConfigDir('.copilot');
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
     const s = read<CopilotSettings>(copilotFile());
     expect(Object.keys(s.hooks)).toEqual(['preToolUse', 'notification', 'agentStop']);
@@ -86,10 +90,48 @@ describe('hook install / uninstall', () => {
 
   it('registers each installed agent independently', () => {
     withConfigDir('.copilot');
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
     expect(existsSync(copilotFile())).toBe(true);
     expect(existsSync(claudeFile())).toBe(false); // no ~/.claude — left alone
+  });
+
+  it('registers only the agents it was given, even when both are installed', () => {
+    withConfigDir('.claude');
+    withConfigDir('.copilot');
+    installAgentHooks(['copilot'], home);
+
+    expect(existsSync(copilotFile())).toBe(true);
+    expect(existsSync(claudeFile())).toBe(false); // present, but not asked for
+  });
+
+  it('registers nothing at all for an empty list', () => {
+    withConfigDir('.claude');
+    withConfigDir('.copilot');
+    installAgentHooks([], home);
+
+    expect(existsSync(claudeFile())).toBe(false);
+    expect(existsSync(copilotFile())).toBe(false);
+  });
+
+  it('unticking one agent leaves the other one registered', () => {
+    withConfigDir('.claude');
+    withConfigDir('.copilot');
+    installAgentHooks(ALL, home);
+
+    const res = uninstallAgentHooks(['copilot'], home);
+    expect(res.ok).toBe(true);
+    expect(res.removed).toBe(3);
+
+    const byId = Object.fromEntries(hooksStatus(home).map((t) => [t.id, t.installed]));
+    expect(byId['claude']).toBe(true);
+    expect(byId['copilot']).toBe(false);
+  });
+
+  it('reports only the agents whose config dir exists', () => {
+    expect(availableTargets(home)).toEqual([]);
+    withConfigDir('.copilot');
+    expect(availableTargets(home)).toEqual(['copilot']);
   });
 
   it('appends to existing hooks instead of replacing them', () => {
@@ -103,7 +145,7 @@ describe('hook install / uninstall', () => {
         }
       })
     );
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
     const s = read<ClaudeSettings>(claudeFile());
     expect(s['model']).toBe('opus');
@@ -113,7 +155,7 @@ describe('hook install / uninstall', () => {
   it('backs the original up once, before the first write', () => {
     withConfigDir('.claude');
     writeFileSync(claudeFile(), JSON.stringify({ model: 'opus' }));
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
     expect(JSON.parse(readFileSync(`${claudeFile()}.cerberus-bak`, 'utf8'))).toEqual({
       model: 'opus'
     });
@@ -137,9 +179,9 @@ describe('hook install / uninstall', () => {
         hooks: { preToolUse: [{ type: 'command', bash: '/opt/other/hook.sh' }] }
       })
     );
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
-    const res = uninstallAgentHooks(home);
+    const res = uninstallAgentHooks(ALL, home);
     expect(res.ok).toBe(true);
     expect(res.removed).toBe(6); // three events per agent
 
@@ -161,16 +203,16 @@ describe('hook install / uninstall', () => {
   it('is a no-op when nothing of ours is registered', () => {
     withConfigDir('.claude');
     writeFileSync(claudeFile(), JSON.stringify({ hooks: {} }));
-    expect(uninstallAgentHooks(home)).toEqual({ ok: true, removed: 0 });
+    expect(uninstallAgentHooks(ALL, home)).toEqual({ ok: true, removed: 0 });
   });
 
   it('refuses to touch an unparseable config', () => {
     withConfigDir('.claude');
     writeFileSync(claudeFile(), '{ not json');
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
     expect(readFileSync(claudeFile(), 'utf8')).toBe('{ not json');
     expect(existsSync(`${claudeFile()}.cerberus-bak`)).toBe(false);
-    expect(uninstallAgentHooks(home).ok).toBe(false);
+    expect(uninstallAgentHooks(ALL, home).ok).toBe(false);
   });
 
   it('migrates a stale .app path to the stable one', () => {
@@ -182,7 +224,7 @@ describe('hook install / uninstall', () => {
         hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: stale }] }] }
       })
     );
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
     expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([NOTIFY]);
   });
@@ -196,7 +238,7 @@ describe('hook install / uninstall', () => {
         hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: theirs }] }] }
       })
     );
-    installAgentHooks(home);
+    installAgentHooks(ALL, home);
 
     expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([theirs, NOTIFY]);
   });

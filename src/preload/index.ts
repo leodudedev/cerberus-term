@@ -69,8 +69,11 @@ contextBridge.exposeInMainWorld('cerberusConfig', configBridge);
 const settingsBridge: SettingsBridge = {
   get: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
   save: (s) => ipcRenderer.invoke('settings:save', s) as Promise<SettingsSaveResult>,
-  hooksStatus: () =>
-    ipcRenderer.invoke('settings:hooks-status') as Promise<HookTargetStatus[]>
+  hooksStatus: () => ipcRenderer.invoke('settings:hooks-status') as Promise<HookTargetStatus[]>,
+  hooksConsent: () =>
+    ipcRenderer.invoke('settings:hooks-consent') as Promise<HookTargetStatus[] | null>,
+  setHookTargets: (ids) =>
+    ipcRenderer.invoke('settings:hooks-consent-set', ids) as Promise<SettingsSaveResult>
 };
 
 contextBridge.exposeInMainWorld('cerberusSettings', settingsBridge);

@@ -99,20 +99,25 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 
 ### What the app writes outside itself
 
-Cerberus edits your machine on **every launch**, not the first time you run an
-agent. Two places, and nothing else:
+Two places, and nothing else:
 
 **1. `~/.cerberus-term/hooks/`** — `notify.sh` and `copilot-notify.sh` are copied
-here from the app bundle, overwriting the previous copies. This directory is the
-stable home for them: hooks run in *every* session of that CLI, including ones
-outside Cerberus, so a path pointing inside the `.app` would break them all the
-day you move or delete it.
+here from the app bundle on every launch, overwriting the previous copies. This
+directory is the stable home for them: hooks run in *every* session of that CLI,
+including ones outside Cerberus, so a path pointing inside the `.app` would break
+them all the day you move or delete it.
 
-**2. The config of each agent CLI you already have installed** — currently
-`~/.claude/settings.json` and `~/.copilot/settings.json`. An agent is only
-touched when its config folder already exists: if you don't have Copilot,
-`~/.copilot` is never created, and the same goes for `~/.claude`. Settings lists
-every file by name, with its real state.
+**2. The config of the agent CLIs you tick** — currently `~/.claude/settings.json`
+and `~/.copilot/settings.json`. Nothing is written to either until you say so:
+the first launch shows a dialog listing the agents found on this machine, the
+exact file and events for each, and you choose. Decline and the answer is
+remembered — you won't be asked again, and nothing outside the app is touched.
+
+An agent is only offered if its config folder already exists. If you don't have
+Copilot, `~/.copilot` is never created, and the same goes for `~/.claude`.
+Settings lists every file by name with its real state, and is where you change
+your mind later — including for an agent you install afterwards, which shows up
+there unticked rather than being enabled on your behalf.
 
 Entries are **appended**, in each CLI's own shape. Claude Code, under
 `PreToolUse`, `PostToolUse` and `Notification`:
@@ -138,14 +143,15 @@ Outside a Cerberus pane the scripts exit immediately — they're gated on
 `CERBERUS_PANE_ID`, which only our panes set — so a `claude` in VS Code or a
 plain terminal is unaffected.
 
-**To opt out:** uncheck **Register agent CLI hooks** in Settings. That removes
-our entries from every agent right away and stops re-adding them at launch; a
-checkbox is needed rather than a one-off button because otherwise the next start
-would just put them back. Or restore the `.cerberus-bak` files by hand. Nothing
-is written on Windows at all — the hooks are POSIX shell.
+**To opt out later:** untick the agent under **Agent CLI hooks** in Settings.
+That removes our entries from that file right away and stops re-adding them at
+launch; a tickbox is needed rather than a one-off button because otherwise the
+next start would just put them back. Or restore the `.cerberus-bak` files by
+hand. Nothing is written on Windows at all — the hooks are POSIX shell.
 
-If you install an agent *after* Cerberus, restart the app once so it sees the
-new config folder.
+Without the hooks the app is still a working terminal multiplexer; what you lose
+is everything that depends on a session reporting back — the pane flash on a
+permission prompt, and the Telegram push.
 
 ## Controls
 

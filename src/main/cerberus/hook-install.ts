@@ -9,7 +9,13 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { HOOK_TARGETS, isStaleCommand, type HookTarget, type TargetId } from '../../core/hook-targets.js';
+import {
+  HOOK_TARGETS,
+  isStaleCommand,
+  type HookTarget,
+  type TargetId
+} from '../../core/hook-targets.js';
+import type { HookTargetStatus } from '../../core/settings.js';
 
 // Silently install the notification hooks so a native pane's CLI reports back
 // to our daemon. Idempotent + backed up: we APPEND to the existing hook lists
@@ -69,17 +75,10 @@ function ownership(t: HookTarget): (command: string) => boolean {
   return (command) => command === stable || isStaleCommand(command, t.script, stable);
 }
 
-export interface TargetStatus {
-  id: TargetId;
-  label: string;
-  file: string;
-  available: boolean; // its config dir exists — i.e. the CLI is installed here
-  installed: boolean;
-}
-
 // What we'd edit and what's actually there, per agent, so the UI can show the
-// real list instead of naming one hardcoded file.
-export function hooksStatus(home = homedir()): TargetStatus[] {
+// real list — the exact files, events and command — instead of naming one
+// hardcoded path and asking to be trusted on the rest.
+export function hooksStatus(home = homedir()): HookTargetStatus[] {
   return HOOK_TARGETS.map((t) => {
     const file = t.settingsFile(home);
     const settings = readSettings(file);
@@ -87,13 +86,30 @@ export function hooksStatus(home = homedir()): TargetStatus[] {
     const installed = Object.values(settings?.hooks ?? {}).some(
       (list) => Array.isArray(list) && t.prune(list, isOurs).removed > 0
     );
-    return { id: t.id, label: t.label, file, available: existsSync(t.configDir(home)), installed };
+    return {
+      id: t.id,
+      label: t.label,
+      file,
+      events: [...t.events],
+      command: stableScript(t.script),
+      available: existsSync(t.configDir(home)),
+      installed
+    };
   });
 }
 
-// Remove only the entries we registered, leaving every other hook exactly where
-// it is. Empty groups and events left behind are dropped.
-export function uninstallAgentHooks(home = homedir()): {
+export function availableTargets(home = homedir()): TargetId[] {
+  return HOOK_TARGETS.filter((t) => existsSync(t.configDir(home))).map((t) => t.id);
+}
+
+// Remove only the entries we registered, from the given agents only, leaving
+// every other hook exactly where it is. Empty groups and events left behind
+// are dropped. Takes the ids explicitly: unticking one agent in Settings must
+// not disturb the others.
+export function uninstallAgentHooks(
+  ids: readonly TargetId[],
+  home = homedir()
+): {
   ok: boolean;
   removed: number;
   error?: string;
@@ -102,6 +118,7 @@ export function uninstallAgentHooks(home = homedir()): {
   const errors: string[] = [];
 
   for (const t of HOOK_TARGETS) {
+    if (!ids.includes(t.id)) continue;
     const file = t.settingsFile(home);
     if (!existsSync(file)) continue;
 
@@ -186,6 +203,9 @@ function installOne(t: HookTarget, home: string): void {
   }
 }
 
-export function installAgentHooks(home = homedir()): void {
-  for (const t of HOOK_TARGETS) installOne(t, home);
+// Register only the agents that were explicitly ticked. An id whose config dir
+// is gone is skipped by installOne, not an error: someone can keep Copilot
+// enabled across an uninstall/reinstall of Copilot itself.
+export function installAgentHooks(ids: readonly TargetId[], home = homedir()): void {
+  for (const t of HOOK_TARGETS) if (ids.includes(t.id)) installOne(t, home);
 }

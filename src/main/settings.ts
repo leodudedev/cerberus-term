@@ -1,7 +1,8 @@
 import { app } from 'electron';
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { mergeSettings, type Settings } from '../core/settings.js';
+import { mergeSettings, migrateHookTargets, type Settings } from '../core/settings.js';
+import type { TargetId } from '../core/hook-targets.js';
 
 // Global settings store: userData/cerberus-settings.json, cached, deep-merged
 // over defaults. In-app values override .env (applySettingsToEnv force-sets).
@@ -28,6 +29,17 @@ export function saveSettings(s: Settings): void {
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, JSON.stringify(cached, null, 2));
   renameSync(tmp, path); // atomic
+}
+
+// Turn the old agentHooks master switch into the explicit hookTargets list,
+// once, at boot. Writes only when there's something to convert, so a fresh
+// install stays undecided and reaches the consent dialog. The legacy field is
+// dropped in the same write (undefined doesn't survive JSON.stringify).
+export function migrateHookSettings(available: TargetId[]): void {
+  const ids = migrateHookTargets(getSettings(), available);
+  if (!ids) return;
+  console.log('[hooks] migrated agentHooks ->', ids.length > 0 ? ids.join(', ') : '(none)');
+  saveSettings({ ...getSettings(), hookTargets: ids, agentHooks: undefined });
 }
 
 // Does the bot have what it needs to push at all? Same pair initBot() checks,

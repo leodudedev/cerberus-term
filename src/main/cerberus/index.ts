@@ -1,9 +1,9 @@
 import { app, type BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { applySettingsToEnv, getSettings } from '../settings.js';
+import { applySettingsToEnv, getSettings, migrateHookSettings } from '../settings.js';
 import { loadEnvFile } from './env.js';
-import { installAgentHooks, syncHookScripts } from './hook-install.js';
+import { availableTargets, installAgentHooks, syncHookScripts } from './hook-install.js';
 import { startDaemon } from './daemon.js';
 
 // Boot the Cerberus remote-control core from the Electron main process:
@@ -24,31 +24,28 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
   // The hooks are POSIX shell scripts, so the CLIs on Windows can't run them
   // and would log a hook error on every single tool call (in every session, not
   // just Cerberus ones). Skip installation there until a .ps1/.cmd hook exists.
+  const bundledHooks = join(base, 'hooks');
   if (process.platform === 'win32') {
     console.log('[cerberus] hook install skipped on win32 (bash hooks unsupported)');
-  } else if (getSettings().agentHooks === false) {
-    // Opted out in Settings. The scripts still get refreshed below so a
-    // hand-written hook entry pointing at them keeps working.
-    console.log('[cerberus] agent hook install disabled in settings');
-    try {
-      syncHookScripts(join(base, 'hooks'));
-    } catch {
-      /* nothing registered to break — ignore */
-    }
+  } else if (!existsSync(join(bundledHooks, 'notify.sh'))) {
+    console.error('[cerberus] bundled hooks not found at', bundledHooks);
   } else {
-    const bundledHooks = join(base, 'hooks');
-    if (existsSync(join(bundledHooks, 'notify.sh'))) {
+    try {
       // Copy the scripts to a stable ~/.cerberus-term/hooks and register THAT
       // path: hooks run in every session of that CLI, so a path inside the .app
-      // would break them all if the app is moved/removed.
-      try {
-        syncHookScripts(bundledHooks);
-        installAgentHooks();
-      } catch (e) {
-        console.error('[cerberus] hook sync failed:', (e as Error).message);
-      }
-    } else {
-      console.error('[cerberus] bundled hooks not found at', bundledHooks);
+      // would break them all if the app is moved/removed. Refreshed even when
+      // nothing is registered, so a hand-written entry pointing at them works.
+      syncHookScripts(bundledHooks);
+      migrateHookSettings(availableTargets());
+
+      // Only what someone ticked, and nothing at all until they've been asked:
+      // these are other tools' config files, so an undecided install writes to
+      // none of them. The renderer opens the consent dialog on first window.
+      const ids = getSettings().hookTargets;
+      if (ids) installAgentHooks(ids);
+      else console.log('[cerberus] agent hooks undecided — asking on first window');
+    } catch (e) {
+      console.error('[cerberus] hook sync failed:', (e as Error).message);
     }
   }
 

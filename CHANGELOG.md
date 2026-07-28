@@ -12,20 +12,30 @@ Installers for each version are on the
 
 ### Added
 
+- Nothing is written to an agent CLI's config until you say so. The first launch
+  asks, listing the agents found on this machine, the file each one would edit,
+  the events, and the command — then registers only what you tick. Declining is
+  recorded, so you're asked once and never again.
 - Copilot CLI hooks are registered automatically, in Copilot's own format and
   under its own events. Previously this was a copy-paste step in the README.
 - Settings lists every agent config file the app touches, one line each, with
-  its real state — registered, not registered yet, or skipped because that CLI
-  isn't installed here.
+  its real state — registered, not registered, or skipped because that CLI isn't
+  installed here.
 
 ### Changed
 
-- An agent is only wired up if its config folder already exists. The app no
+- An agent is only offered if its config folder already exists. The app no
   longer creates `~/.claude` (or `~/.copilot`) just to put hooks in it, so a
-  machine without Claude Code installed stays untouched. Install an agent after
-  Cerberus and it gets picked up on the next launch.
-- **Register Claude Code hooks** is now **Register agent CLI hooks** and covers
-  every agent at once. An existing opt-out carries over.
+  machine without Claude Code installed stays untouched.
+- **Register Claude Code hooks** — one switch over one file — is now a tickbox
+  per agent under **Agent CLI hooks**. Unticking one removes our entries from
+  that file only and leaves the other agents registered.
+- An agent installed *after* Cerberus now appears in Settings unticked instead
+  of being wired up on the next launch. Enabling it is a decision, not a side
+  effect of installing something else.
+- Upgrades keep working without a prompt: an existing on/off setting becomes the
+  equivalent per-agent list on first run. The hooks are already in those files,
+  so asking after the fact would be theatre.
 
 ### Removed
 
