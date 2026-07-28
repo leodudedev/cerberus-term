@@ -1,0 +1,56 @@
+name: Feature request
+description: Suggest something Cerberus should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For anything large, this is the right place to disagree about an
+        approach before there's a diff. See
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The situation you're in, not the feature you have in mind yet.
+      placeholder: |
+        I run four sessions across two projects and can't tell from the phone
+        which pane a notification came from.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like it to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: Workarounds, other tools, or nothing.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Panes, splits, tabs
+        - Telegram remote control
+        - Permission prompts / risk tagging
+        - Support for another AI CLI
+        - Settings or .cerberus.json
+        - Orchestration cockpit
+        - Something else
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you like to implement it
+      options:
+        - label: I'd be up for opening a PR

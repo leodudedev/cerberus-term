@@ -1,0 +1,96 @@
+name: Bug report
+description: Something in Cerberus doesn't work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The fields below are the ones that usually
+        decide whether a bug is reproducible on the first try.
+
+        ⚠️ **Don't paste your Telegram bot token.** It appears in
+        `cerberus-settings.json` and in daemon URLs — redact before pasting.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+      placeholder: |
+        1. Split a pane and ran `claude`
+        2. Approved a Write from Telegram
+        3. Nothing landed in the pane
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Cerberus version
+      description: From the About dialog, or the tag you built from.
+      placeholder: "0.7.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Windows (WSL)
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: "macOS 15.5 / Windows 11 23H2 / Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it
+      options:
+        - Installer from the releases page
+        - Built from source (pnpm run dist)
+        - Running pnpm dev
+    validations:
+      required: true
+
+  - type: input
+    id: cli
+    attributes:
+      label: Which CLI was running in the pane
+      description: Leave blank if the bug isn't about a session.
+      placeholder: "claude 2.1.220 / copilot 1.0.76 / plain shell"
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Panes, splits, tabs
+        - Telegram notifications or buttons
+        - Permission prompts / risk tagging
+        - Settings or .cerberus.json
+        - Packaging, install, startup
+        - Orchestration / follower panes
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or errors
+      description: |
+        Anything from the terminal you launched the app from, or from the
+        DevTools console. Redact paths and tokens you'd rather not publish.
+      render: shell
