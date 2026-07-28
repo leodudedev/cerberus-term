@@ -14,7 +14,10 @@ Especially useful right now:
 - **Windows and Linux quirks.** Most development happens on macOS. ConPTY,
   AppImage packaging, and the bash-based hooks are the thin spots.
 - **Hooks for other CLIs.** The notification path is generic; adding an agent is
-  mostly a matter of a hook script and a parser for its permission prompt.
+  a hook script, a parser for its permission prompt, and a row in
+  `src/core/hook-targets.ts` describing where its config lives and what shape
+  its hook entries take. The consent dialog, the Settings tickboxes and the
+  install/uninstall are all driven off that table.
 - **Bug reports** with the OS, the app version, and what the pane was running.
 
 ## Setup

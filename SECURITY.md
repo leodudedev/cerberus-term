@@ -42,6 +42,14 @@ can't redirect your notifications somewhere new.
 Cerberus pane and coexist with any tmux-based setup. Child processes launched
 with it unset are silent by construction.
 
+**Nothing is written to another tool's config without being asked.** The hooks
+go into files Cerberus doesn't own — `~/.claude/settings.json`,
+`~/.copilot/settings.json` — so it names each one on first launch and registers
+only what you tick. Entries are appended, never substituted; the original is
+copied to `settings.json.cerberus-bak` before the first write, and the write
+itself is a temp file plus a rename. See
+[what the app writes](README.md#what-the-app-writes-outside-itself).
+
 **Follower panes are path-confined** and `POST /pane` requires an absolute path
 and shell-quotes everything it runs. Request bodies are capped at 4 MB.
 
@@ -59,9 +67,9 @@ environment or from `~/.cerberus-term/token`, and drive the daemon. It could
 also already read your SSH keys, so this is not a boundary Cerberus tries to
 draw.
 
-**Secrets at rest are plaintext.** Your bot token
-(`~/.cerberus-term/cerberus-settings.json`, or the platform userData path) and
-session state (`~/.cerberus-term/cerberus-state.json`) are stored unencrypted,
+**Secrets at rest are plaintext.** Your bot token (`cerberus-settings.json` in
+the platform's userData directory — `~/Library/Application Support/cerberus-term`
+on macOS) and session state (`~/.cerberus-term/cerberus-state.json`) are stored unencrypted,
 like a `.env`. Anyone with access to your user account can read them. Keep the
 machine trusted, and revoke the token in @BotFather if you suspect otherwise.
 

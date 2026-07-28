@@ -76,13 +76,12 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 - **macOS, Windows, or Linux.** On Windows the panes run over ConPTY; the shell
   hooks that power notifications are bash-based, so remote control there works
   through WSL.
-- **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code) is
-  wired up for you: Cerberus registers its notification hooks in Claude's
-  `settings.json` at launch — see [what the app writes](#what-the-app-writes-outside-itself)
-  for exactly what changes and how to opt out.
-  [GitHub Copilot CLI](https://github.com/github/copilot-cli) is supported too,
-  but its hook has to be registered by hand — see below. Any other CLI still
-  runs in a pane; it just won't push.
+- **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code) and
+  [GitHub Copilot CLI](https://github.com/github/copilot-cli) both push out of
+  the box: Cerberus offers to register its notification hooks in their config
+  the first time you open it, and writes to nothing you don't tick — see
+  [what the app writes](#what-the-app-writes-outside-itself) for exactly what
+  changes. Any other CLI still runs in a pane; it just won't push.
 - **A Telegram bot** for the remote half: talk to
   [@BotFather](https://t.me/BotFather) for a token, and to
   [@userinfobot](https://t.me/userinfobot) for your chat ID. Without them
@@ -90,7 +89,9 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 
 ## First run
 
-1. Open the app.
+1. Open the app. It asks, once, which agent CLIs may have their notification
+   hooks registered, naming the file it would edit for each. Ticking none is a
+   valid answer and is remembered; Settings can change it later.
 2. **Cmd+,** (or menu → **Settings…**) → set your Telegram **bot token** and
    **chat ID**, and pick the bot's language (English or Italian). Restart the app
    so the bot starts polling with the new token.
