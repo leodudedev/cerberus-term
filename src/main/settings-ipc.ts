@@ -1,10 +1,9 @@
 import { ipcMain } from 'electron';
 import { getSettings, saveSettings, applySettingsToEnv } from './settings.js';
 import {
-  claudeHooksStatus,
-  installClaudeHooks,
-  stableNotifyScript,
-  uninstallClaudeHooks
+  hooksStatus,
+  installAgentHooks,
+  uninstallAgentHooks
 } from './cerberus/hook-install.js';
 import type { Settings, SaveResult } from '../core/settings.js';
 
@@ -13,7 +12,7 @@ export function registerSettingsIpc(): void {
 
   ipcMain.handle('settings:save', (_e, s: Settings): SaveResult => {
     if (!s || typeof s !== 'object') return { ok: false, error: 'Invalid settings' };
-    const wasEnabled = getSettings().claudeHooks !== false;
+    const wasEnabled = getSettings().agentHooks !== false;
     try {
       saveSettings(s);
       applySettingsToEnv(); // refresh env now; bot re-polls a new token on next launch
@@ -22,17 +21,17 @@ export function registerSettingsIpc(): void {
     }
 
     // Apply the hook toggle immediately: waiting for the next launch would leave
-    // the settings.json saying one thing and Claude doing another.
-    const nowEnabled = s.claudeHooks !== false;
+    // the settings saying one thing and the CLIs doing another.
+    const nowEnabled = s.agentHooks !== false;
     if (process.platform !== 'win32' && nowEnabled !== wasEnabled) {
-      if (nowEnabled) installClaudeHooks(stableNotifyScript());
+      if (nowEnabled) installAgentHooks();
       else {
-        const res = uninstallClaudeHooks();
+        const res = uninstallAgentHooks();
         if (!res.ok) return { ok: false, error: res.error ?? 'Hook removal failed' };
       }
     }
     return { ok: true };
   });
 
-  ipcMain.handle('settings:claude-hooks-status', () => claudeHooksStatus());
+  ipcMain.handle('settings:hooks-status', () => hooksStatus());
 }

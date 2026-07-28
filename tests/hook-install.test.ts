@@ -1,58 +1,101 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import {
-  installClaudeHooks,
-  uninstallClaudeHooks,
-  claudeHooksStatus,
-  stableNotifyScript
+  installAgentHooks,
+  uninstallAgentHooks,
+  hooksStatus,
+  stableScript
 } from '../src/main/cerberus/hook-install.js';
 
-// The module resolves its target from CLAUDE_CONFIG_DIR, so a tmpdir is enough
-// to keep the real ~/.claude/settings.json out of it.
-let dir: string;
-let file: string;
+// install/uninstall/status all take the home dir, so a tmpdir keeps the real
+// ~/.claude and ~/.copilot out of it. The registered command still points at
+// the real ~/.cerberus-term — that's the stable path, not a target.
+let home: string;
 const NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'notify.sh');
+const COPILOT_NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'copilot-notify.sh');
 
-interface Settings {
+const claudeFile = (): string => join(home, '.claude', 'settings.json');
+const copilotFile = (): string => join(home, '.copilot', 'settings.json');
+
+interface ClaudeSettings {
   hooks: Record<string, { matcher?: string; hooks: { type: string; command: string }[] }[]>;
   [k: string]: unknown;
 }
+interface CopilotSettings {
+  hooks: Record<string, { type?: string; bash?: string; timeoutSec?: number }[]>;
+  [k: string]: unknown;
+}
 
-const readJson = (): Settings => JSON.parse(readFileSync(file, 'utf8')) as Settings;
-const commandsFor = (s: Settings, event: string): string[] =>
+const read = <T>(file: string): T => JSON.parse(readFileSync(file, 'utf8')) as T;
+const commandsFor = (s: ClaudeSettings, event: string): string[] =>
   (s.hooks[event] ?? []).flatMap((g) => g.hooks.map((h) => h.command));
 
+// Pretend the CLI is installed here: it's the config dir existing that decides
+// whether we register at all.
+const withConfigDir = (name: string): void => {
+  mkdirSync(join(home, name), { recursive: true });
+};
+
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'cerberus-hooks-'));
-  file = join(dir, 'settings.json');
-  process.env['CLAUDE_CONFIG_DIR'] = dir;
+  home = mkdtempSync(join(tmpdir(), 'cerberus-home-'));
 });
 
 afterEach(() => {
-  delete process.env['CLAUDE_CONFIG_DIR'];
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
 });
 
 describe('hook install / uninstall', () => {
   it('points at the stable path under ~/.cerberus-term', () => {
-    expect(stableNotifyScript()).toBe(NOTIFY);
+    expect(stableScript('notify.sh')).toBe(NOTIFY);
+  });
+
+  it('skips an agent whose config dir does not exist, and never creates it', () => {
+    installAgentHooks(home);
+    expect(existsSync(join(home, '.claude'))).toBe(false);
+    expect(existsSync(join(home, '.copilot'))).toBe(false);
+
+    const status = hooksStatus(home);
+    expect(status.map((t) => t.available)).toEqual([false, false]);
+    expect(status.every((t) => !t.installed)).toBe(true);
   });
 
   it('registers one entry per event and is idempotent', () => {
-    installClaudeHooks(NOTIFY);
-    const first = readJson();
-    expect(Object.keys(first.hooks)).toEqual(['PreToolUse', 'PostToolUse', 'Notification']);
-    expect(claudeHooksStatus().installed).toBe(true);
+    withConfigDir('.claude');
+    installAgentHooks(home);
 
-    installClaudeHooks(NOTIFY);
-    expect(readJson()).toEqual(first);
+    const first = read<ClaudeSettings>(claudeFile());
+    expect(Object.keys(first.hooks)).toEqual(['PreToolUse', 'PostToolUse', 'Notification']);
+    expect(hooksStatus(home).find((t) => t.id === 'claude')?.installed).toBe(true);
+
+    installAgentHooks(home);
+    expect(read<ClaudeSettings>(claudeFile())).toEqual(first);
+  });
+
+  it('registers Copilot in its own flat shape, on its own events', () => {
+    withConfigDir('.copilot');
+    installAgentHooks(home);
+
+    const s = read<CopilotSettings>(copilotFile());
+    expect(Object.keys(s.hooks)).toEqual(['preToolUse', 'notification', 'agentStop']);
+    expect(s.hooks['preToolUse']).toEqual([
+      { type: 'command', bash: COPILOT_NOTIFY, timeoutSec: 5 }
+    ]);
+  });
+
+  it('registers each installed agent independently', () => {
+    withConfigDir('.copilot');
+    installAgentHooks(home);
+
+    expect(existsSync(copilotFile())).toBe(true);
+    expect(existsSync(claudeFile())).toBe(false); // no ~/.claude — left alone
   });
 
   it('appends to existing hooks instead of replacing them', () => {
+    withConfigDir('.claude');
     writeFileSync(
-      file,
+      claudeFile(),
       JSON.stringify({
         model: 'opus',
         hooks: {
@@ -60,66 +103,101 @@ describe('hook install / uninstall', () => {
         }
       })
     );
-    installClaudeHooks(NOTIFY);
+    installAgentHooks(home);
 
-    const s = readJson();
+    const s = read<ClaudeSettings>(claudeFile());
     expect(s['model']).toBe('opus');
     expect(commandsFor(s, 'PreToolUse')).toEqual(['/opt/mycli/hook.sh', NOTIFY]);
   });
 
   it('backs the original up once, before the first write', () => {
-    writeFileSync(file, JSON.stringify({ model: 'opus' }));
-    installClaudeHooks(NOTIFY);
-    expect(JSON.parse(readFileSync(`${file}.cerberus-bak`, 'utf8'))).toEqual({ model: 'opus' });
+    withConfigDir('.claude');
+    writeFileSync(claudeFile(), JSON.stringify({ model: 'opus' }));
+    installAgentHooks(home);
+    expect(JSON.parse(readFileSync(`${claudeFile()}.cerberus-bak`, 'utf8'))).toEqual({
+      model: 'opus'
+    });
   });
 
-  it('removes only our entries on uninstall', () => {
+  it('removes only our entries, from every agent at once', () => {
+    withConfigDir('.claude');
+    withConfigDir('.copilot');
     writeFileSync(
-      file,
+      claudeFile(),
       JSON.stringify({
         hooks: {
           PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: '/opt/mycli/hook.sh' }] }]
         }
       })
     );
-    installClaudeHooks(NOTIFY);
+    writeFileSync(
+      copilotFile(),
+      JSON.stringify({
+        model: 'sonnet',
+        hooks: { preToolUse: [{ type: 'command', bash: '/opt/other/hook.sh' }] }
+      })
+    );
+    installAgentHooks(home);
 
-    const res = uninstallClaudeHooks();
+    const res = uninstallAgentHooks(home);
     expect(res.ok).toBe(true);
-    expect(res.removed).toBe(3); // one per event
+    expect(res.removed).toBe(6); // three events per agent
 
-    const s = readJson();
-    expect(s.hooks['PreToolUse']).toEqual([
+    const c = read<ClaudeSettings>(claudeFile());
+    expect(c.hooks['PreToolUse']).toEqual([
       { matcher: '', hooks: [{ type: 'command', command: '/opt/mycli/hook.sh' }] }
     ]);
     // Events that only ever held our hook are dropped, not left empty.
-    expect(s.hooks['PostToolUse']).toBeUndefined();
-    expect(claudeHooksStatus().installed).toBe(false);
+    expect(c.hooks['PostToolUse']).toBeUndefined();
+
+    const p = read<CopilotSettings>(copilotFile());
+    expect(p['model']).toBe('sonnet');
+    expect(p.hooks['preToolUse']).toEqual([{ type: 'command', bash: '/opt/other/hook.sh' }]);
+    expect(p.hooks['agentStop']).toBeUndefined();
+
+    expect(hooksStatus(home).every((t) => !t.installed)).toBe(true);
   });
 
   it('is a no-op when nothing of ours is registered', () => {
-    writeFileSync(file, JSON.stringify({ hooks: {} }));
-    expect(uninstallClaudeHooks()).toEqual({ ok: true, removed: 0 });
+    withConfigDir('.claude');
+    writeFileSync(claudeFile(), JSON.stringify({ hooks: {} }));
+    expect(uninstallAgentHooks(home)).toEqual({ ok: true, removed: 0 });
   });
 
-  it('refuses to touch an unparseable settings.json', () => {
-    writeFileSync(file, '{ not json');
-    installClaudeHooks(NOTIFY);
-    expect(readFileSync(file, 'utf8')).toBe('{ not json');
-    expect(existsSync(`${file}.cerberus-bak`)).toBe(false);
-    expect(uninstallClaudeHooks().ok).toBe(false);
+  it('refuses to touch an unparseable config', () => {
+    withConfigDir('.claude');
+    writeFileSync(claudeFile(), '{ not json');
+    installAgentHooks(home);
+    expect(readFileSync(claudeFile(), 'utf8')).toBe('{ not json');
+    expect(existsSync(`${claudeFile()}.cerberus-bak`)).toBe(false);
+    expect(uninstallAgentHooks(home).ok).toBe(false);
   });
 
   it('migrates a stale .app path to the stable one', () => {
+    withConfigDir('.claude');
     const stale = '/Applications/Cerberus.app/Contents/Resources/hooks/notify.sh';
     writeFileSync(
-      file,
+      claudeFile(),
       JSON.stringify({
         hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: stale }] }] }
       })
     );
-    installClaudeHooks(NOTIFY);
+    installAgentHooks(home);
 
-    expect(commandsFor(readJson(), 'PreToolUse')).toEqual([NOTIFY]);
+    expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([NOTIFY]);
+  });
+
+  it('leaves another tool hook that merely lives in a repo checkout alone', () => {
+    withConfigDir('.claude');
+    const theirs = '/Users/x/dev/cerberus-term/resources/hooks/their-hook.sh';
+    writeFileSync(
+      claudeFile(),
+      JSON.stringify({
+        hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: theirs }] }] }
+      })
+    );
+    installAgentHooks(home);
+
+    expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([theirs, NOTIFY]);
   });
 });

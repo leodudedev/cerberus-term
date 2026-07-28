@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { applySettingsToEnv, getSettings } from '../settings.js';
 import { loadEnvFile } from './env.js';
-import { installClaudeHooks, syncHookScripts } from './hook-install.js';
+import { installAgentHooks, syncHookScripts } from './hook-install.js';
 import { startDaemon } from './daemon.js';
 
 // Boot the Cerberus remote-control core from the Electron main process:
@@ -21,15 +21,15 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
     ? process.resourcesPath
     : join(app.getAppPath(), 'resources');
 
-  // The hooks are POSIX shell scripts, so Claude Code on Windows can't run them
+  // The hooks are POSIX shell scripts, so the CLIs on Windows can't run them
   // and would log a hook error on every single tool call (in every session, not
   // just Cerberus ones). Skip installation there until a .ps1/.cmd hook exists.
   if (process.platform === 'win32') {
     console.log('[cerberus] hook install skipped on win32 (bash hooks unsupported)');
-  } else if (getSettings().claudeHooks === false) {
+  } else if (getSettings().agentHooks === false) {
     // Opted out in Settings. The scripts still get refreshed below so a
     // hand-written hook entry pointing at them keeps working.
-    console.log('[cerberus] Claude hook install disabled in settings');
+    console.log('[cerberus] agent hook install disabled in settings');
     try {
       syncHookScripts(join(base, 'hooks'));
     } catch {
@@ -39,11 +39,11 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
     const bundledHooks = join(base, 'hooks');
     if (existsSync(join(bundledHooks, 'notify.sh'))) {
       // Copy the scripts to a stable ~/.cerberus-term/hooks and register THAT
-      // path: hooks run in every Claude session, so a path inside the .app would
-      // break them all if the app is moved/removed.
+      // path: hooks run in every session of that CLI, so a path inside the .app
+      // would break them all if the app is moved/removed.
       try {
-        const stableNotify = syncHookScripts(bundledHooks);
-        installClaudeHooks(stableNotify);
+        syncHookScripts(bundledHooks);
+        installAgentHooks();
       } catch (e) {
         console.error('[cerberus] hook sync failed:', (e as Error).message);
       }

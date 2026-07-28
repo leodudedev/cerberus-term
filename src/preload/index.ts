@@ -4,7 +4,7 @@ import type { ConfigBridge, ConfigTarget, SaveResult } from '../core/config-brid
 import type {
   SettingsBridge,
   Settings,
-  ClaudeHooksStatus,
+  HookTargetStatus,
   SaveResult as SettingsSaveResult
 } from '../core/settings.js';
 import type { MuteBridge } from '../core/mute-bridge.js';
@@ -69,8 +69,8 @@ contextBridge.exposeInMainWorld('cerberusConfig', configBridge);
 const settingsBridge: SettingsBridge = {
   get: () => ipcRenderer.invoke('settings:get') as Promise<Settings>,
   save: (s) => ipcRenderer.invoke('settings:save', s) as Promise<SettingsSaveResult>,
-  claudeHooksStatus: () =>
-    ipcRenderer.invoke('settings:claude-hooks-status') as Promise<ClaudeHooksStatus>
+  hooksStatus: () =>
+    ipcRenderer.invoke('settings:hooks-status') as Promise<HookTargetStatus[]>
 };
 
 contextBridge.exposeInMainWorld('cerberusSettings', settingsBridge);

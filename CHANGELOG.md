@@ -8,6 +8,33 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [Unreleased]
+
+### Added
+
+- Copilot CLI hooks are registered automatically, in Copilot's own format and
+  under its own events. Previously this was a copy-paste step in the README.
+- Settings lists every agent config file the app touches, one line each, with
+  its real state — registered, not registered yet, or skipped because that CLI
+  isn't installed here.
+
+### Changed
+
+- An agent is only wired up if its config folder already exists. The app no
+  longer creates `~/.claude` (or `~/.copilot`) just to put hooks in it, so a
+  machine without Claude Code installed stays untouched. Install an agent after
+  Cerberus and it gets picked up on the next launch.
+- **Register Claude Code hooks** is now **Register agent CLI hooks** and covers
+  every agent at once. An existing opt-out carries over.
+
+### Removed
+
+- `CLAUDE_CONFIG_DIR` no longer decides where hooks are installed. A packaged
+  app launched from Finder never sees it, so it only ever fired under
+  `pnpm dev` — where it made dev and release builds write to different files.
+  The runtime read in `notify.sh` is untouched: session labels still follow the
+  config dir of the shell the agent runs in.
+
 ## [0.8.0] — 2026-07-28
 
 ### Added

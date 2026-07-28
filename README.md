@@ -99,58 +99,53 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 
 ### What the app writes outside itself
 
-Cerberus edits two things on your machine, both on **every launch**, not the
-first time you run `claude`:
+Cerberus edits your machine on **every launch**, not the first time you run an
+agent. Two places, and nothing else:
 
 **1. `~/.cerberus-term/hooks/`** — `notify.sh` and `copilot-notify.sh` are copied
 here from the app bundle, overwriting the previous copies. This directory is the
-stable home for them: hooks run in *every* Claude session, including ones outside
-Cerberus, so a path pointing inside the `.app` would break them all the day you
-move or delete it.
+stable home for them: hooks run in *every* session of that CLI, including ones
+outside Cerberus, so a path pointing inside the `.app` would break them all the
+day you move or delete it.
 
-**2. Claude Code's `settings.json`** — `~/.claude/settings.json`, or
-`$CLAUDE_CONFIG_DIR/settings.json` when that's set. Three entries are **appended**,
-one each under `PreToolUse`, `PostToolUse` and `Notification`:
+**2. The config of each agent CLI you already have installed** — currently
+`~/.claude/settings.json` and `~/.copilot/settings.json`. An agent is only
+touched when its config folder already exists: if you don't have Copilot,
+`~/.copilot` is never created, and the same goes for `~/.claude`. Settings lists
+every file by name, with its real state.
+
+Entries are **appended**, in each CLI's own shape. Claude Code, under
+`PreToolUse`, `PostToolUse` and `Notification`:
 
 ```json
 { "matcher": "", "hooks": [{ "type": "command", "command": "/Users/you/.cerberus-term/hooks/notify.sh" }] }
 ```
 
-Nothing else in that file is touched — your model, your permissions, and any
+Copilot CLI, under `preToolUse`, `notification` and `agentStop`:
+
+```json
+{ "type": "command", "bash": "/Users/you/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }
+```
+
+Nothing else in those files is touched — your model, your permissions, and any
 hooks you or another tool registered stay exactly as they are, and ours is added
 next to them rather than over them. Before the first write the whole file is
-copied to `settings.json.cerberus-bak`, and the write itself goes through a
-temp file and a rename, so an interrupted launch can't truncate it. Re-running
-is a no-op once the entry is there.
+copied to `settings.json.cerberus-bak`, and the write itself goes through a temp
+file and a rename, so an interrupted launch can't truncate it. Re-running is a
+no-op once the entry is there.
 
-Outside a Cerberus pane the script exits immediately — it's gated on
+Outside a Cerberus pane the scripts exit immediately — they're gated on
 `CERBERUS_PANE_ID`, which only our panes set — so a `claude` in VS Code or a
 plain terminal is unaffected.
 
-**To opt out:** uncheck **Register Claude Code hooks** in Settings. That removes
-our three entries right away and stops re-adding them at launch; a checkbox is
-needed rather than a one-off button because otherwise the next start would just
-put them back. Or restore `settings.json.cerberus-bak` by hand. Nothing is
-written on Windows at all — the hooks are POSIX shell.
+**To opt out:** uncheck **Register agent CLI hooks** in Settings. That removes
+our entries from every agent right away and stops re-adding them at launch; a
+checkbox is needed rather than a one-off button because otherwise the next start
+would just put them back. Or restore the `.cerberus-bak` files by hand. Nothing
+is written on Windows at all — the hooks are POSIX shell.
 
-### Copilot CLI
-
-Copilot's hook isn't registered automatically — add it yourself to
-`~/.copilot/settings.json`, pointing at the script Cerberus keeps in
-`~/.cerberus-term/hooks/`:
-
-```json
-{
-  "hooks": {
-    "preToolUse": [{ "type": "command", "bash": "~/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }],
-    "notification": [{ "type": "command", "bash": "~/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }],
-    "agentStop": [{ "type": "command", "bash": "~/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }]
-  }
-}
-```
-
-Use the absolute path — expand `~` yourself. The script is copied there on every
-launch, so it survives app updates.
+If you install an agent *after* Cerberus, restart the app once so it sees the
+new config folder.
 
 ## Controls
 

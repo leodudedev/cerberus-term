@@ -57,19 +57,30 @@ export async function openSettingsEditor(): Promise<void> {
   skipConfirm.className = 'settings-checkbox';
   skipConfirm.checked = s.skipCloseConfirm ?? false;
 
-  const claudeHooks = document.createElement('input');
-  claudeHooks.type = 'checkbox';
-  claudeHooks.className = 'settings-checkbox';
-  claudeHooks.checked = s.claudeHooks !== false;
+  const agentHooks = document.createElement('input');
+  agentHooks.type = 'checkbox';
+  agentHooks.className = 'settings-checkbox';
+  agentHooks.checked = s.agentHooks !== false;
 
-  // Say which file the checkbox writes to — it's outside the app, and on a
-  // machine with CLAUDE_CONFIG_DIR set it isn't the path people would guess.
+  // Name every file the checkbox writes to, and its real state. These live
+  // outside the app, in other tools' config — nobody should have to guess which
+  // ones we touched, and the list grows as agents are added.
   const hooksHint = document.createElement('div');
   hooksHint.className = 'settings-hint';
-  const status = await window.cerberusSettings.claudeHooksStatus();
-  hooksHint.textContent = status.installed
-    ? `Hooks registered in ${status.file}. Unchecking removes them (other hooks are left alone).`
-    : `Not registered. Checking adds them to ${status.file}.`;
+  for (const t of await window.cerberusSettings.hooksStatus()) {
+    const line = document.createElement('div');
+    const state = !t.available
+      ? 'not installed here — skipped'
+      : t.installed
+        ? 'registered'
+        : 'not registered yet';
+    line.textContent = `${t.label}: ${t.file} — ${state}`;
+    hooksHint.append(line);
+  }
+  const hooksNote = document.createElement('div');
+  hooksNote.textContent =
+    'Only agents whose config folder already exists are touched; unchecking removes our entries and leaves every other hook alone.';
+  hooksHint.append(hooksNote);
 
   const hint = document.createElement('div');
   hint.className = 'settings-hint';
@@ -98,7 +109,7 @@ export async function openSettingsEditor(): Promise<void> {
     row('Language', lang),
     row('Default shell', shell),
     row('Skip confirm on close', skipConfirm),
-    row('Register Claude Code hooks', claudeHooks),
+    row('Register agent CLI hooks', agentHooks),
     hooksHint,
     hint,
     error,
@@ -136,7 +147,7 @@ export async function openSettingsEditor(): Promise<void> {
       },
       defaultShell: shell.value.trim() || undefined,
       skipCloseConfirm: skipConfirm.checked,
-      claudeHooks: claudeHooks.checked
+      agentHooks: agentHooks.checked
     };
     const res = await window.cerberusSettings.save(next);
     if (res.ok) {

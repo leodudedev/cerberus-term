@@ -13,16 +13,17 @@ export interface Settings {
   telegram: TelegramSettings;
   defaultShell?: string; // pty shell when a pane doesn't specify one
   skipCloseConfirm?: boolean; // when true, closing a pane/tab skips the confirm
-  // Register the notification hooks in Claude's settings.json on every launch.
-  // Turning this off also removes the ones already there — without the flag the
-  // next launch would just put them back. Undefined counts as on.
-  claudeHooks?: boolean;
+  // Register the notification hooks in each installed agent CLI's config on
+  // every launch. Turning this off also removes the ones already there —
+  // without the flag the next launch would just put them back. Undefined
+  // counts as on. Was `claudeHooks` before Copilot joined the list.
+  agentHooks?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
   skipCloseConfirm: false,
-  claudeHooks: true
+  agentHooks: true
 };
 
 // Fill the gaps in a settings object read off disk (or handed over by the
@@ -31,23 +32,29 @@ export const DEFAULT_SETTINGS: Settings = {
 // on save and reverts to its default on the next read.
 export function mergeSettings(parsed: Partial<Settings> | null | undefined): Settings {
   const p = parsed ?? {};
+  // claudeHooks was the pre-Copilot name. Read it once so anyone who had opted
+  // out doesn't silently get the hooks reinstalled by the rename.
+  const legacyHooks = (p as { claudeHooks?: boolean }).claudeHooks;
   return {
     telegram: { ...DEFAULT_SETTINGS.telegram, ...(p.telegram ?? {}) },
     defaultShell: p.defaultShell ?? DEFAULT_SETTINGS.defaultShell,
     skipCloseConfirm: p.skipCloseConfirm ?? DEFAULT_SETTINGS.skipCloseConfirm,
-    claudeHooks: p.claudeHooks ?? DEFAULT_SETTINGS.claudeHooks
+    agentHooks: p.agentHooks ?? legacyHooks ?? DEFAULT_SETTINGS.agentHooks
   };
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
-export interface ClaudeHooksStatus {
-  file: string; // the settings.json we'd edit, honouring CLAUDE_CONFIG_DIR
+export interface HookTargetStatus {
+  id: string;
+  label: string; // "Claude Code"
+  file: string; // the config we'd edit
+  available: boolean; // its config dir exists — the CLI is installed here
   installed: boolean;
 }
 
 export interface SettingsBridge {
   get(): Promise<Settings>;
   save(s: Settings): Promise<SaveResult>;
-  claudeHooksStatus(): Promise<ClaudeHooksStatus>;
+  hooksStatus(): Promise<HookTargetStatus[]>;
 }
