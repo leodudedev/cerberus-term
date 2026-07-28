@@ -8,6 +8,23 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [Unreleased]
+
+### Added
+
+- **Register Claude Code hooks** setting. Unchecking it removes the three
+  entries Cerberus added to Claude's `settings.json` — and only those — and
+  stops re-adding them on the next launch. The Settings pane names the exact
+  file it will edit, honouring `CLAUDE_CONFIG_DIR`.
+
+### Changed
+
+- Session labels are derived from `CLAUDE_CONFIG_DIR` instead of a hardcoded
+  list: an alias exporting `CLAUDE_CONFIG_DIR=~/.claude-work` now shows up as
+  `claude-work`, and the default `~/.claude` as `claude`.
+- README spells out what the app writes outside itself: the two paths, the exact
+  JSON appended, the backup, and how to opt out.
+
 ## [0.7.0] — 2026-07-28
 
 ### Added

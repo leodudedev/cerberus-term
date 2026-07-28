@@ -1,7 +1,7 @@
 import { app, type BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { applySettingsToEnv } from '../settings.js';
+import { applySettingsToEnv, getSettings } from '../settings.js';
 import { loadEnvFile } from './env.js';
 import { installClaudeHooks, syncHookScripts } from './hook-install.js';
 import { startDaemon } from './daemon.js';
@@ -26,6 +26,15 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
   // just Cerberus ones). Skip installation there until a .ps1/.cmd hook exists.
   if (process.platform === 'win32') {
     console.log('[cerberus] hook install skipped on win32 (bash hooks unsupported)');
+  } else if (getSettings().claudeHooks === false) {
+    // Opted out in Settings. The scripts still get refreshed below so a
+    // hand-written hook entry pointing at them keeps working.
+    console.log('[cerberus] Claude hook install disabled in settings');
+    try {
+      syncHookScripts(join(base, 'hooks'));
+    } catch {
+      /* nothing registered to break — ignore */
+    }
   } else {
     const bundledHooks = join(base, 'hooks');
     if (existsSync(join(bundledHooks, 'notify.sh'))) {

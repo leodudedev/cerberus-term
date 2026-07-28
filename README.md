@@ -77,7 +77,9 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
   hooks that power notifications are bash-based, so remote control there works
   through WSL.
 - **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code) is
-  wired up for you: Cerberus registers its notification hooks on first launch.
+  wired up for you: Cerberus registers its notification hooks in Claude's
+  `settings.json` at launch — see [what the app writes](#what-the-app-writes-outside-itself)
+  for exactly what changes and how to opt out.
   [GitHub Copilot CLI](https://github.com/github/copilot-cli) is supported too,
   but its hook has to be registered by hand — see below. Any other CLI still
   runs in a pane; it just won't push.
@@ -95,8 +97,41 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 3. In any pane run `claude`. When the session needs you, you get a Telegram push
    with 🟢 🟡 🔴 risk and Approve / Deny / prompt buttons that land in that pane.
 
-The Claude Code hooks are registered when the app starts, not the first time you
-run `claude` — any hooks you already had keep working alongside them.
+### What the app writes outside itself
+
+Cerberus edits two things on your machine, both on **every launch**, not the
+first time you run `claude`:
+
+**1. `~/.cerberus-term/hooks/`** — `notify.sh` and `copilot-notify.sh` are copied
+here from the app bundle, overwriting the previous copies. This directory is the
+stable home for them: hooks run in *every* Claude session, including ones outside
+Cerberus, so a path pointing inside the `.app` would break them all the day you
+move or delete it.
+
+**2. Claude Code's `settings.json`** — `~/.claude/settings.json`, or
+`$CLAUDE_CONFIG_DIR/settings.json` when that's set. Three entries are **appended**,
+one each under `PreToolUse`, `PostToolUse` and `Notification`:
+
+```json
+{ "matcher": "", "hooks": [{ "type": "command", "command": "/Users/you/.cerberus-term/hooks/notify.sh" }] }
+```
+
+Nothing else in that file is touched — your model, your permissions, and any
+hooks you or another tool registered stay exactly as they are, and ours is added
+next to them rather than over them. Before the first write the whole file is
+copied to `settings.json.cerberus-bak`, and the write itself goes through a
+temp file and a rename, so an interrupted launch can't truncate it. Re-running
+is a no-op once the entry is there.
+
+Outside a Cerberus pane the script exits immediately — it's gated on
+`CERBERUS_PANE_ID`, which only our panes set — so a `claude` in VS Code or a
+plain terminal is unaffected.
+
+**To opt out:** uncheck **Register Claude Code hooks** in Settings. That removes
+our three entries right away and stops re-adding them at launch; a checkbox is
+needed rather than a one-off button because otherwise the next start would just
+put them back. Or restore `settings.json.cerberus-bak` by hand. Nothing is
+written on Windows at all — the hooks are POSIX shell.
 
 ### Copilot CLI
 

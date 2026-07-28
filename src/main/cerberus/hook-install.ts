@@ -60,6 +60,82 @@ function groupHasCommand(groups: HookGroup[], command: string): boolean {
   return groups.some((g) => g.hooks?.some((h) => h.command === command));
 }
 
+// Ours, wherever it currently points: the stable path, or a stale .app/repo one.
+function isCerberusCommand(command: string, stablePath: string): boolean {
+  return command === stablePath || isStaleCerberusCommand(command, stablePath);
+}
+
+function readSettings(file: string): ClaudeSettings | null {
+  if (!existsSync(file)) return {};
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as ClaudeSettings;
+  } catch (e) {
+    console.error('[hooks] settings.json unreadable:', (e as Error).message);
+    return null;
+  }
+}
+
+// Backup once, then swap atomically: never risk leaving Claude's settings.json
+// truncated, and always leave the pre-Cerberus file recoverable.
+function writeSettings(file: string, settings: ClaudeSettings): void {
+  if (existsSync(file) && !existsSync(`${file}.cerberus-bak`)) {
+    copyFileSync(file, `${file}.cerberus-bak`);
+  }
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.cerberus-tmp`;
+  writeFileSync(tmp, JSON.stringify(settings, null, 2));
+  renameSync(tmp, file);
+}
+
+export function stableNotifyScript(): string {
+  return join(stableHooksDir(), 'notify.sh');
+}
+
+// Whether our hook is currently registered, and in which file — so the UI can
+// name the exact path it's about to edit.
+export function claudeHooksStatus(): { file: string; installed: boolean } {
+  const file = claudeSettingsPath();
+  const settings = readSettings(file);
+  const stable = stableNotifyScript();
+  const installed = Object.values(settings?.hooks ?? {}).some((groups) =>
+    groups.some((g) => g.hooks?.some((h) => isCerberusCommand(h.command, stable)))
+  );
+  return { file, installed };
+}
+
+// Remove only the entries we registered, leaving every other hook (rtk, mycli,
+// the user's own) exactly where it is. Empty groups left behind are dropped.
+export function uninstallClaudeHooks(): { ok: boolean; removed: number; error?: string } {
+  const file = claudeSettingsPath();
+  const settings = readSettings(file);
+  if (!settings) return { ok: false, removed: 0, error: `Can't parse ${file}` };
+
+  const stable = stableNotifyScript();
+  let removed = 0;
+
+  for (const [ev, groups] of Object.entries(settings.hooks ?? {})) {
+    for (const g of groups) {
+      if (!g.hooks) continue;
+      const before = g.hooks.length;
+      g.hooks = g.hooks.filter((h) => !isCerberusCommand(h.command, stable));
+      removed += before - g.hooks.length;
+    }
+    const kept = groups.filter((g) => !g.hooks || g.hooks.length > 0);
+    if (kept.length > 0) settings.hooks![ev] = kept;
+    else delete settings.hooks![ev];
+  }
+
+  if (removed === 0) return { ok: true, removed: 0 };
+
+  try {
+    writeSettings(file, settings);
+    console.log('[hooks] removed', removed, 'Cerberus hook entries from', file);
+    return { ok: true, removed };
+  } catch (e) {
+    return { ok: false, removed: 0, error: (e as Error).message };
+  }
+}
+
 // Copy the hook scripts from the app bundle to the stable dir (refreshed every
 // launch so updates propagate). Returns the stable notify.sh path.
 export function syncHookScripts(bundledHooksDir: string, targetDir = stableHooksDir()): string {
@@ -77,15 +153,8 @@ export function syncHookScripts(bundledHooksDir: string, targetDir = stableHooks
 export function installClaudeHooks(notifyScript: string): void {
   const file = claudeSettingsPath();
 
-  let settings: ClaudeSettings = {};
-  if (existsSync(file)) {
-    try {
-      settings = JSON.parse(readFileSync(file, 'utf8')) as ClaudeSettings;
-    } catch (e) {
-      console.error('[hooks] settings.json unreadable, skipping install:', (e as Error).message);
-      return;
-    }
-  }
+  const settings = readSettings(file);
+  if (!settings) return; // unreadable — never clobber it
 
   settings.hooks ??= {};
   const events = ['PreToolUse', 'PostToolUse', 'Notification'] as const;
@@ -113,15 +182,7 @@ export function installClaudeHooks(notifyScript: string): void {
   if (!changed) return; // already installed — nothing to do
 
   try {
-    // one-time backup before the first write
-    if (existsSync(file) && !existsSync(`${file}.cerberus-bak`)) {
-      copyFileSync(file, `${file}.cerberus-bak`);
-    }
-    mkdirSync(dirname(file), { recursive: true });
-    // Atomic write: never risk leaving the user's Claude settings.json truncated.
-    const tmp = `${file}.cerberus-tmp`;
-    writeFileSync(tmp, JSON.stringify(settings, null, 2));
-    renameSync(tmp, file);
+    writeSettings(file, settings);
     console.log('[hooks] installed Claude hooks ->', notifyScript);
   } catch (e) {
     console.error('[hooks] install failed:', (e as Error).message);

@@ -14,17 +14,28 @@ export interface Settings {
   launchCmds: Record<string, string>; // agent -> command (claude, copilot, …)
   defaultShell?: string; // pty shell when a pane doesn't specify one
   skipCloseConfirm?: boolean; // when true, closing a pane/tab skips the confirm
+  // Register the notification hooks in Claude's settings.json on every launch.
+  // Turning this off also removes the ones already there — without the flag the
+  // next launch would just put them back. Undefined counts as on.
+  claudeHooks?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
   launchCmds: { claude: 'claude', copilot: 'copilot' },
-  skipCloseConfirm: false
+  skipCloseConfirm: false,
+  claudeHooks: true
 };
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 
+export interface ClaudeHooksStatus {
+  file: string; // the settings.json we'd edit, honouring CLAUDE_CONFIG_DIR
+  installed: boolean;
+}
+
 export interface SettingsBridge {
   get(): Promise<Settings>;
   save(s: Settings): Promise<SaveResult>;
+  claudeHooksStatus(): Promise<ClaudeHooksStatus>;
 }

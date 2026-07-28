@@ -59,6 +59,20 @@ export async function openSettingsEditor(): Promise<void> {
   skipConfirm.className = 'settings-checkbox';
   skipConfirm.checked = s.skipCloseConfirm ?? false;
 
+  const claudeHooks = document.createElement('input');
+  claudeHooks.type = 'checkbox';
+  claudeHooks.className = 'settings-checkbox';
+  claudeHooks.checked = s.claudeHooks !== false;
+
+  // Say which file the checkbox writes to — it's outside the app, and on a
+  // machine with CLAUDE_CONFIG_DIR set it isn't the path people would guess.
+  const hooksHint = document.createElement('div');
+  hooksHint.className = 'settings-hint';
+  const status = await window.cerberusSettings.claudeHooksStatus();
+  hooksHint.textContent = status.installed
+    ? `Hooks registered in ${status.file}. Unchecking removes them (other hooks are left alone).`
+    : `Not registered. Checking adds them to ${status.file}.`;
+
   const hint = document.createElement('div');
   hint.className = 'settings-hint';
   hint.textContent = 'Changing the Telegram token requires an app restart to re-poll.';
@@ -88,6 +102,8 @@ export async function openSettingsEditor(): Promise<void> {
     row('Launch: claude', claudeCmd),
     row('Launch: copilot', copilotCmd),
     row('Skip confirm on close', skipConfirm),
+    row('Register Claude Code hooks', claudeHooks),
+    hooksHint,
     hint,
     error,
     buttons
@@ -127,7 +143,8 @@ export async function openSettingsEditor(): Promise<void> {
         copilot: copilotCmd.value.trim() || 'copilot'
       },
       defaultShell: shell.value.trim() || undefined,
-      skipCloseConfirm: skipConfirm.checked
+      skipCloseConfirm: skipConfirm.checked,
+      claudeHooks: claudeHooks.checked
     };
     const res = await window.cerberusSettings.save(next);
     if (res.ok) {
