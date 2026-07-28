@@ -52,8 +52,6 @@ export async function openSettingsEditor(): Promise<void> {
   }
   const shell = textInput(s.defaultShell ?? '');
   shell.placeholder = '$SHELL';
-  const claudeCmd = textInput(s.launchCmds['claude'] ?? 'claude');
-  const copilotCmd = textInput(s.launchCmds['copilot'] ?? 'copilot');
   const skipConfirm = document.createElement('input');
   skipConfirm.type = 'checkbox';
   skipConfirm.className = 'settings-checkbox';
@@ -99,8 +97,6 @@ export async function openSettingsEditor(): Promise<void> {
     row('Allowed chats (csv)', allowed),
     row('Language', lang),
     row('Default shell', shell),
-    row('Launch: claude', claudeCmd),
-    row('Launch: copilot', copilotCmd),
     row('Skip confirm on close', skipConfirm),
     row('Register Claude Code hooks', claudeHooks),
     hooksHint,
@@ -137,10 +133,6 @@ export async function openSettingsEditor(): Promise<void> {
         chatId: chatId.value.trim() || undefined,
         allowedChats: allowed.value.trim() || undefined,
         lang: lang.value === 'it' ? 'it' : 'en'
-      },
-      launchCmds: {
-        claude: claudeCmd.value.trim() || 'claude',
-        copilot: copilotCmd.value.trim() || 'copilot'
       },
       defaultShell: shell.value.trim() || undefined,
       skipCloseConfirm: skipConfirm.checked,

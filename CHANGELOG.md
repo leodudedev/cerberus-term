@@ -31,6 +31,19 @@ Installers for each version are on the
 - README spells out what the app writes outside itself: the two paths, the exact
   JSON appended, the backup, and how to opt out.
 
+### Fixed
+
+- **Register Claude Code hooks** now stays unchecked. Saving it off removed the
+  hooks correctly, but the flag itself was dropped on write: reopening Settings
+  showed the box ticked again, saving a second time did nothing, and the next
+  launch put the hooks back.
+
+### Removed
+
+- The two **Launch: claude** / **Launch: copilot** command fields. They were
+  stored and read back but never used to spawn anything — panes have always run
+  a shell, and you type the agent command in it.
+
 ## [0.7.0] — 2026-07-28
 
 ### Added

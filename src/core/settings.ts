@@ -11,7 +11,6 @@ export interface TelegramSettings {
 
 export interface Settings {
   telegram: TelegramSettings;
-  launchCmds: Record<string, string>; // agent -> command (claude, copilot, …)
   defaultShell?: string; // pty shell when a pane doesn't specify one
   skipCloseConfirm?: boolean; // when true, closing a pane/tab skips the confirm
   // Register the notification hooks in Claude's settings.json on every launch.
@@ -22,10 +21,23 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
-  launchCmds: { claude: 'claude', copilot: 'copilot' },
   skipCloseConfirm: false,
   claudeHooks: true
 };
+
+// Fill the gaps in a settings object read off disk (or handed over by the
+// renderer) with the defaults. Every field has to be listed: this rebuilds the
+// object rather than spreading, so a field forgotten here is silently dropped
+// on save and reverts to its default on the next read.
+export function mergeSettings(parsed: Partial<Settings> | null | undefined): Settings {
+  const p = parsed ?? {};
+  return {
+    telegram: { ...DEFAULT_SETTINGS.telegram, ...(p.telegram ?? {}) },
+    defaultShell: p.defaultShell ?? DEFAULT_SETTINGS.defaultShell,
+    skipCloseConfirm: p.skipCloseConfirm ?? DEFAULT_SETTINGS.skipCloseConfirm,
+    claudeHooks: p.claudeHooks ?? DEFAULT_SETTINGS.claudeHooks
+  };
+}
 
 export type SaveResult = { ok: true } | { ok: false; error: string };
 

@@ -1,7 +1,7 @@
 import { app } from 'electron';
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SETTINGS, type Settings } from '../core/settings.js';
+import { mergeSettings, type Settings } from '../core/settings.js';
 
 // Global settings store: userData/cerberus-settings.json, cached, deep-merged
 // over defaults. In-app values override .env (applySettingsToEnv force-sets).
@@ -12,27 +12,18 @@ function file(): string {
   return join(app.getPath('userData'), 'cerberus-settings.json');
 }
 
-function merge(parsed: Partial<Settings>): Settings {
-  return {
-    telegram: { ...DEFAULT_SETTINGS.telegram, ...(parsed.telegram ?? {}) },
-    launchCmds: { ...DEFAULT_SETTINGS.launchCmds, ...(parsed.launchCmds ?? {}) },
-    defaultShell: parsed.defaultShell ?? DEFAULT_SETTINGS.defaultShell,
-    skipCloseConfirm: parsed.skipCloseConfirm ?? DEFAULT_SETTINGS.skipCloseConfirm
-  };
-}
-
 export function getSettings(): Settings {
   if (cached) return cached;
   try {
-    cached = merge(JSON.parse(readFileSync(file(), 'utf8')) as Partial<Settings>);
+    cached = mergeSettings(JSON.parse(readFileSync(file(), 'utf8')) as Partial<Settings>);
   } catch {
-    cached = merge({});
+    cached = mergeSettings({});
   }
   return cached;
 }
 
 export function saveSettings(s: Settings): void {
-  cached = merge(s);
+  cached = mergeSettings(s);
   const path = file();
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, JSON.stringify(cached, null, 2));
