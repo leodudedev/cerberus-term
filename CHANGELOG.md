@@ -8,7 +8,7 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
-## [Unreleased]
+## [0.9.0] — 2026-07-28
 
 ### Added
 
