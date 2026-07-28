@@ -86,16 +86,23 @@ export async function openSettingsEditor(): Promise<void> {
       : t.installed
         ? 'registered'
         : 'not registered';
-    const detail = document.createElement('div');
-    detail.className = 'settings-hint';
+    // On the same line as the tickbox: the path is the point of the row, and a
+    // separate line under it read as a note about the section instead.
+    const detail = document.createElement('span');
+    detail.className = 'settings-hook-file';
     detail.textContent = `${t.file} — ${state}`;
+    detail.title = detail.textContent; // the path is truncated when it has to be
 
-    hooksBlock.append(row(t.label, input), detail);
+    const cell = document.createElement('div');
+    cell.className = 'settings-hook-cell';
+    cell.append(input, detail);
+
+    hooksBlock.append(row(t.label, cell));
     hookRows.push({ id: t.id, input });
   }
 
   const hooksNote = document.createElement('div');
-  hooksNote.className = 'settings-hint';
+  hooksNote.className = 'settings-hint settings-note';
   hooksNote.textContent =
     'Unchecking removes our entries from that file and leaves every other hook alone.';
   hooksBlock.append(hooksNote);

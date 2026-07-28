@@ -532,6 +532,26 @@
         accent-color: var(--accent);
         cursor: pointer;
       }
+      /* checkbox + the file it writes to, on one line: the path is what the row
+         is really about, so it belongs next to the tickbox and not under it */
+      .settings-hook-cell {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .settings-hook-file {
+        color: var(--hint);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* separates the caveat from the rows it applies to */
+      .settings-note {
+        margin-top: 10px;
+      }
       /* confirm dialog */
       .confirm-modal {
         width: min(400px, 90vw);
