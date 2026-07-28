@@ -15,7 +15,9 @@ Installers for each version are on the
 - Nothing is written to an agent CLI's config until you say so. The first launch
   asks, listing the agents found on this machine, the file each one would edit,
   the events, and the command — then registers only what you tick. Declining is
-  recorded, so you're asked once and never again.
+  recorded, so you're asked once and never again; it also removes any entry of
+  ours already sitting in those files, so the answer is true of the disk and not
+  just of the settings.
 - Copilot CLI hooks are registered automatically, in Copilot's own format and
   under its own events. Previously this was a copy-paste step in the README.
 - Settings lists every agent config file the app touches, one line each, with
@@ -35,7 +37,9 @@ Installers for each version are on the
   effect of installing something else.
 - Upgrades keep working without a prompt: an existing on/off setting becomes the
   equivalent per-agent list on first run. The hooks are already in those files,
-  so asking after the fact would be theatre.
+  so asking after the fact would be theatre. Versions old enough to have no such
+  setting are read from the config files themselves — whatever is registered
+  there is adopted as-is, including entries added by hand from the README.
 
 ### Removed
 

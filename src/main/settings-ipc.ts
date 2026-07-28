@@ -3,7 +3,7 @@ import { getSettings, saveSettings, applySettingsToEnv } from './settings.js';
 import { hooksStatus, installAgentHooks, uninstallAgentHooks } from './cerberus/hook-install.js';
 import { parseTargetIds } from '../core/settings.js';
 import type { Settings, SaveResult, HookTargetStatus } from '../core/settings.js';
-import type { TargetId } from '../core/hook-targets.js';
+import { HOOK_TARGETS, type TargetId } from '../core/hook-targets.js';
 
 // Bash hooks can't run there, so nothing is ever registered and nothing should
 // be asked. Kept in one place so the three handlers agree.
@@ -63,7 +63,12 @@ export function registerSettingsIpc(): void {
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }
-    if (canInstall() && chosen.length > 0) installAgentHooks(chosen);
-    return { ok: true };
+    // Apply against every agent, not just the chosen ones: a recorded "no" has
+    // to be true of the files too, or Settings ends up denying an entry that's
+    // still sitting there firing.
+    return applyTargetDiff(
+      HOOK_TARGETS.map((t) => t.id),
+      chosen
+    );
   });
 }

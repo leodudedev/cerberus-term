@@ -3,7 +3,12 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { applySettingsToEnv, getSettings, migrateHookSettings } from '../settings.js';
 import { loadEnvFile } from './env.js';
-import { availableTargets, installAgentHooks, syncHookScripts } from './hook-install.js';
+import {
+  availableTargets,
+  installAgentHooks,
+  installedTargets,
+  syncHookScripts
+} from './hook-install.js';
 import { startDaemon } from './daemon.js';
 
 // Boot the Cerberus remote-control core from the Electron main process:
@@ -36,7 +41,7 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
       // would break them all if the app is moved/removed. Refreshed even when
       // nothing is registered, so a hand-written entry pointing at them works.
       syncHookScripts(bundledHooks);
-      migrateHookSettings(availableTargets());
+      migrateHookSettings(availableTargets(), installedTargets());
 
       // Only what someone ticked, and nothing at all until they've been asked:
       // these are other tools' config files, so an undecided install writes to

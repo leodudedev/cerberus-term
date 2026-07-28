@@ -7,6 +7,7 @@ import {
   uninstallAgentHooks,
   hooksStatus,
   availableTargets,
+  installedTargets,
   stableScript
 } from '../src/main/cerberus/hook-install.js';
 
@@ -132,6 +133,17 @@ describe('hook install / uninstall', () => {
     expect(availableTargets(home)).toEqual([]);
     withConfigDir('.copilot');
     expect(availableTargets(home)).toEqual(['copilot']);
+  });
+
+  // What the <=0.7.0 upgrade path reads: those installs registered on every
+  // launch with no switch in the settings file, so what's on disk is the only
+  // record of the arrangement to carry over.
+  it('reports the agents that already carry an entry of ours', () => {
+    withConfigDir('.claude');
+    withConfigDir('.copilot');
+    expect(installedTargets(home)).toEqual([]);
+    installAgentHooks(['claude'], home);
+    expect(installedTargets(home)).toEqual(['claude']);
   });
 
   it('appends to existing hooks instead of replacing them', () => {

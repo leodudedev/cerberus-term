@@ -61,15 +61,23 @@ export function parseTargetIds(value: unknown): TargetId[] {
   return value.filter((v): v is TargetId => typeof v === 'string' && known.includes(v));
 }
 
-// One-shot upgrade from the old master switch to the explicit per-agent list.
-// Someone who already had hooks on keeps every agent they have installed right
-// now, and is never shown the consent dialog: the hooks are already in their
-// config, asking after the fact would be theatre. Returns null when there's
-// nothing to migrate — including a fresh install, which must go to the dialog.
-export function migrateHookTargets(s: Settings, available: TargetId[]): TargetId[] | null {
+// One-shot upgrade to the explicit per-agent list. Returns null only for a
+// genuinely fresh install, which is the one case that must reach the consent
+// dialog. Nobody who already has an arrangement is asked to re-confirm it: the
+// hooks are in their config either way, so the question would be theatre and a
+// "no" answer would leave entries behind that Settings then denies having.
+export function migrateHookTargets(
+  s: Settings,
+  available: TargetId[],
+  installed: TargetId[]
+): TargetId[] | null {
   if (s.hookTargets) return null; // already decided, [] included
-  if (s.agentHooks === undefined) return null; // never asked — the dialog's job
-  return s.agentHooks ? available : [];
+  if (s.agentHooks === false) return []; // an explicit opt-out stays one
+  if (s.agentHooks === true) return available;
+  // No switch in the file at all: either ≤0.7.0, which registered hooks on
+  // every launch with no way to say no, or a hand-registered entry from the
+  // README. Both are existing arrangements — keep exactly what's there.
+  return installed.length > 0 ? installed : null;
 }
 
 export type SaveResult = { ok: true } | { ok: false; error: string };

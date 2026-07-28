@@ -102,6 +102,13 @@ export function availableTargets(home = homedir()): TargetId[] {
   return HOOK_TARGETS.filter((t) => existsSync(t.configDir(home))).map((t) => t.id);
 }
 
+// Agents whose config already carries an entry of ours, whoever put it there.
+export function installedTargets(home = homedir()): TargetId[] {
+  return hooksStatus(home)
+    .filter((t) => t.installed)
+    .map((t) => t.id);
+}
+
 // Remove only the entries we registered, from the given agents only, leaving
 // every other hook exactly where it is. Empty groups and events left behind
 // are dropped. Takes the ids explicitly: unticking one agent in Settings must

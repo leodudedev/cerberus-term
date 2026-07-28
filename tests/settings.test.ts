@@ -62,28 +62,46 @@ describe('migrateHookTargets', () => {
   // fact would be theatre, so they're converted silently to the equivalent
   // explicit list — every agent they have installed right now.
   it('turns the old master switch into the installed agents', () => {
-    expect(migrateHookTargets(mergeSettings({ agentHooks: true }), ['claude'])).toEqual(['claude']);
+    expect(migrateHookTargets(mergeSettings({ agentHooks: true }), ['claude'], [])).toEqual([
+      'claude'
+    ]);
   });
 
   it('turns an opt-out into a recorded no', () => {
-    expect(migrateHookTargets(mergeSettings({ agentHooks: false }), ['claude'])).toEqual([]);
+    expect(migrateHookTargets(mergeSettings({ agentHooks: false }), ['claude'], [])).toEqual([]);
   });
 
   // claudeHooks was the pre-Copilot name, read through mergeSettings. Someone
   // who had opted out under that name must not come back as opted in.
   it('honours the legacy claudeHooks name', () => {
     const legacy = mergeSettings({ claudeHooks: false } as Partial<Settings>);
-    expect(migrateHookTargets(legacy, ['claude', 'copilot'])).toEqual([]);
+    expect(migrateHookTargets(legacy, ['claude', 'copilot'], [])).toEqual([]);
+  });
+
+  // An opt-out beats what's on disk: entries still lying around are exactly
+  // what the migration should record as unwanted, not as consent.
+  it('keeps an opt-out even when entries are still in the config', () => {
+    const optedOut = mergeSettings({ agentHooks: false });
+    expect(migrateHookTargets(optedOut, ['claude'], ['claude'])).toEqual([]);
+  });
+
+  // <=0.7.0 had no switch and registered on every launch. On upgrade the hooks
+  // are already in their config: asking would be a question about a done deal,
+  // and a "no" would leave entries behind that Settings then denies.
+  it('adopts what is already registered when the file has no switch at all', () => {
+    expect(migrateHookTargets(mergeSettings({}), ['claude', 'copilot'], ['claude'])).toEqual([
+      'claude'
+    ]);
   });
 
   it('leaves a fresh install undecided, so the consent dialog runs', () => {
-    expect(migrateHookTargets(mergeSettings({}), ['claude'])).toBeNull();
+    expect(migrateHookTargets(mergeSettings({}), ['claude'], [])).toBeNull();
   });
 
   it('never overwrites an answer already given, empty included', () => {
-    expect(migrateHookTargets(mergeSettings({ hookTargets: [] }), ['claude'])).toBeNull();
-    expect(
-      migrateHookTargets(mergeSettings({ hookTargets: ['claude'], agentHooks: false }), ['copilot'])
-    ).toBeNull();
+    const declined = mergeSettings({ hookTargets: [] });
+    expect(migrateHookTargets(declined, ['claude'], ['claude'])).toBeNull();
+    const picked = mergeSettings({ hookTargets: ['claude'], agentHooks: false });
+    expect(migrateHookTargets(picked, ['copilot'], [])).toBeNull();
   });
 });

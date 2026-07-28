@@ -35,8 +35,8 @@ export function saveSettings(s: Settings): void {
 // once, at boot. Writes only when there's something to convert, so a fresh
 // install stays undecided and reaches the consent dialog. The legacy field is
 // dropped in the same write (undefined doesn't survive JSON.stringify).
-export function migrateHookSettings(available: TargetId[]): void {
-  const ids = migrateHookTargets(getSettings(), available);
+export function migrateHookSettings(available: TargetId[], installed: TargetId[]): void {
+  const ids = migrateHookTargets(getSettings(), available, installed);
   if (!ids) return;
   console.log('[hooks] migrated agentHooks ->', ids.length > 0 ? ids.join(', ') : '(none)');
   saveSettings({ ...getSettings(), hookTargets: ids, agentHooks: undefined });
