@@ -79,6 +79,33 @@
         gap: 2px;
         min-width: 0;
         overflow-x: auto;
+        scroll-behavior: smooth;
+        /* The bar is 34px tall — a classic (non-overlay) scrollbar eats a third
+           of it and squashes the chips. Scrolling still works: wheel, trackpad,
+           and selectTab's scrollIntoView. */
+        scrollbar-width: none;
+      }
+      .tabbar-tabs::-webkit-scrollbar {
+        display: none;
+      }
+      /* With the scrollbar gone, a chip cut off mid-letter is the only sign
+         there's more to reach — so fade that edge instead of slicing it. Only
+         the side that actually has hidden chips fades; syncTabOverflow sets
+         the classes on render and on scroll. */
+      .tabbar-tabs.fade-right {
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+      }
+      .tabbar-tabs.fade-left {
+        -webkit-mask-image: linear-gradient(to right, transparent, #000 28px);
+      }
+      .tabbar-tabs.fade-left.fade-right {
+        -webkit-mask-image: linear-gradient(
+          to right,
+          transparent,
+          #000 28px,
+          #000 calc(100% - 28px),
+          transparent
+        );
       }
       .tabbar-actions {
         display: flex;
@@ -170,6 +197,11 @@
         display: flex;
         align-items: center;
         gap: 6px;
+        /* Shrink before scrolling: eight tabs fit a default window at ~110px
+           each, so the strip only overflows once the labels would be unreadable
+           anyway. min-width lets the title's ellipsis kick in. */
+        flex: 0 1 auto;
+        min-width: 72px;
         max-width: 200px;
         height: 24px;
         padding: 0 4px 0 10px;
@@ -201,6 +233,7 @@
         }
       }
       .tab-chip-title {
+        min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
       }

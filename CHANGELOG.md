@@ -19,6 +19,12 @@ Installers for each version are on the
 
 ### Changed
 
+- Tab bar past eight tabs. Chips now shrink to a floor before the strip
+  scrolls, so a default window fits them all; the scrollbar that used to eat a
+  third of the 34px bar is gone (wheel, trackpad and Cmd+1..9 still scroll it,
+  and the active chip scrolls itself into view); the edge with hidden tabs
+  behind it fades instead of slicing a chip mid-letter; and **+** moved next to
+  the Telegram button, where it can no longer scroll out of reach.
 - Session labels are derived from `CLAUDE_CONFIG_DIR` instead of a hardcoded
   list: an alias exporting `CLAUDE_CONFIG_DIR=~/.claude-work` now shows up as
   `claude-work`, and the default `~/.claude` as `claude`.

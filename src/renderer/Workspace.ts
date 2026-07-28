@@ -64,9 +64,37 @@ export class Workspace {
     this.tabBarEl = document.createElement('div');
     this.tabBarEl.className = 'tabbar-tabs';
 
+    // "New tab" sits with the actions, not at the end of the chip strip: past
+    // ~8 tabs the strip scrolls, and a + that scrolls out of reach is a + you
+    // can't click. Built once for the same reason as the mute toggle.
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'tab-new';
+    add.textContent = '+';
+    add.title = 'New tab (Cmd+T)';
+    add.addEventListener('click', () => this.newTab());
+
     const actions = document.createElement('div');
     actions.className = 'tabbar-actions';
-    actions.append(makeMuteToggle());
+    actions.append(add, makeMuteToggle());
+
+    // A trackpad swipes the strip horizontally on its own; a plain mouse wheel
+    // only reports deltaY, which would otherwise do nothing here.
+    this.tabBarEl.addEventListener(
+      'wheel',
+      (e) => {
+        if (e.deltaX !== 0 || e.shiftKey) return; // already horizontal
+        if (this.tabBarEl.scrollWidth <= this.tabBarEl.clientWidth) return;
+        e.preventDefault();
+        this.tabBarEl.scrollLeft += e.deltaY;
+      },
+      { passive: false }
+    );
+
+    // Neither scrolling nor resizing the window goes through renderTabBar, and
+    // both change which edge has chips hidden behind it.
+    this.tabBarEl.addEventListener('scroll', () => this.syncTabOverflow(), { passive: true });
+    new ResizeObserver(() => this.syncTabOverflow()).observe(this.tabBarEl);
 
     bar.append(this.tabBarEl, actions);
 
@@ -300,12 +328,15 @@ export class Workspace {
 
   private renderTabBar(): void {
     this.tabBarEl.replaceChildren();
+    let activeChip: HTMLElement | null = null;
+
     this.tabs.forEach((t, index) => {
       const chip = document.createElement('div');
       chip.className =
         'tab-chip' +
         (t.id === this.activeId ? ' active' : '') +
         (t.attention ? ' attention' : '');
+      if (t.id === this.activeId) activeChip = chip;
 
       const label = this.titleOf(t, index);
       const title = document.createElement('span');
@@ -334,13 +365,19 @@ export class Workspace {
       this.tabBarEl.append(chip);
     });
 
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'tab-new';
-    add.textContent = '+';
-    add.title = 'New tab (Cmd+T)';
-    add.addEventListener('click', () => this.newTab());
-    this.tabBarEl.append(add);
+    this.syncTabOverflow();
+    // Cmd+1..9 and Ctrl+Tab can land on a chip that's scrolled out of sight.
+    (activeChip as HTMLElement | null)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // Fade an edge only while chips are hidden past it: fading the right one at
+  // the end of the strip would dim the last chip to suggest more that isn't
+  // there. 1px of slack absorbs sub-pixel widths.
+  private syncTabOverflow(): void {
+    const el = this.tabBarEl;
+    const hidden = el.scrollWidth - el.clientWidth;
+    el.classList.toggle('fade-left', hidden > 1 && el.scrollLeft > 1);
+    el.classList.toggle('fade-right', hidden > 1 && el.scrollLeft < hidden - 1);
   }
 
   // Inline rename: swap the label for a text input over the chip. Enter/blur
