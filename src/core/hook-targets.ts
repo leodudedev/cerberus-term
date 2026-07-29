@@ -52,7 +52,10 @@ const claude: HookTarget = {
   id: 'claude',
   label: 'Claude Code',
   script: 'notify.sh',
-  events: ['PreToolUse', 'PostToolUse', 'Notification'],
+  // SessionEnd is not a notification: it's what lets the daemon forget a
+  // session as soon as it ends, so its pane stops being a target for Telegram
+  // replies. `/exit` fires nothing else.
+  events: ['PreToolUse', 'PostToolUse', 'Notification', 'SessionEnd'],
   configDir: (home) => join(home, '.claude'),
   settingsFile: (home) => join(home, '.claude', 'settings.json'),
 

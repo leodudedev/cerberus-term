@@ -32,6 +32,9 @@ const strings = {
     noSession: "Session not found",
     expired: "Expired — request too old",
     paneDead: (p: string) => `Pane ${p} not active`,
+    paneBusy: (proc: string) => `Refused — the pane is running ${proc}, not the agent`,
+    paneBusyReply: (proc: string) =>
+      `⛔ Not delivered: the pane is running ${proc}, not the agent. The text could have landed in a password prompt.`,
     // Commands
     noSessionToMute: "No session to mute",
     badDuration: "Invalid duration (e.g. 30m, 2h, 1d)",
@@ -62,6 +65,9 @@ const strings = {
     noSession: "Sessione non trovata",
     expired: "Scaduto — richiesta troppo vecchia",
     paneDead: (p: string) => `Pane ${p} non attivo`,
+    paneBusy: (proc: string) => `Rifiutato — nella pane gira ${proc}, non l'agente`,
+    paneBusyReply: (proc: string) =>
+      `⛔ Non inviato: nella pane gira ${proc}, non l'agente. Il testo poteva finire in un prompt password.`,
     noSessionToMute: "Nessuna sessione da mutare",
     badDuration: "Durata non valida (es. 30m, 2h, 1d)",
     muted: (name: string, dur: string) => `🔇 ${name} — muto ${dur}`,

@@ -6,10 +6,11 @@ import {
   linkMessage,
   mostRecentSession,
   sessionForMessage,
+  hasMessageLink,
   getSession,
   type SessionInfo,
 } from "../../core/registry.js";
-import { paneAlive, sendKey, sendPrompt } from "../pane-control.js";
+import { paneAlive, paneBlockedBy, sendKey, sendPrompt } from "../pane-control.js";
 import { putApproval } from "./remote-approvals.js";
 import { mute, unmute, listMuted, parseDuration } from "../../core/mute.js";
 import { iconForProject } from "../../core/icon.js";
@@ -86,6 +87,14 @@ export function initBot(): boolean {
       await ctx.answerCallbackQuery({ text: t.paneDead(s.pane) });
       return;
     }
+    // The pane outlived its agent and something else owns the tty now: a
+    // digit + Enter aimed at a permission dialog would be typed into that
+    // program's prompt instead. See core/sensitive-process.ts.
+    const busy = paneBlockedBy(s.pane);
+    if (busy) {
+      await ctx.answerCallbackQuery({ text: t.paneBusy(busy) });
+      return;
+    }
 
     for (const k of keys) await sendKey(s.pane, k);
 
@@ -122,9 +131,13 @@ export function initBot(): boolean {
 
   // Resolve which session a command/message targets: reply -> that session,
   // otherwise the most recent one.
+  // Replying to a notification whose session has since ended must NOT fall
+  // back: that's how a message aimed at a dead session gets typed into an
+  // unrelated live one. Only a message we never linked falls back.
   const resolveTarget = (ctx: any) => {
     const replyId = ctx.message?.reply_to_message?.message_id;
-    return (replyId && sessionForMessage(replyId)) || mostRecentSession();
+    if (replyId && hasMessageLink(replyId)) return sessionForMessage(replyId);
+    return mostRecentSession();
   };
 
   // /mute [durata]  — mute the targeted project (e.g. /mute 2h). No arg = forever.
@@ -179,6 +192,15 @@ export function initBot(): boolean {
     }
     if (!(await paneAlive(target.pane))) {
       await ctx.reply(t.paneDead(target.pane));
+      return;
+    }
+    // Refuse rather than deliver blind: the agent that produced the
+    // notification may be long gone, and free text typed into the `ssh` or
+    // `sudo` that took over the pane ends up in a password prompt — and from
+    // there in the remote host's auth log. See core/sensitive-process.ts.
+    const busy = paneBlockedBy(target.pane);
+    if (busy) {
+      await ctx.reply(t.paneBusyReply(busy));
       return;
     }
 
