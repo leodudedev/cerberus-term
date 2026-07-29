@@ -112,6 +112,27 @@ export function paneExists(paneId: string): boolean {
   return ptys.has(paneId);
 }
 
+// Name of the process currently owning the pane's tty. node-pty reads the
+// foreground process group, so this is the program a keystroke would actually
+// reach — the shell when nothing is running, `ssh`/`sudo` when one of those is.
+// '' when the pane is gone.
+//
+// Platform-dependent, and only two of the three tell the truth: macOS reads the
+// foreground pgrp's comm, Linux reads argv[0] out of /proc/<pgrp>/cmdline, and
+// Windows returns the `name` we passed to spawn ('xterm-256color') — not a
+// process at all. So the guard reading this is inert on Windows. It fails OPEN
+// everywhere it can't tell, which is the pre-existing behaviour; the hook path
+// is dead on Windows anyway. See core/sensitive-process.ts.
+export function paneForeground(paneId: string): string {
+  const entry = ptys.get(paneId);
+  if (!entry) return '';
+  try {
+    return entry.proc.process ?? '';
+  } catch {
+    return ''; // pty exited between the lookup and the read
+  }
+}
+
 // Inject raw bytes into a pane's pty (replaces `tmux send-keys`).
 export function writeKeys(paneId: string, data: string): void {
   ptys.get(paneId)?.proc.write(data);

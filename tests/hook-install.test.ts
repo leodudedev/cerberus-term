@@ -72,7 +72,12 @@ describe('hook install / uninstall', () => {
     installAgentHooks(ALL, home);
 
     const first = read<ClaudeSettings>(claudeFile());
-    expect(Object.keys(first.hooks)).toEqual(['PreToolUse', 'PostToolUse', 'Notification']);
+    expect(Object.keys(first.hooks)).toEqual([
+      'PreToolUse',
+      'PostToolUse',
+      'Notification',
+      'SessionEnd'
+    ]);
     expect(hooksStatus(home).find((t) => t.id === 'claude')?.installed).toBe(true);
 
     installAgentHooks(ALL, home);
@@ -221,7 +226,7 @@ describe('hook install / uninstall', () => {
 
     const res = uninstallAgentHooks(ALL, home);
     expect(res.ok).toBe(true);
-    expect(res.removed).toBe(6); // three events per agent
+    expect(res.removed).toBe(7); // four events for Claude, three for Copilot
 
     const c = read<ClaudeSettings>(claudeFile());
     expect(c.hooks['PreToolUse']).toEqual([

@@ -56,6 +56,16 @@ export function upsertSession(info: Omit<SessionInfo, "lastSeen">): SessionInfo 
   return record;
 }
 
+// Forget a session the moment its agent says it's over (SessionEnd), instead of
+// waiting out SESSION_TTL_MS. A session left in the map keeps its pane
+// targetable, and the pane by then may be running something else entirely —
+// see core/sensitive-process.ts for what that costs.
+export function dropSession(sessionId: string): boolean {
+  if (!sessions.delete(sessionId)) return false;
+  saveState({ sessions: Object.fromEntries(sessions) });
+  return true;
+}
+
 export function getSession(sessionId: string): SessionInfo | undefined {
   return sessions.get(sessionId);
 }
@@ -75,4 +85,11 @@ export function linkMessage(messageId: number, sessionId: string): void {
 export function sessionForMessage(messageId: number): SessionInfo | undefined {
   const id = messageToSession.get(messageId);
   return id ? sessions.get(id) : undefined;
+}
+
+// Whether this message was ever linked to a session, regardless of whether that
+// session is still alive. Lets a reply to a now-dead session be refused rather
+// than silently retargeted at the most recent one.
+export function hasMessageLink(messageId: number): boolean {
+  return messageToSession.has(messageId);
 }

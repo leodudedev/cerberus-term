@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
-import { upsertSession } from "../../core/registry.js";
+import { upsertSession, dropSession } from "../../core/registry.js";
 import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bot.js";
 import { takeApproval } from "./remote-approvals.js";
 import { lastAssistantText, lastCopilotText, type ToolUse } from "../../core/transcript.js";
@@ -192,6 +192,18 @@ const server = createServer(async (req, res) => {
       const name = String(hook.toolName ?? hook.tool_name ?? "");
       const command = summarizeToolArgs(hook.toolArgs ?? hook.tool_input);
       putPendingTool(sessionId, name, command);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // Claude SessionEnd: the session is over (/exit, /clear, logout). Drop it
+    // now instead of letting it idle out after SESSION_TTL_MS — until it's
+    // gone, resolveTarget still resolves it and a Telegram reply gets typed
+    // into whatever the user started in that pane next.
+    if (agent === "claude" && hook.hook_event_name === "SessionEnd") {
+      const dropped = dropSession(sessionId);
+      console.log("[session-end]", sessionId, dropped ? "dropped" : "(unknown)");
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
       return;
