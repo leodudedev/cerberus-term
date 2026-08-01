@@ -2,7 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { normalizeProcessName, sensitiveProcess } from '../src/core/sensitive-process.js';
+import {
+  normalizeProcessName,
+  sensitiveProcess,
+  firstSensitiveProcess
+} from '../src/core/sensitive-process.js';
 import { setStatePath } from '../src/core/persist.js';
 
 // registry.ts seeds its map at import time, so the state path has to be
@@ -53,6 +57,32 @@ describe('sensitive process deny-list', () => {
     expect(sensitiveProcess('sublime')).toBe('');
     expect(sensitiveProcess('ssh-agent')).toBe('');
     expect(sensitiveProcess('sudoedit')).toBe('');
+  });
+});
+
+// What Windows can answer is "which processes share this pane's console", a set
+// rather than a single foreground process. tasklist reports image names, so
+// these are the exact shapes the guard sees there.
+describe('sensitive process in a console process list', () => {
+  it('names the offender among the pane\'s other processes', () => {
+    expect(firstSensitiveProcess(['ssh.exe'])).toBe('ssh');
+    expect(firstSensitiveProcess(['conhost.exe', 'ssh.exe'])).toBe('ssh');
+    expect(firstSensitiveProcess(['OpenConsole.exe', 'SUDO.EXE'])).toBe('sudo');
+  });
+
+  it('lets a pane with nothing sensitive in it through', () => {
+    expect(firstSensitiveProcess([])).toBe('');
+    expect(firstSensitiveProcess(['conhost.exe', 'node.exe', 'claude.exe'])).toBe('');
+    expect(firstSensitiveProcess(['ssh-agent.exe'])).toBe('');
+  });
+
+  it('is not fooled by a full path, and is honest about the one shape that breaks', () => {
+    expect(firstSensitiveProcess(['C:\\Windows\\System32\\OpenSSH\\ssh.exe'])).toBe('ssh');
+    // Known limit of normalizeProcessName: it splits on whitespace first to
+    // drop arguments, so a path containing a space loses everything after it.
+    // The Windows side must therefore pass tasklist's image name, never a full
+    // path — this asserts the limit rather than papering over it.
+    expect(firstSensitiveProcess(['C:\\Program Files\\Git\\usr\\bin\\ssh.exe'])).toBe('');
   });
 });
 
