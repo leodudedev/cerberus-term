@@ -21,6 +21,10 @@ export interface Settings {
   // only that, opens the first-run consent dialog. An empty array is a
   // recorded "no" and stays one.
   hookTargets?: TargetId[];
+  // Which platform the hookTargets answer was given on. Stamped on every write
+  // from 0.10 onwards; its absence is what identifies an answer recorded before
+  // the platform in question could act on it. See isPreWindowsConsent.
+  hookTargetsPlatform?: string;
   // Pre-0.9 master switch (and `claudeHooks` before that). Read once at boot to
   // build hookTargets, then dropped — never written back. Deliberately has no
   // default: undefined is what tells a fresh install apart from an upgrade.
@@ -48,8 +52,20 @@ export function mergeSettings(parsed: Partial<Settings> | null | undefined): Set
     // No default on either: undefined is meaningful for both, and an empty
     // hookTargets must survive as an empty array rather than fall through.
     hookTargets: p.hookTargets ? parseTargetIds(p.hookTargets) : undefined,
+    hookTargetsPlatform: p.hookTargetsPlatform,
     agentHooks: p.agentHooks ?? legacyHooks
   };
+}
+
+// A hook answer recorded on Windows before Windows was a platform we installed
+// on. Until 0.10 the Settings dialog wrote hookTargets there like anywhere else
+// while the install half was gated off, so the stored answer describes nothing
+// that ever reached disk — and it defaults to every available agent, i.e. "yes".
+// Trusting it would install into other tools' config on the next launch without
+// anyone having been asked, which is the one thing that list exists to prevent.
+// Answers carrying a platform stamp were made with the install live: trusted.
+export function isPreWindowsConsent(s: Settings, platform: string): boolean {
+  return platform === 'win32' && !!s.hookTargets && !s.hookTargetsPlatform;
 }
 
 // Keep only ids we actually have a target for. The list round-trips through

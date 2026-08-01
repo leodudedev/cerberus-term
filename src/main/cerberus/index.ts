@@ -5,10 +5,12 @@ import { applySettingsToEnv, getSettings, migrateHookSettings } from '../setting
 import { loadEnvFile } from './env.js';
 import {
   availableTargets,
+  hookPlatform,
   installAgentHooks,
   installedTargets,
   syncHookScripts
 } from './hook-install.js';
+import { HOOK_TARGETS } from '../../core/hook-targets.js';
 import { startDaemon } from './daemon.js';
 
 // Boot the Cerberus remote-control core from the Electron main process:
@@ -26,13 +28,16 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
     ? process.resourcesPath
     : join(app.getAppPath(), 'resources');
 
-  // The hooks are POSIX shell scripts, so the CLIs on Windows can't run them
-  // and would log a hook error on every single tool call (in every session, not
-  // just Cerberus ones). Skip installation there until a .ps1/.cmd hook exists.
+  // One hook script per platform: POSIX shell for macOS and Linux, PowerShell
+  // for Windows. A target that has no script for this platform isn't registered
+  // at all, so its absence here isn't an error — a missing script for one we DO
+  // register is, because the entry would point at nothing on every tool call.
   const bundledHooks = join(base, 'hooks');
-  if (process.platform === 'win32') {
-    console.log('[cerberus] hook install skipped on win32 (bash hooks unsupported)');
-  } else if (!existsSync(join(bundledHooks, 'notify.sh'))) {
+  const platform = hookPlatform();
+  const bundled = HOOK_TARGETS.filter(
+    (t) => t.supported(platform) && existsSync(join(bundledHooks, t.script(platform)))
+  );
+  if (bundled.length === 0) {
     console.error('[cerberus] bundled hooks not found at', bundledHooks);
   } else {
     try {

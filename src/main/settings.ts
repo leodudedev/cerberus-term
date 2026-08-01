@@ -1,7 +1,12 @@
 import { app } from 'electron';
 import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { join } from 'node:path';
-import { mergeSettings, migrateHookTargets, type Settings } from '../core/settings.js';
+import {
+  mergeSettings,
+  migrateHookTargets,
+  isPreWindowsConsent,
+  type Settings
+} from '../core/settings.js';
 import type { TargetId } from '../core/hook-targets.js';
 
 // Global settings store: userData/cerberus-settings.json, cached, deep-merged
@@ -36,6 +41,14 @@ export function saveSettings(s: Settings): void {
 // install stays undecided and reaches the consent dialog. The legacy field is
 // dropped in the same write (undefined doesn't survive JSON.stringify).
 export function migrateHookSettings(available: TargetId[], installed: TargetId[]): void {
+  // Drop a Windows answer given while we couldn't install, so the consent
+  // dialog gets to ask it for real. Done before the agentHooks migration so
+  // that one sees an undecided install, which is what it is.
+  if (isPreWindowsConsent(getSettings(), process.platform)) {
+    console.log('[hooks] discarding a hook answer recorded before Windows support — asking again');
+    saveSettings({ ...getSettings(), hookTargets: undefined });
+  }
+
   const ids = migrateHookTargets(getSettings(), available, installed);
   if (!ids) return;
   console.log('[hooks] migrated agentHooks ->', ids.length > 0 ? ids.join(', ') : '(none)');
