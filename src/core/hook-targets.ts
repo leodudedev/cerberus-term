@@ -10,10 +10,20 @@ import { join } from 'node:path';
 
 export type TargetId = 'claude' | 'copilot';
 
+// Passed in rather than read from process.platform in here: the targets are
+// constants evaluated at import time, so a module-level read couldn't be faked
+// after the fact and every win32 test would need vi.resetModules().
+export type HookPlatform = 'posix' | 'win32';
+
 export interface HookTarget {
   id: TargetId;
   label: string;
-  script: string; // file name under ~/.cerberus-term/hooks
+  // File name under ~/.cerberus-term/hooks. Platform-dependent because a POSIX
+  // shell can't run a .ps1 and PowerShell can't run a .sh.
+  script(platform: HookPlatform): string;
+  // Whether we register this agent at all on a platform. Not the same question
+  // as "is its config dir there".
+  supported(platform: HookPlatform): boolean;
   events: readonly string[];
   // The agent's own config dir. We register only when it already exists: its
   // absence means the CLI was never run here, and creating someone else's
@@ -27,16 +37,44 @@ export interface HookTarget {
   prune(list: unknown[], isOurs: (command: string) => boolean): { list: unknown[]; removed: number };
 }
 
+// What we register in the agent's config, given the script's stable path.
+//
+// On POSIX the path is executable as-is. On Windows it isn't, and how we invoke
+// it is load-bearing: a .ps1 handed to a script loader is subject to the
+// machine's ExecutionPolicy, whose default on Windows client is Restricted — a
+// blocked script prints UnauthorizedAccess on EVERY tool call of EVERY session,
+// which is the exact regression the old win32 gate existed to prevent, and the
+// CERBERUS_PANE_ID gate can't save us because the policy fires before the
+// script runs. Spawning `powershell -ExecutionPolicy Bypass -File` instead is
+// immune but costs a second PowerShell: 438ms per tool call, measured.
+//
+// Reading the file and evaluating it in the PowerShell the agent already
+// started avoids both — ExecutionPolicy governs loading script FILES, not
+// Invoke-Expression — while keeping the logic in a versioned file that
+// syncHookScripts can refresh without rewriting anyone's config.
+export function commandFor(scriptPath: string, platform: HookPlatform): string {
+  if (platform !== 'win32') return scriptPath;
+  // PowerShell single quotes are literal; a quote inside the path is escaped by
+  // doubling it. Paths can legally contain one.
+  const quoted = scriptPath.replace(/'/g, "''");
+  return `Invoke-Expression (Get-Content -Raw '${quoted}')`;
+}
+
 // An entry of ours registered under a now-obsolete location: inside an .app
 // bundle or a repo checkout, both of which move or vanish. Deliberately narrow
 // — it decides what we're allowed to delete, and other tools' hooks must never
-// match it.
-export function isStaleCommand(command: string, script: string, stablePath: string): boolean {
-  if (command === stablePath) return false;
-  if (!command.endsWith(`/${script}`)) return false;
+// match it. The script name has to sit DIRECTLY under one of those roots, which
+// is stricter than matching the root and the name independently.
+//
+// Separators are normalised first: on Windows the path in a registered command
+// carries backslashes, and comparing them against a hardcoded '/' silently
+// matched nothing — leaving our own stale entries behind forever.
+export function isStaleCommand(command: string, script: string, stableCommand: string): boolean {
+  if (command === stableCommand) return false;
+  const c = command.replace(/\\/g, '/');
   return (
-    command.includes('Cerberus.app/Contents/Resources/hooks/') ||
-    command.includes('cerberus-term/resources/hooks/')
+    c.includes(`Cerberus.app/Contents/Resources/hooks/${script}`) ||
+    c.includes(`cerberus-term/resources/hooks/${script}`)
   );
 }
 
@@ -51,7 +89,8 @@ interface ClaudeGroup {
 const claude: HookTarget = {
   id: 'claude',
   label: 'Claude Code',
-  script: 'notify.sh',
+  script: (platform) => (platform === 'win32' ? 'notify.ps1' : 'notify.sh'),
+  supported: () => true,
   // SessionEnd is not a notification: it's what lets the daemon forget a
   // session as soon as it ends, so its pane stops being a target for Telegram
   // replies. `/exit` fires nothing else.
@@ -95,7 +134,13 @@ interface CopilotEntry {
 const copilot: HookTarget = {
   id: 'copilot',
   label: 'GitHub Copilot CLI',
-  script: 'copilot-notify.sh',
+  script: (platform) => (platform === 'win32' ? 'copilot-notify.ps1' : 'copilot-notify.sh'),
+  // Not on Windows, for now. The field this target registers into is called
+  // `bash`, and nobody has yet run a Copilot CLI on Windows to find out whether
+  // that name is descriptive — putting a PowerShell line in it would fail on
+  // every tool call. Claude Code's field is `command` and was measured: it runs
+  // through PowerShell.
+  supported: (platform) => platform !== 'win32',
   events: ['preToolUse', 'notification', 'agentStop'],
   configDir: (home) => join(home, '.copilot'),
   settingsFile: (home) => join(home, '.copilot', 'settings.json'),
