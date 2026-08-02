@@ -24,12 +24,16 @@
 > Your company won't enable remote control? No problem — Cerberus is your
 > three-headed guard dog, and it works the night shift for free. 🐕‍🦺
 
-Run your AI coding sessions in native panes — no tmux, every pane is a pty
-Cerberus owns. When a session needs you — a permission prompt, waiting for input
-— it pushes a Telegram notification. From your phone you **approve / deny**, or
-**type a prompt** that lands in the right pane. Every pending command is tagged
-with a risk icon 🟢 🟡 🔴 so you know what you're approving. Approve something
-remotely and the result is pushed back to you.
+A multiplexer first: native panes, no tmux, every pane a pty Cerberus owns — and
+whatever you'd type in a terminal runs in one. Claude Code in this pane, Copilot
+CLI in that one, Codex, opencode, aider, a plain shell, a build watcher.
+
+Then the remote half. When an AI session needs you — a permission prompt, waiting
+for input — it pushes a Telegram notification. From your phone you
+**approve / deny**, or **type a prompt** that lands in the right pane. Every
+pending command is tagged with a risk icon 🟢 🟡 🔴 so you know what you're
+approving. Approve something remotely and the result is pushed back to you. Which
+agents can push, on which OS, is in [what pushes where](#what-pushes-where).
 
 <div align="center">
 <img src="assets/screenshot-telegram.png" alt="A Telegram notification showing a caution-risk Write permission with Approve and Deny buttons" width="620">

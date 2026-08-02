@@ -8,6 +8,19 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.10.1] — 2026-08-02
+
+### Changed
+
+- **Toggle Developer Tools** is gone from the View menu in release builds, along
+  with the `Cmd/Ctrl+Shift+I` it bound. The menu item was the only thing opening
+  the devtools, so both go together; `pnpm dev` still has it, next to Reload.
+- The README now says which agent CLI can push a notification on which OS, and
+  which combinations have actually been exercised rather than merely implemented.
+  Panes are native everywhere and run any CLI; the Telegram half is the part that
+  differs. It also drops a stale claim that remote control on Windows needed WSL,
+  which stopped being true in 0.10.0.
+
 ## [0.10.0] — 2026-08-02
 
 ### Added
