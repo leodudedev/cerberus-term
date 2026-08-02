@@ -101,7 +101,10 @@ function buildMenu(): void {
         // the production menu is what keeps the key free. Crash recovery
         // doesn't go through here: it calls webContents.reload() directly.
         ...(isDev ? [{ role: 'reload' } as MenuItemConstructorOptions] : []),
-        { role: 'toggleDevTools' },
+        // Dev only too: the menu item is the only thing that opens the devtools
+        // and the only thing binding CmdOrCtrl+Shift+I, so leaving it out of the
+        // production menu takes both away.
+        ...(isDev ? [{ role: 'toggleDevTools' } as MenuItemConstructorOptions] : []),
         { role: 'togglefullscreen' }
       ]
     },
