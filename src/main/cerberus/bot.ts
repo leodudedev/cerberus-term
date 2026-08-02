@@ -90,7 +90,7 @@ export function initBot(): boolean {
     // The pane outlived its agent and something else owns the tty now: a
     // digit + Enter aimed at a permission dialog would be typed into that
     // program's prompt instead. See core/sensitive-process.ts.
-    const busy = paneBlockedBy(s.pane);
+    const busy = await paneBlockedBy(s.pane);
     if (busy) {
       await ctx.answerCallbackQuery({ text: t.paneBusy(busy) });
       return;
@@ -198,7 +198,7 @@ export function initBot(): boolean {
     // notification may be long gone, and free text typed into the `ssh` or
     // `sudo` that took over the pane ends up in a password prompt — and from
     // there in the remote host's auth log. See core/sensitive-process.ts.
-    const busy = paneBlockedBy(target.pane);
+    const busy = await paneBlockedBy(target.pane);
     if (busy) {
       await ctx.reply(t.paneBusyReply(busy));
       return;

@@ -38,7 +38,7 @@ remotely and the result is pushed back to you.
 ```mermaid
 flowchart LR
     subgraph app["Cerberus (Electron)"]
-        A["pane · claude<br/>└ notify.sh"]
+        A["pane · claude<br/>└ notify.sh / notify.ps1"]
         B["pane · copilot<br/>└ copilot-notify.sh"]
         D["daemon 127.0.0.1:8898<br/>enrich + push"]
         A --> D
@@ -102,8 +102,9 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 
 Two places, and nothing else:
 
-**1. `~/.cerberus-term/hooks/`** — `notify.sh` and `copilot-notify.sh` are copied
-here from the app bundle on every launch, overwriting the previous copies. This
+**1. `~/.cerberus-term/hooks/`** — `notify.sh` and `copilot-notify.sh` on macOS
+and Linux, `notify.ps1` on Windows, copied here from the app bundle on every
+launch, overwriting the previous copies. This
 directory is the stable home for them: hooks run in *every* session of that CLI,
 including ones outside Cerberus, so a path pointing inside the `.app` would break
 them all the day you move or delete it.
@@ -133,6 +134,18 @@ Copilot CLI, under `preToolUse`, `notification` and `agentStop`:
 { "type": "command", "bash": "/Users/you/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }
 ```
 
+On Windows the same Claude Code entry reads the PowerShell script and runs it in
+the shell the CLI already started, which is both faster than spawning a second
+PowerShell and immune to the execution policy that blocks script files by
+default there:
+
+```json
+{ "matcher": "", "hooks": [{ "type": "command", "command": "Invoke-Expression (Get-Content -Raw 'C:\\Users\\you\\.cerberus-term\\hooks\\notify.ps1')" }] }
+```
+
+Copilot CLI is not offered on Windows: the field it registers into is called
+`bash`, and that hasn't been tested there yet.
+
 Nothing else in those files is touched — your model, your permissions, and any
 hooks you or another tool registered stay exactly as they are, and ours is added
 next to them rather than over them. Before the first write the whole file is
@@ -148,7 +161,7 @@ plain terminal is unaffected.
 That removes our entries from that file right away and stops re-adding them at
 launch; a tickbox is needed rather than a one-off button because otherwise the
 next start would just put them back. Or restore the `.cerberus-bak` files by
-hand. Nothing is written on Windows at all — the hooks are POSIX shell.
+hand.
 
 Without the hooks the app is still a working terminal multiplexer; what you lose
 is everything that depends on a session reporting back — the pane flash on a

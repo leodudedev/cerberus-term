@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mergeSettings,
   migrateHookTargets,
+  isPreWindowsConsent,
   parseTargetIds,
   DEFAULT_SETTINGS,
   type Settings
@@ -103,5 +104,40 @@ describe('migrateHookTargets', () => {
     expect(migrateHookTargets(declined, ['claude'], ['claude'])).toBeNull();
     const picked = mergeSettings({ hookTargets: ['claude'], agentHooks: false });
     expect(migrateHookTargets(picked, ['copilot'], [])).toBeNull();
+  });
+});
+
+// Until 0.10 the install half was gated off on Windows while the Settings
+// dialog wrote hookTargets there like anywhere else — and it defaults to every
+// available agent. Trusting that answer once the gate came off would register
+// hooks in other tools' config on the next launch with nobody having been
+// asked. This is the guard against that, and it must not fire anywhere else.
+describe('isPreWindowsConsent', () => {
+  it('discards an unstamped Windows answer, whichever way it points', () => {
+    expect(isPreWindowsConsent(mergeSettings({ hookTargets: ['claude'] }), 'win32')).toBe(true);
+    expect(isPreWindowsConsent(mergeSettings({ hookTargets: [] }), 'win32')).toBe(true);
+  });
+
+  it('trusts an answer that was stamped, i.e. given with the install live', () => {
+    const stamped = mergeSettings({ hookTargets: ['claude'], hookTargetsPlatform: 'win32' });
+    expect(isPreWindowsConsent(stamped, 'win32')).toBe(false);
+  });
+
+  it('leaves macOS and Linux alone: there the answer always meant something', () => {
+    const answered = mergeSettings({ hookTargets: ['claude'] });
+    expect(isPreWindowsConsent(answered, 'darwin')).toBe(false);
+    expect(isPreWindowsConsent(answered, 'linux')).toBe(false);
+  });
+
+  it('has nothing to discard when nobody has answered yet', () => {
+    expect(isPreWindowsConsent(mergeSettings({}), 'win32')).toBe(false);
+    // A pre-0.9 master switch is not an answer to this question either — the
+    // agentHooks migration owns that case, and on Windows it never installed.
+    expect(isPreWindowsConsent(mergeSettings({ agentHooks: true }), 'win32')).toBe(false);
+  });
+
+  it('round-trips the stamp through mergeSettings, or the guard fires forever', () => {
+    expect(mergeSettings({ hookTargetsPlatform: 'darwin' }).hookTargetsPlatform).toBe('darwin');
+    expect(mergeSettings({}).hookTargetsPlatform).toBeUndefined();
   });
 });

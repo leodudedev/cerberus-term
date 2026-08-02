@@ -44,3 +44,16 @@ export function sensitiveProcess(raw: string): string {
   const name = normalizeProcessName(raw);
   return SENSITIVE_PROCESSES.has(name) ? name : '';
 }
+
+// The first offending program among several candidates, '' when none of them is
+// one. Windows can't name a single foreground process the way tcgetpgrp does:
+// what's readable there is the set of processes attached to the pane's console,
+// and for this guard that set is the better question anyway — if `ssh` is in the
+// pane at all, we must not type into it, whoever holds the input focus.
+export function firstSensitiveProcess(raws: readonly string[]): string {
+  for (const raw of raws) {
+    const hit = sensitiveProcess(raw);
+    if (hit) return hit;
+  }
+  return '';
+}

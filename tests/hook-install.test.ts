@@ -10,7 +10,7 @@ import {
   installedTargets,
   stableScript
 } from '../src/main/cerberus/hook-install.js';
-import type { TargetId } from '../src/core/hook-targets.js';
+import { commandFor, isStaleCommand, type TargetId } from '../src/core/hook-targets.js';
 
 // install/uninstall/status all take the home dir, so a tmpdir keeps the real
 // ~/.claude and ~/.copilot out of it. The registered command still points at
@@ -284,5 +284,105 @@ describe('hook install / uninstall', () => {
     installAgentHooks(ALL, home);
 
     expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([theirs, NOTIFY]);
+  });
+});
+
+// The platform is an argument all the way down, so these run on any host — no
+// module reset, no faked global. That's the reason it's an argument.
+describe('windows', () => {
+  const PS1 = join(homedir(), '.cerberus-term', 'hooks', 'notify.ps1');
+  const WIN_COMMAND = `Invoke-Expression (Get-Content -Raw '${PS1}')`;
+
+  it('registers a .ps1 through an invocation, not a bare path', () => {
+    expect(commandFor('/Users/x/.cerberus-term/hooks/notify.sh', 'posix')).toBe(
+      '/Users/x/.cerberus-term/hooks/notify.sh'
+    );
+    expect(commandFor('C:\\Users\\x\\.cerberus-term\\hooks\\notify.ps1', 'win32')).toBe(
+      "Invoke-Expression (Get-Content -Raw 'C:\\Users\\x\\.cerberus-term\\hooks\\notify.ps1')"
+    );
+  });
+
+  it("doubles a single quote in the path, which would otherwise end PowerShell's string", () => {
+    expect(commandFor("C:\\Users\\o'brien\\hooks\\notify.ps1", 'win32')).toBe(
+      "Invoke-Expression (Get-Content -Raw 'C:\\Users\\o''brien\\hooks\\notify.ps1')"
+    );
+  });
+
+  it('writes that command into the agent config, and recognises it as ours', () => {
+    withConfigDir('.claude');
+    installAgentHooks(ALL, home, 'win32');
+
+    const s = read<ClaudeSettings>(claudeFile());
+    expect(commandsFor(s, 'PreToolUse')).toEqual([WIN_COMMAND]);
+    expect(hooksStatus(home, 'win32').find((t) => t.id === 'claude')?.command).toBe(WIN_COMMAND);
+    expect(installedTargets(home, 'win32')).toEqual(['claude']);
+
+    // The half that breaks if ownership() still compares against a bare path:
+    // the entry stops being recognised and can never be removed again.
+    const res = uninstallAgentHooks(ALL, home, 'win32');
+    expect(res.removed).toBe(4);
+    expect(read<ClaudeSettings>(claudeFile()).hooks).toEqual({});
+  });
+
+  it('is idempotent, so a relaunch does not stack a second entry', () => {
+    withConfigDir('.claude');
+    installAgentHooks(ALL, home, 'win32');
+    const first = read<ClaudeSettings>(claudeFile());
+    installAgentHooks(ALL, home, 'win32');
+    expect(read<ClaudeSettings>(claudeFile())).toEqual(first);
+  });
+
+  it('leaves Copilot alone: its hook field is called bash and nobody has tested it there', () => {
+    withConfigDir('.copilot');
+    installAgentHooks(ALL, home, 'win32');
+
+    expect(existsSync(copilotFile())).toBe(false);
+    expect(availableTargets(home, 'win32')).toEqual([]);
+    expect(hooksStatus(home, 'win32').find((t) => t.id === 'copilot')?.available).toBe(false);
+  });
+
+  it('does not confuse a POSIX entry with a Windows one', () => {
+    withConfigDir('.claude');
+    installAgentHooks(ALL, home, 'posix');
+    // Same machine, other platform's command: not ours to touch from here.
+    expect(uninstallAgentHooks(ALL, home, 'win32').removed).toBe(0);
+    expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([NOTIFY]);
+  });
+
+  it('recognises a stale backslash path, which the old forward-slash match missed', () => {
+    const stale =
+      'C:\\Users\\x\\dev\\cerberus-term\\resources\\hooks\\notify.ps1';
+    expect(isStaleCommand(stale, 'notify.ps1', WIN_COMMAND)).toBe(true);
+    // Migrated in place rather than left behind on every session's hot path.
+    withConfigDir('.claude');
+    writeFileSync(
+      claudeFile(),
+      JSON.stringify({
+        hooks: { PreToolUse: [{ matcher: '', hooks: [{ type: 'command', command: stale }] }] }
+      })
+    );
+    installAgentHooks(ALL, home, 'win32');
+    expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([WIN_COMMAND]);
+  });
+
+  it('still refuses to claim a hook that is merely near ours', () => {
+    // The script name has to sit directly under the stale root.
+    expect(
+      isStaleCommand(
+        'C:\\Users\\x\\dev\\cerberus-term\\resources\\hooks\\their-hook.ps1',
+        'notify.ps1',
+        WIN_COMMAND
+      )
+    ).toBe(false);
+    // Our own current command is not stale.
+    expect(isStaleCommand(WIN_COMMAND, 'notify.ps1', WIN_COMMAND)).toBe(false);
+    // A path that mentions the root somewhere but points elsewhere.
+    expect(
+      isStaleCommand(
+        'C:\\tools\\cerberus-term\\resources\\hooks\\sub\\notify.ps1',
+        'notify.ps1',
+        WIN_COMMAND
+      )
+    ).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
 import { getDaemonToken } from './cerberus/token.js';
 import { stripAnsi } from '../core/ansi.js';
+import { consoleProcessNames } from './win-console.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
 // Electron-side backing of TerminalBridge: owns every pty, bridges IPC.
@@ -120,9 +121,9 @@ export function paneExists(paneId: string): boolean {
 // Platform-dependent, and only two of the three tell the truth: macOS reads the
 // foreground pgrp's comm, Linux reads argv[0] out of /proc/<pgrp>/cmdline, and
 // Windows returns the `name` we passed to spawn ('xterm-256color') — not a
-// process at all. So the guard reading this is inert on Windows. It fails OPEN
-// everywhere it can't tell, which is the pre-existing behaviour; the hook path
-// is dead on Windows anyway. See core/sensitive-process.ts.
+// process at all. So on Windows this value is useless and paneConsoleProcesses
+// below answers the question instead. Fails OPEN everywhere it can't tell.
+// See core/sensitive-process.ts.
 export function paneForeground(paneId: string): string {
   const entry = ptys.get(paneId);
   if (!entry) return '';
@@ -130,6 +131,21 @@ export function paneForeground(paneId: string): string {
     return entry.proc.process ?? '';
   } catch {
     return ''; // pty exited between the lookup and the read
+  }
+}
+
+// The Windows half of the same question: image names of every process attached
+// to the pane's console, the shell excluded. Async because the console process
+// list can only be read out of process — see win-console.ts. [] on any other
+// platform and on any error, so the guard keeps failing open.
+export async function paneConsoleProcesses(paneId: string): Promise<string[]> {
+  if (process.platform !== 'win32') return [];
+  const entry = ptys.get(paneId);
+  if (!entry) return [];
+  try {
+    return await consoleProcessNames(entry.proc.pid);
+  } catch {
+    return []; // pty exited between the lookup and the read
   }
 }
 

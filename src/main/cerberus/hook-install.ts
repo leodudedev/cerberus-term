@@ -12,6 +12,8 @@ import { join, dirname } from 'node:path';
 import {
   HOOK_TARGETS,
   isStaleCommand,
+  commandFor,
+  type HookPlatform,
   type HookTarget,
   type TargetId
 } from '../../core/hook-targets.js';
@@ -47,6 +49,18 @@ export function stableScript(name: string): string {
   return join(stableHooksDir(), name);
 }
 
+// Resolved here, not inside core/hook-targets.ts, so the shape logic stays a
+// pure function of its arguments and the win32 cases are testable without
+// faking a global.
+export function hookPlatform(): HookPlatform {
+  return process.platform === 'win32' ? 'win32' : 'posix';
+}
+
+// The exact string we register for a target, wherever its script lives.
+function commandOf(t: HookTarget, platform: HookPlatform): string {
+  return commandFor(stableScript(t.script(platform)), platform);
+}
+
 function readSettings(file: string): AgentSettings | null {
   if (!existsSync(file)) return {};
   try {
@@ -70,19 +84,23 @@ function writeSettings(file: string, settings: AgentSettings): void {
 }
 
 // Ours, wherever it currently points: the stable path, or a stale .app/repo one.
-function ownership(t: HookTarget): (command: string) => boolean {
-  const stable = stableScript(t.script);
-  return (command) => command === stable || isStaleCommand(command, t.script, stable);
+// Compared against the full registered command, not the bare script path — on
+// Windows those two differ, and getting it wrong means either never recognising
+// our own entries again or, worse, deleting somebody else's.
+function ownership(t: HookTarget, platform: HookPlatform): (command: string) => boolean {
+  const script = t.script(platform);
+  const stable = commandOf(t, platform);
+  return (command) => command === stable || isStaleCommand(command, script, stable);
 }
 
 // What we'd edit and what's actually there, per agent, so the UI can show the
 // real list — the exact files, events and command — instead of naming one
 // hardcoded path and asking to be trusted on the rest.
-export function hooksStatus(home = homedir()): HookTargetStatus[] {
+export function hooksStatus(home = homedir(), platform = hookPlatform()): HookTargetStatus[] {
   return HOOK_TARGETS.map((t) => {
     const file = t.settingsFile(home);
     const settings = readSettings(file);
-    const isOurs = ownership(t);
+    const isOurs = ownership(t, platform);
     const installed = Object.values(settings?.hooks ?? {}).some(
       (list) => Array.isArray(list) && t.prune(list, isOurs).removed > 0
     );
@@ -91,20 +109,24 @@ export function hooksStatus(home = homedir()): HookTargetStatus[] {
       label: t.label,
       file,
       events: [...t.events],
-      command: stableScript(t.script),
-      available: existsSync(t.configDir(home)),
+      command: commandOf(t, platform),
+      // An agent we don't register on this platform is reported the same way as
+      // one that isn't installed: nothing to tick, nothing to ask about.
+      available: t.supported(platform) && existsSync(t.configDir(home)),
       installed
     };
   });
 }
 
-export function availableTargets(home = homedir()): TargetId[] {
-  return HOOK_TARGETS.filter((t) => existsSync(t.configDir(home))).map((t) => t.id);
+export function availableTargets(home = homedir(), platform = hookPlatform()): TargetId[] {
+  return HOOK_TARGETS.filter((t) => t.supported(platform) && existsSync(t.configDir(home))).map(
+    (t) => t.id
+  );
 }
 
 // Agents whose config already carries an entry of ours, whoever put it there.
-export function installedTargets(home = homedir()): TargetId[] {
-  return hooksStatus(home)
+export function installedTargets(home = homedir(), platform = hookPlatform()): TargetId[] {
+  return hooksStatus(home, platform)
     .filter((t) => t.installed)
     .map((t) => t.id);
 }
@@ -115,7 +137,8 @@ export function installedTargets(home = homedir()): TargetId[] {
 // not disturb the others.
 export function uninstallAgentHooks(
   ids: readonly TargetId[],
-  home = homedir()
+  home = homedir(),
+  platform = hookPlatform()
 ): {
   ok: boolean;
   removed: number;
@@ -135,7 +158,7 @@ export function uninstallAgentHooks(
       continue;
     }
 
-    const isOurs = ownership(t);
+    const isOurs = ownership(t, platform);
     let touched = 0;
     for (const [ev, list] of Object.entries(settings.hooks ?? {})) {
       if (!Array.isArray(list)) continue;
@@ -161,27 +184,36 @@ export function uninstallAgentHooks(
 
 // Copy the hook scripts from the app bundle to the stable dir (refreshed every
 // launch so updates propagate). Returns the stable dir.
-export function syncHookScripts(bundledHooksDir: string, targetDir = stableHooksDir()): string {
+export function syncHookScripts(
+  bundledHooksDir: string,
+  targetDir = stableHooksDir(),
+  platform = hookPlatform()
+): string {
   mkdirSync(targetDir, { recursive: true });
   for (const t of HOOK_TARGETS) {
-    const src = join(bundledHooksDir, t.script);
+    if (!t.supported(platform)) continue;
+    const script = t.script(platform);
+    const src = join(bundledHooksDir, script);
     if (!existsSync(src)) continue;
-    const dst = join(targetDir, t.script);
+    const dst = join(targetDir, script);
     copyFileSync(src, dst);
-    chmodSync(dst, 0o755);
+    // Nothing executes these by their mode bit on Windows, and the invocation
+    // reads the file rather than loading it as a script.
+    if (platform !== 'win32') chmodSync(dst, 0o755);
   }
   return targetDir;
 }
 
-function installOne(t: HookTarget, home: string): void {
+function installOne(t: HookTarget, home: string, platform: HookPlatform): void {
+  if (!t.supported(platform)) return; // not an agent we register on this platform
   if (!existsSync(t.configDir(home))) return; // CLI not installed here — not ours to create
   const file = t.settingsFile(home);
 
   const settings = readSettings(file);
   if (!settings) return; // unreadable — never clobber it
 
-  const command = stableScript(t.script);
-  const isOurs = ownership(t);
+  const command = commandOf(t, platform);
+  const isOurs = ownership(t, platform);
   settings.hooks ??= {};
 
   let changed = false;
@@ -213,6 +245,10 @@ function installOne(t: HookTarget, home: string): void {
 // Register only the agents that were explicitly ticked. An id whose config dir
 // is gone is skipped by installOne, not an error: someone can keep Copilot
 // enabled across an uninstall/reinstall of Copilot itself.
-export function installAgentHooks(ids: readonly TargetId[], home = homedir()): void {
-  for (const t of HOOK_TARGETS) if (ids.includes(t.id)) installOne(t, home);
+export function installAgentHooks(
+  ids: readonly TargetId[],
+  home = homedir(),
+  platform = hookPlatform()
+): void {
+  for (const t of HOOK_TARGETS) if (ids.includes(t.id)) installOne(t, home, platform);
 }
