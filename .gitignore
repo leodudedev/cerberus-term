@@ -4,5 +4,7 @@ dist/
 *.log
 .DS_Store
 .tokensave/
+.claude/
+.serena/
 # local-only working docs (dev specs, roadmap)
 docs/
