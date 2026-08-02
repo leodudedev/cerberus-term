@@ -2,7 +2,7 @@
 
 <img src="assets/cerberus-logo.png" alt="Cerberus — guard your sessions" width="480">
 
-**A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys, and approve, deny, or prompt Claude Code, Copilot CLI &amp; friends from your phone, over Telegram, straight into the right pane.
+**A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys and run whatever you like in each one: Claude Code, Copilot CLI, Codex, opencode, aider, a plain shell. When an AI session needs you, approve, deny or prompt it from your phone over Telegram, straight into the right pane.
 
 <sub>native panes · no tmux · permission prompts · risk-tagged commands · tabs · session restore · light/dark</sub>
 
@@ -73,19 +73,44 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 
 ## Requirements
 
-- **macOS, Windows, or Linux.** On Windows the panes run over ConPTY; the shell
-  hooks that power notifications are bash-based, so remote control there works
-  through WSL.
+- **macOS, Windows, or Linux.** Panes are native on all three — ConPTY on
+  Windows, a pty elsewhere — so **anything** runs in a pane: Claude Code, Copilot
+  CLI, Codex, opencode, aider, a shell, `htop`, whatever you'd type in a
+  terminal. The Telegram half is the part that varies, because it depends on each
+  CLI's own hook support: see [what pushes where](#what-pushes-where).
 - **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code) and
-  [GitHub Copilot CLI](https://github.com/github/copilot-cli) both push out of
-  the box: Cerberus offers to register its notification hooks in their config
-  the first time you open it, and writes to nothing you don't tick — see
+  [GitHub Copilot CLI](https://github.com/github/copilot-cli) push out of the
+  box: Cerberus offers to register its notification hooks in their config the
+  first time you open it, and writes to nothing you don't tick — see
   [what the app writes](#what-the-app-writes-outside-itself) for exactly what
   changes. Any other CLI still runs in a pane; it just won't push.
 - **A Telegram bot** for the remote half: talk to
   [@BotFather](https://t.me/BotFather) for a token, and to
   [@userinfobot](https://t.me/userinfobot) for your chat ID. Without them
   Cerberus is a plain multiplexer — nothing is pushed anywhere.
+
+### What pushes where
+
+Panes work the same everywhere. What follows is only about the Telegram half, and
+it says what has actually been exercised rather than what ought to work.
+
+| | Panes | Claude Code → Telegram | Copilot CLI → Telegram |
+| --- | --- | --- | --- |
+| **macOS** | tested | tested | tested |
+| **Windows 10/11** | tested | tested since 0.10.0 | not offered |
+| **Linux** | tested headless, GUI not | plumbing tested, real CLI not | plumbing tested, real CLI not |
+
+- **Windows** got the hooks in 0.10.0, on a physical machine: consent, the four
+  Claude Code events, notifications, remote approve/deny, and the guard that
+  refuses to type into `ssh`. Copilot CLI is deliberately left out — see
+  [below](#what-the-app-writes-outside-itself).
+- **Linux** is the honest gap. In a container the daemon, the registry, the pty
+  seam and the guard all pass on a real Linux pty, and both hook scripts —
+  `notify.sh` and `copilot-notify.sh` — were executed the way the agents execute
+  them and registered the right session. What nobody has done yet is run the app's
+  window on a Linux desktop, or drive a real `claude`/`copilot` there. The code
+  path is the same POSIX one macOS uses, so this is unverified rather than
+  doubtful. Reports welcome.
 
 ## First run
 
@@ -122,7 +147,7 @@ your mind later — including for an agent you install afterwards, which shows u
 there unticked rather than being enabled on your behalf.
 
 Entries are **appended**, in each CLI's own shape. Claude Code, under
-`PreToolUse`, `PostToolUse` and `Notification`:
+`PreToolUse`, `PostToolUse`, `Notification` and `SessionEnd`:
 
 ```json
 { "matcher": "", "hooks": [{ "type": "command", "command": "/Users/you/.cerberus-term/hooks/notify.sh" }] }
@@ -143,8 +168,12 @@ default there:
 { "matcher": "", "hooks": [{ "type": "command", "command": "Invoke-Expression (Get-Content -Raw 'C:\\Users\\you\\.cerberus-term\\hooks\\notify.ps1')" }] }
 ```
 
-Copilot CLI is not offered on Windows: the field it registers into is called
-`bash`, and that hasn't been tested there yet.
+Copilot CLI is not offered on Windows. The field it registers into is called
+`bash`, and nobody has yet measured what runs that value on Windows — a
+PowerShell line in a field that turns out to be literally bash would fail on
+every tool call. Claude Code's field is called `command` and *was* measured: it
+goes through PowerShell. One experiment settles it; until then the target is
+excluded there rather than guessed at.
 
 Nothing else in those files is touched — your model, your permissions, and any
 hooks you or another tool registered stay exactly as they are, and ours is added
