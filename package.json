@@ -1,6 +1,6 @@
 {
   "name": "cerberus-term",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Cerberus — GUI terminal multiplexer with remote control",
   "author": {
     "name": "Leonardo Pinori",

@@ -8,6 +8,38 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.10.0] — 2026-08-02
+
+### Added
+
+- Hooks and Telegram notifications now work on Windows. Claude Code is
+  registered there like anywhere else, and a permission prompt in a Cerberus
+  pane reaches your phone. The command written to `settings.json` reads the
+  hook script and evaluates it in the PowerShell the agent already started,
+  rather than handing a `.ps1` to a script loader — the machine's
+  ExecutionPolicy defaults to `Restricted`, and a blocked script would print an
+  error on every tool call of every session.
+- The guard that refuses to type into `ssh`, `sudo` and the like now covers
+  Windows too. A pane can outlive its agent, and a line of chat text delivered
+  into the program that took over ends up in a password prompt. On Windows the
+  question is answered by reading the processes attached to the pane's console:
+  if `ssh` is in there at all, nothing is typed and Telegram says which program
+  refused.
+
+### Changed
+
+- Anyone who was already using Cerberus on Windows is asked about the agent
+  hooks once. The answer recorded before this release described nothing real —
+  registration was skipped on Windows entirely — so it isn't carried over.
+
+### Known limitations
+
+- Copilot CLI is not offered on Windows. The field its hooks go into is called
+  `bash`, and nobody has yet run a Copilot CLI there to find out whether that
+  name is descriptive.
+- On a Windows setup without ConPTY the pane's process list can't be read and
+  the guard fails open, as it does anywhere else it can't tell.
+
 ## [0.9.0] — 2026-07-28
 
 ### Added
