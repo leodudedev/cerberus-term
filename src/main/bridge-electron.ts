@@ -8,6 +8,7 @@ import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
 import { getDaemonToken } from './cerberus/token.js';
 import { stripAnsi } from '../core/ansi.js';
+import { extractOsc7Cwd } from '../core/osc7.js';
 import { consoleProcessNames } from './win-console.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
@@ -21,6 +22,10 @@ interface PaneProc {
   // reattach). Output still accumulates in buf and is replayed on attach, so
   // nothing is lost while the window is gone.
   attached: boolean;
+  // win32 only: latest cwd reported via OSC 7 by WIN_SHELL_INTEGRATION.
+  // Undefined until the first prompt draws, or forever on a non-PowerShell
+  // Windows shell.
+  winCwd?: string;
 }
 const ptys = new Map<string, PaneProc>();
 
@@ -38,13 +43,43 @@ function defaultShell(): string {
   return process.env['SHELL'] ?? '/bin/zsh';
 }
 
+// PowerShell shell integration: wraps whatever `prompt` function is active
+// once $PROFILE has finished loading (oh-my-posh, posh-git, or the built-in
+// default) so every redraw also emits the shell's cwd as an OSC 7 sequence.
+// This is the only reliable way to learn a Windows process's live cwd from
+// outside it — there's no /proc/pid/cwd or lsof equivalent — so panes track
+// it themselves instead. Terminated with BEL rather than ST: one control
+// char instead of two, and every VT parser (xterm.js included) accepts BEL
+// as an OSC terminator without it triggering an audible bell, because the
+// parser is inside the OSC state when it arrives.
+const WIN_SHELL_INTEGRATION = String.raw`
+$Global:__CerberusPrompt = $function:prompt
+function prompt {
+  $out = & $Global:__CerberusPrompt
+  $esc = [char]27
+  $bell = [char]7
+  $slashed = (Get-Location).Path.Replace('\','/')
+  $segments = $slashed.Split('/') | ForEach-Object { [Uri]::EscapeDataString($_) }
+  $Host.UI.Write("$esc]7;file://$env:COMPUTERNAME/$($segments -join '/')$bell")
+  $out
+}
+`.trim();
+
 // Spawn the shell as a LOGIN shell (like Terminal.app / iTerm do). Without this
 // ~/.zprofile / ~/.profile never run, so PATH additions, brew shellenv, and
 // interactive plugins (zsh-autosuggestions, fish) aren't loaded — which is why
 // the greyed-out next-command suggestion is missing. Interactivity is implied
-// by the pty tty. PowerShell/other shells: no login flag.
+// by the pty tty. On Windows this instead injects WIN_SHELL_INTEGRATION into
+// PowerShell/pwsh (see above); any other Windows shell — cmd.exe, a custom
+// override — gets no args and falls back to the spawn cwd, same as before.
 function shellArgs(shell: string): string[] {
-  if (process.platform === 'win32') return [];
+  if (process.platform === 'win32') {
+    const base = shell.split(/[\\/]/).pop()?.toLowerCase() ?? '';
+    if (base === 'powershell.exe' || base === 'pwsh.exe') {
+      return ['-NoExit', '-Command', WIN_SHELL_INTEGRATION];
+    }
+    return [];
+  }
   const base = shell.split('/').pop() ?? '';
   if (base === 'zsh' || base === 'bash' || base === 'fish') return ['-l'];
   return [];
@@ -74,29 +109,31 @@ function cleanEnv(extra?: Record<string, string>): Record<string, string> {
 }
 
 // Best-effort live cwd of a pty's shell process. Falls back to the spawn cwd
-// on Windows or any failure.
-function liveCwd(pid: number, fallback: string): string {
+// on any failure, and on Windows also until the first OSC 7 report arrives
+// (see WIN_SHELL_INTEGRATION) or when the shell isn't PowerShell/pwsh at all.
+function liveCwd(entry: PaneProc): string {
   try {
     if (process.platform === 'linux') {
-      return readlinkSync(`/proc/${pid}/cwd`);
+      return readlinkSync(`/proc/${entry.proc.pid}/cwd`);
     }
     if (process.platform === 'darwin') {
-      const out = execFileSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], {
+      const out = execFileSync('lsof', ['-a', '-p', String(entry.proc.pid), '-d', 'cwd', '-Fn'], {
         encoding: 'utf8'
       });
       const line = out.split('\n').find((l) => l.startsWith('n'));
       if (line) return line.slice(1);
     }
+    if (process.platform === 'win32' && entry.winCwd) return entry.winCwd;
   } catch {
     /* fall through */
   }
-  return fallback;
+  return entry.spawnCwd;
 }
 
 export function getPaneCwd(paneId: string): string {
   const entry = ptys.get(paneId);
   if (!entry) return process.env['HOME'] ?? process.cwd();
-  return liveCwd(entry.proc.pid, entry.spawnCwd);
+  return liveCwd(entry);
 }
 
 // Live cwds of every pane, for the follower-path check: a project outside home
@@ -203,6 +240,10 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
 
     proc.onData((data) => {
       entry.buf = (entry.buf + data).slice(-BUFFER_MAX);
+      if (process.platform === 'win32') {
+        const cwd = extractOsc7Cwd(data);
+        if (cwd) entry.winCwd = cwd;
+      }
       // While detached the buffer is the only sink: the replay on attach hands
       // this same output to the terminal, so forwarding now would duplicate it.
       if (entry.attached) getWindow()?.webContents.send('pty:data', paneId, data);
