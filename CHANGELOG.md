@@ -8,6 +8,37 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.11.0] — 2026-08-08
+
+### Added
+
+- A permission request now asks for your attention at the OS level when the
+  Cerberus window isn't the one you're looking at: the dock icon bounces on
+  macOS, the taskbar entry flashes on Windows and Linux. It stops when you come
+  back to the window. The in-app pane flash was invisible from another app,
+  which is exactly when you most need to be told. Not silenced by the ✈
+  do-not-disturb toggle — that one is about the phone, not the machine you're
+  sitting at.
+- **Zoom a pane to the whole tab**, tmux style: `Ctrl+B` then `z`, or the ⤢
+  button in the pane header. Press again to get the layout back. Zoom is
+  per-tab, and the terminal never moves — the pane is lifted over the layout,
+  not respawned somewhere else.
+- Panes on Windows finally track their live directory. There is no
+  `/proc/pid/cwd` and no `lsof` there, so PowerShell and pwsh panes now get a
+  wrapper around the prompt that reports the directory to Cerberus on every
+  redraw. Pane titles, favourite stars and session restore stop being stuck on
+  wherever the pane was opened. Other Windows shells keep the old behaviour.
+
+### Changed
+
+- The periodic snapshot that keeps pane titles and the saved session fresh got a
+  lot cheaper on macOS: one directory lookup for every pane at once instead of
+  one blocking `lsof` per pane, and no snapshot at all while the window has no
+  focus. With several panes open this was measurable, and it ran whether or not
+  anybody was watching.
+- Pane titles split Windows paths correctly; a `C:\Users\you\project` pane used
+  to show the whole path as its title instead of `project`.
+
 ## [0.10.1] — 2026-08-02
 
 ### Changed

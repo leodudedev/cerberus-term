@@ -206,6 +206,7 @@ permission prompt, and the Telegram push.
 |--------|----------------|----------|
 | Split right / down | ◧ / ⬓ in the pane header | `Ctrl+B` then `%` / `"` (or Cmd+D / Cmd+Shift+D) |
 | Kill pane | ✕ | `Ctrl+B` then `x` (or Cmd+K) |
+| Zoom pane to the whole tab | ⤢ | `Ctrl+B` then `z` |
 | Focus pane | click | `Ctrl+B` then `h/j/k/l` or arrows |
 | Resize | drag the divider | `Ctrl+B` then `H/J/K/L` |
 | New / close tab | `+` / `✕` in the tab bar | `Cmd+T` / `Cmd+W` |
