@@ -639,6 +639,42 @@
         border-color: var(--accent);
         color: var(--text);
       }
+      /* pane right-click menu */
+      .context-menu {
+        position: fixed;
+        z-index: 100;
+        min-width: 200px;
+        max-width: 320px;
+        padding: 4px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        font-family: system-ui, sans-serif;
+      }
+      .context-menu-item {
+        display: block;
+        width: 100%;
+        padding: 6px 10px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--text);
+        font-size: 12px;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+      }
+      .context-menu-item:hover {
+        background: var(--btn-hover);
+      }
+      .context-menu-sep {
+        height: 1px;
+        margin: 4px 2px;
+        background: var(--border);
+      }
       .confirm-danger {
         padding: 6px 16px;
         border: 0;

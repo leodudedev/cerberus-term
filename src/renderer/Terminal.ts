@@ -40,6 +40,9 @@ export interface TerminalPane {
   // selected, so the caller can fall back to Chromium's native handler.
   copySelection(): boolean;
   pasteText(text: string): void;
+  // Right-click "Clear Terminal": wipes the xterm buffer/scrollback, same as
+  // iTerm's Clear Buffer. Doesn't touch the pty — the shell itself is untouched.
+  clearScreen(): void;
   readonly search: PaneSearch;
   // Re-measure and resize the pty to the container. Called on tab activation:
   // a pane living in a display:none tab can't measure, so its fit is deferred
@@ -141,6 +144,14 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
       .join(' ');
     if (quoted) window.cerberus.write(paneId, quoted + ' ');
   });
+
+  // term.paste() (not a raw write) so xterm normalises newlines and wraps the
+  // text in bracketed-paste markers when the app asked for them — without it a
+  // multi-line paste is executed line by line by the shell.
+  const doPaste = (text: string): void => {
+    if (readOnly || !text) return;
+    term.paste(text);
+  };
 
   const fitNow = (): void => {
     if (disposed || !isVisible()) return;
@@ -292,13 +303,8 @@ export function createTerminalPane(el: HTMLElement, init: PaneInit = {}): Termin
       void navigator.clipboard.writeText(sel);
       return true;
     },
-    // term.paste() (not a raw write) so xterm normalises newlines and wraps the
-    // text in bracketed-paste markers when the app asked for them — without it a
-    // multi-line paste is executed line by line by the shell.
-    pasteText: (text) => {
-      if (readOnly || !text) return;
-      term.paste(text);
-    },
+    pasteText: doPaste,
+    clearScreen: () => term.clear(),
     search: {
       // Decorations are resolved per call rather than captured once: the theme
       // can change while the find bar is open, and the addon only reads these

@@ -2,6 +2,7 @@ import { createTerminalPane, type TerminalPane } from './Terminal.js';
 import { makeSplitter } from './Splitter.js';
 import { makePaneHeader } from './PaneHeader.js';
 import { openSearchOverlay } from './SearchOverlay.js';
+import { openPaneContextMenu } from './PaneContextMenu.js';
 import { isFavorite } from './favorites.js';
 import type { PaneNode } from './pane-tree.js';
 
@@ -340,11 +341,19 @@ export class Layout {
         ...(cwd ? { cwd } : {}),
         ...(spec?.attachPaneId ? { attachPaneId: spec.attachPaneId } : {})
       });
-      const { el: header, setFavoriteActive, setZoomActive } = makePaneHeader(
+      const favoritesEnabled = !spec?.readOnly;
+      const { el: header, setFavoriteActive: setHeaderFavorite, setZoomActive } = makePaneHeader(
         id,
         () => pane.focus(),
-        { favorites: !spec?.readOnly }
+        { favorites: favoritesEnabled }
       );
+      // The star's state is also what the right-click menu offers ("Add to" vs
+      // "Remove from"), so keep it here rather than reading it back off the DOM.
+      let favorite = false;
+      const setFavoriteActive = (active: boolean): void => {
+        favorite = active;
+        setHeaderFavorite(active);
+      };
       const titleEl = header.querySelector<HTMLElement>('.pane-title');
       const initialTitle = spec?.title || (cwd ? cwdBasename(cwd) : '');
       if (titleEl && initialTitle) titleEl.textContent = initialTitle;
@@ -358,6 +367,18 @@ export class Layout {
           void pane.paneId.then((pid) => window.cerberus.write(pid, spec.initialCommand!));
         }
       }
+
+      // Right-click menu: the same favourites/close operations as the header
+      // buttons, without going up to the header for them.
+      body.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openPaneContextMenu(e.clientX, e.clientY, {
+          leafId: id,
+          showFavorites: favoritesEnabled,
+          isFavorite: favorite,
+          clearScreen: () => pane.clearScreen()
+        });
+      });
 
       el.append(header, body);
       pane.onFocus(() => {
