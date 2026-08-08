@@ -8,6 +8,26 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.12.0] — 2026-08-08
+
+### Added
+
+- **Right-click a pane** for the operations you'd otherwise go up to the header
+  strip for: clear the pane's buffer, star or unstar its directory, jump to
+  another favourite, close the pane. The header is 26 pixels tall and sits at
+  the top of a pane you're usually working at the bottom of; this puts the same
+  four things under the pointer. The star entry knows whether the directory is
+  already a favourite and offers the opposite. Follower panes, which tail a log
+  and have no shell to `cd`, get the clear and close entries only.
+
+  Clearing wipes the pane's scrollback, the way iTerm's Clear Buffer does. The
+  shell running inside is not touched and does not notice.
+
+  There is no Paste entry, though an early cut had one backed by a list of
+  recent copies. Keeping such a list honest means polling the system clipboard,
+  which captures whatever you copy anywhere on the machine — a password manager
+  included — for the sake of a shortcut `Cmd+V` already covers.
+
 ## [0.11.0] — 2026-08-08
 
 ### Added

@@ -205,14 +205,15 @@ permission prompt, and the Telegram push.
 | Action | Mouse / button | Keyboard |
 |--------|----------------|----------|
 | Split right / down | ◧ / ⬓ in the pane header | `Ctrl+B` then `%` / `"` (or Cmd+D / Cmd+Shift+D) |
-| Kill pane | ✕ | `Ctrl+B` then `x` (or Cmd+K) |
+| Kill pane | ✕, or right-click the pane | `Ctrl+B` then `x` (or Cmd+K) |
 | Zoom pane to the whole tab | ⤢ | `Ctrl+B` then `z` |
 | Focus pane | click | `Ctrl+B` then `h/j/k/l` or arrows |
 | Resize | drag the divider | `Ctrl+B` then `H/J/K/L` |
 | New / close tab | `+` / `✕` in the tab bar | `Cmd+T` / `Cmd+W` |
 | Next / previous tab | click the tab | `Cmd+Shift+]` / `Cmd+Shift+[` |
-| Star this pane's cwd | ☆ | — |
-| Jump to a favorite | ♡ | — |
+| Star this pane's cwd | ☆, or right-click the pane | — |
+| Jump to a favorite | ♡, or right-click the pane | — |
+| Clear a pane's buffer | right-click the pane | — |
 | Edit `.cerberus.json` | ⚙ | — |
 | Mute every Telegram push | ✈ at the right of the tab bar | — |
 | Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
