@@ -483,7 +483,13 @@ export class Workspace {
     if (cmd === 'split-right') void this.split('row', target);
     else if (cmd === 'split-down') void this.split('column', target);
     else if (cmd === 'kill') void this.kill(target);
-    else if (cmd === 'config') {
+    else if (cmd === 'zoom') {
+      // Zooming a pane focuses it: the button can be clicked on a pane that
+      // isn't focused, and typing into one you can no longer see is worse.
+      t.layout.toggleZoom(target);
+      t.focusedLeafId = target;
+      t.layout.focusLeaf(target);
+    } else if (cmd === 'config') {
       const p = t.layout.paneIdOf(target);
       if (p) void p.then((paneId) => openConfigEditor(paneId));
     } else if (cmd === 'toggle-favorite') {
@@ -524,7 +530,9 @@ export class Workspace {
     const { type, dir } = action;
     const RESIZE_STEP = 0.04;
 
-    if (type === 'split') {
+    if (type === 'zoom') {
+      t.layout.toggleZoom(t.focusedLeafId);
+    } else if (type === 'split') {
       void this.split(dir === 'down' ? 'column' : 'row', t.focusedLeafId);
     } else if (type === 'kill') {
       void this.kill(t.focusedLeafId);

@@ -9,6 +9,7 @@ interface LeafEntry {
   el: HTMLElement;
   pane: TerminalPane;
   setFavoriteActive: (active: boolean) => void;
+  setZoomActive: (active: boolean) => void;
 }
 
 // One-shot overrides for a leaf about to be created (follower panes opened via
@@ -61,6 +62,9 @@ export class Layout {
   private paneSpecs = new Map<string, PaneSpec>();
   private lockedTitles = new Set<string>(); // leaves with a fixed custom title
   private focusedLeafId: string | null = null;
+  // Leaf currently blown up to the whole tab, or null. Per-Layout, so zoom is
+  // per-tab and every other tab keeps its own state.
+  private zoomedLeafId: string | null = null;
 
   constructor(
     private readonly container: HTMLElement,
@@ -110,6 +114,9 @@ export class Layout {
         this.paneSpecs.delete(id);
       }
     }
+    // Zoomed pane closed (its own ✕, or a kill from the keymap): nothing is
+    // lifted any more, and a stale id would swallow the next toggle.
+    if (this.zoomedLeafId && !present.has(this.zoomedLeafId)) this.setZoom(null);
 
     if (!root) {
       this.container.replaceChildren();
@@ -255,6 +262,31 @@ export class Layout {
     return null;
   }
 
+  // tmux's `Ctrl+B z`: blow the pane up to the whole tab and back. The leaf is
+  // lifted over the layout with a CSS class rather than pulled out of the tree,
+  // so the terminal and its pty never move and unzoom is another class flip.
+  // Zooming a different pane replaces the zoom instead of stacking one on top.
+  toggleZoom(leafId: string): void {
+    if (!this.leaves.has(leafId)) return;
+    this.setZoom(this.zoomedLeafId === leafId ? null : leafId);
+  }
+
+  isZoomed(leafId: string): boolean {
+    return this.zoomedLeafId === leafId;
+  }
+
+  private setZoom(leafId: string | null): void {
+    this.zoomedLeafId = leafId;
+    for (const [id, entry] of this.leaves) {
+      const on = id === leafId;
+      entry.el.classList.toggle('zoomed', on);
+      entry.setZoomActive(on);
+    }
+    // The pane changed size; its ResizeObserver refits, but the ones underneath
+    // are now hidden and would come back at the wrong size on unzoom.
+    this.refit();
+  }
+
   markLeafAttention(leafId: string): void {
     this.leaves.get(leafId)?.el.classList.add('attention');
   }
@@ -308,9 +340,11 @@ export class Layout {
         ...(cwd ? { cwd } : {}),
         ...(spec?.attachPaneId ? { attachPaneId: spec.attachPaneId } : {})
       });
-      const { el: header, setFavoriteActive } = makePaneHeader(id, () => pane.focus(), {
-        favorites: !spec?.readOnly
-      });
+      const { el: header, setFavoriteActive, setZoomActive } = makePaneHeader(
+        id,
+        () => pane.focus(),
+        { favorites: !spec?.readOnly }
+      );
       const titleEl = header.querySelector<HTMLElement>('.pane-title');
       const initialTitle = spec?.title || (cwd ? cwdBasename(cwd) : '');
       if (titleEl && initialTitle) titleEl.textContent = initialTitle;
@@ -331,7 +365,7 @@ export class Layout {
         this.applyFocusStyles();
         this.onFocusChange(id);
       });
-      entry = { el, pane, setFavoriteActive };
+      entry = { el, pane, setFavoriteActive, setZoomActive };
       this.leaves.set(id, entry);
     }
     return entry.el;

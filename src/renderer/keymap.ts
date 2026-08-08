@@ -5,7 +5,7 @@
 
 export type Dir = 'left' | 'right' | 'up' | 'down';
 export interface CerberusAction {
-  type: 'split' | 'kill' | 'focus' | 'resize';
+  type: 'split' | 'kill' | 'focus' | 'resize' | 'zoom';
   dir?: Dir;
 }
 
@@ -35,6 +35,7 @@ function resolve(e: KeyboardEvent): CerberusAction | null | undefined {
   if (k === '%' || k === '|') return { type: 'split', dir: 'right' };
   if (k === '"' || k === '-') return { type: 'split', dir: 'down' };
   if (lower === 'x') return { type: 'kill' };
+  if (lower === 'z') return { type: 'zoom' };
   if (k === 'Escape') return null; // cancel
 
   const focusMap: Record<string, Dir> = { h: 'left', j: 'down', k: 'up', l: 'right' };

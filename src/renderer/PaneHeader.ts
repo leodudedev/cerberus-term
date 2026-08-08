@@ -8,7 +8,8 @@ type PaneCmd =
   | 'kill'
   | 'config'
   | 'toggle-favorite'
-  | 'open-favorites';
+  | 'open-favorites'
+  | 'zoom';
 
 function emit(cmd: PaneCmd, leafId: string): void {
   window.dispatchEvent(new CustomEvent('pane-cmd', { detail: { cmd, leafId } }));
@@ -24,7 +25,9 @@ const GLYPH_SCALE: Record<string, {size: number, top: number}> = {
   '◧': {size: 1, top: 0}, // split-right — baseline
   '⬓': {size: 1, top: 0}, // split-down — baseline
   '✕': {size: 0.85, top: 2}, // kill — renders slightly bold/large
-  '⚙': {size: 1.2, top: 1} // gear — renders as a near-invisible dot
+  '⚙': {size: 1.2, top: 1}, // gear — renders as a near-invisible dot
+  '⤢': {size: 1.1, top: 1}, // zoom — arrow glyph, slightly small at 12px
+  '⤡': {size: 1.1, top: 1} // unzoom
 };
 
 function button(glyph: string, title: string, cmd: PaneCmd, leafId: string): HTMLButtonElement {
@@ -45,6 +48,8 @@ function button(glyph: string, title: string, cmd: PaneCmd, leafId: string): HTM
 
 export interface PaneHeader {
   el: HTMLElement;
+  /** Flip the zoom button between "zoom" and "restore". */
+  setZoomActive: (active: boolean) => void;
   setFavoriteActive: (active: boolean) => void;
 }
 
@@ -71,7 +76,9 @@ export function makePaneHeader(
   const heart = button('♡', 'Open favorites', 'open-favorites', leafId);
 
   if (showFavorites) buttons.append(star, heart);
+  const zoom = button('⤢', 'Zoom pane (Ctrl+B z)', 'zoom', leafId);
   buttons.append(
+    zoom,
     button('◧', 'Split right', 'split-right', leafId),
     button('⬓', 'Split down', 'split-down', leafId),
     button('✕', 'Close pane', 'kill', leafId)
@@ -94,5 +101,10 @@ export function makePaneHeader(
     star.classList.toggle('pane-btn-star-active', active);
   };
 
-  return { el: header, setFavoriteActive };
+  const setZoomActive = (active: boolean): void => {
+    zoom.textContent = active ? '⤡' : '⤢';
+    zoom.title = active ? 'Restore pane (Ctrl+B z)' : 'Zoom pane (Ctrl+B z)';
+  };
+
+  return { el: header, setFavoriteActive, setZoomActive };
 }

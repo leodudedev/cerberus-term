@@ -298,6 +298,16 @@
         outline: 1px solid var(--accent);
         outline-offset: -1px;
       }
+      /* Zoomed pane: lifted over the rest of the layout instead of being pulled
+         out of the tree, so its terminal and pty are untouched. The pane is
+         opaque and covers what's underneath; the offset resolves against
+         .tab-container, the nearest positioned ancestor. !important because
+         .pane carries an inline position:relative. */
+      .pane.zoomed {
+        position: absolute !important;
+        inset: 0;
+        z-index: 5;
+      }
       /* pending-permission highlight; cleared when the pane is focused.
          Wins over .focused via source order + !important on the color. */
       .pane.attention {
