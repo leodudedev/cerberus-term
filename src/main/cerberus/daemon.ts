@@ -10,6 +10,7 @@ import { readProjectConfig } from "../../core/project-config.js";
 import { isMuted } from "../../core/mute.js";
 import { putPendingTool, peekPendingTool, summarizeToolArgs } from "../../core/pending-tools.js";
 import { capturePane } from "../pane-control.js";
+import { requestAttention } from "../attention.js";
 import { ALWAYS_OPTION_RE, dialogOptionsBlock, extractQuestionOptions } from "../../core/dialog.js";
 import { resolveFollowPath } from "../../core/follow-path.js";
 import { paneSpawnCwds } from "../bridge-electron.js";
@@ -374,6 +375,10 @@ const server = createServer(async (req, res) => {
     if (isPermission && pane) {
       emit?.("cerberus:pane-attention", { pane, sessionId: session.sessionId });
     }
+    // Same idea one level up: the pane flash is invisible when the window isn't
+    // the one being looked at, so ask the OS for the user's attention too. No
+    // pane needed — this is about the app, not about which tab asked.
+    if (isPermission) requestAttention();
 
     // Per-project overrides (.cerberus.json) + runtime mute applied before pushing.
     const pcfg = readProjectConfig(session.cwd);

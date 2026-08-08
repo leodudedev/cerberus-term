@@ -13,6 +13,7 @@ import { registerBridge, killAllPtys, detachAllPtys } from './bridge-electron.js
 import { registerConfigIpc } from './config-ipc.js';
 import { registerSettingsIpc } from './settings-ipc.js';
 import { registerMuteIpc } from './mute-ipc.js';
+import { initAttention, clearAttention } from './attention.js';
 import { startCerberus } from './cerberus/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -236,6 +237,9 @@ function createWindow(): void {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
+  // The user got the message: stop the taskbar flash raised for a permission
+  // request (a no-op on macOS, where the dock bounce ends with the activation).
+  mainWindow.on('focus', clearAttention);
   mainWindow.on('closed', () => {
     // The renderer is gone but the ptys live in main: without this they'd keep
     // running headless (a `claude` inside one would even keep notifying).
@@ -256,6 +260,7 @@ app.whenReady().then(() => {
   registerConfigIpc();
   registerSettingsIpc();
   registerMuteIpc(() => mainWindow);
+  initAttention(() => mainWindow);
   // Renderer asks to close the window after the last tab is closed.
   ipcMain.on('cerberus:close-window', () => mainWindow?.close());
   // No terminal claimed the Edit action (focus is in the settings modal, or
