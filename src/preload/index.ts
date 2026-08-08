@@ -52,6 +52,8 @@ const bridge: TerminalBridge = {
   onData: (paneId, cb) => subscribe(dataListeners, paneId, cb),
   onExit: (paneId, cb) => subscribe(exitListeners, paneId, cb),
   cwd: (paneId) => ipcRenderer.invoke('pty:cwd', paneId) as Promise<string>,
+  cwds: (paneIds) =>
+    ipcRenderer.invoke('pty:cwds', paneIds) as Promise<Record<string, string>>,
   // Electron 32+ removed File.path; webUtils resolves a dropped File to its
   // absolute path so drag-and-drop can insert it into the pty.
   pathForFile: (file) => webUtils.getPathForFile(file)

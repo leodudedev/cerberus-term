@@ -9,6 +9,7 @@ import { getSettings } from './settings.js';
 import { getDaemonToken } from './cerberus/token.js';
 import { stripAnsi } from '../core/ansi.js';
 import { extractOsc7Cwd } from '../core/osc7.js';
+import { parseLsofCwds } from '../core/lsof.js';
 import { consoleProcessNames } from './win-console.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
@@ -134,6 +135,47 @@ export function getPaneCwd(paneId: string): string {
   const entry = ptys.get(paneId);
   if (!entry) return process.env['HOME'] ?? process.cwd();
   return liveCwd(entry);
+}
+
+// Live cwds for a whole set of panes at once. On macOS liveCwd() forks an lsof
+// and execFileSync blocks the main process, so the periodic snapshot asking
+// pane by pane meant one blocking fork per pane every few seconds. One lsof
+// covering every pid costs the same as one pane's.
+//
+// Panes lsof didn't report fall back to their spawn cwd rather than to
+// getPaneCwd(), which would fork per pane again — the very thing being avoided.
+export function getPaneCwds(paneIds: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  const entries: [string, PaneProc][] = [];
+  for (const id of paneIds) {
+    const entry = ptys.get(id);
+    if (entry) entries.push([id, entry]);
+  }
+  // Elsewhere a lookup is a readlink (Linux) or a field read (Windows): no
+  // process to spawn, nothing to batch.
+  if (process.platform !== 'darwin') {
+    for (const [id] of entries) out[id] = getPaneCwd(id);
+    return out;
+  }
+  const byPid = new Map<number, string>();
+  for (const [id, entry] of entries) byPid.set(entry.proc.pid, id);
+  if (byPid.size > 0) {
+    try {
+      const text = execFileSync(
+        'lsof',
+        ['-a', '-p', [...byPid.keys()].join(','), '-d', 'cwd', '-Fpn'],
+        { encoding: 'utf8' }
+      );
+      for (const [pid, cwd] of parseLsofCwds(text)) {
+        const id = byPid.get(pid);
+        if (id !== undefined) out[id] = cwd;
+      }
+    } catch {
+      /* every pane falls back below */
+    }
+  }
+  for (const [id, entry] of entries) out[id] ??= entry.spawnCwd;
+  return out;
 }
 
 // Live cwds of every pane, for the follower-path check: a project outside home
@@ -309,6 +351,10 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle('pty:cwd', (_e, paneId: string): string => getPaneCwd(paneId));
+  ipcMain.handle(
+    'pty:cwds',
+    (_e, paneIds: string[]): Record<string, string> => getPaneCwds(paneIds)
+  );
 }
 
 export function killAllPtys(): void {

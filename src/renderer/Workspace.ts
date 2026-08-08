@@ -143,7 +143,16 @@ export class Workspace {
 
     // Periodic snapshot: refresh cwds/titles/favorites and persist (catches a
     // bare `cd` with no structural change) across all tabs.
-    window.setInterval(() => void this.persistNow(), 4000);
+    //
+    // Skipped while the window has no focus: the snapshot reads every pane's
+    // live cwd, which forks an lsof on macOS, and a `cd` gets typed into a
+    // window someone is looking at. One snapshot on the way out and one on the
+    // way back in covers whatever a background agent changed meanwhile.
+    window.setInterval(() => {
+      if (document.hasFocus()) void this.persistNow();
+    }, 4000);
+    window.addEventListener('focus', () => void this.persistNow());
+    window.addEventListener('blur', () => void this.persistNow());
 
     // Last write before the renderer goes away (Cmd+R, window close). The ptys
     // outlive it in main, so this snapshot is what decides which of them get

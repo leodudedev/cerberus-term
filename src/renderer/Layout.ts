@@ -22,6 +22,18 @@ export interface PaneSpec {
   attachPaneId?: string;
 }
 
+// Pane title: last segment of the cwd. Splits on both separators — a Windows
+// cwd arrives backslash-separated (core/osc7.ts), and on a single '/' split it
+// would show as the whole `C:\Users\leo\dev` path.
+function cwdBasename(cwd: string): string {
+  return (
+    cwd
+      .replace(/[/\\]+$/, '')
+      .split(/[/\\]/)
+      .pop() || cwd
+  );
+}
+
 function collectLeafIds(node: PaneNode, out: Set<string>): void {
   if (node.type === 'leaf') {
     out.add(node.id);
@@ -58,20 +70,29 @@ export class Layout {
   ) {}
 
   // Snapshot each leaf's live cwd (for persistence) and refresh pane titles.
+  // One bridge call for every leaf: asking pane by pane forked an lsof per pane
+  // on macOS, and this runs on a timer.
   async snapshotCwds(): Promise<Record<string, string>> {
-    const out: Record<string, string> = {};
+    const leafByPaneId = new Map<string, string>();
     for (const [id, entry] of this.leaves) {
       try {
-        const paneId = await entry.pane.paneId;
-        const cwd = await window.cerberus.cwd(paneId);
-        out[id] = cwd;
-        entry.setFavoriteActive(isFavorite(cwd));
-        if (this.lockedTitles.has(id)) continue; // follower panes keep their title
-        const title = entry.el.querySelector<HTMLElement>('.pane-title');
-        if (title) title.textContent = cwd.split('/').pop() || cwd;
+        leafByPaneId.set(await entry.pane.paneId, id);
       } catch {
         /* pane gone */
       }
+    }
+    const cwds = await window.cerberus.cwds([...leafByPaneId.keys()]);
+
+    const out: Record<string, string> = {};
+    for (const [paneId, id] of leafByPaneId) {
+      const cwd = cwds[paneId];
+      const entry = this.leaves.get(id);
+      if (cwd === undefined || !entry) continue; // pane died mid-snapshot
+      out[id] = cwd;
+      entry.setFavoriteActive(isFavorite(cwd));
+      if (this.lockedTitles.has(id)) continue; // follower panes keep their title
+      const title = entry.el.querySelector<HTMLElement>('.pane-title');
+      if (title) title.textContent = cwdBasename(cwd);
     }
     return out;
   }
@@ -291,7 +312,7 @@ export class Layout {
         favorites: !spec?.readOnly
       });
       const titleEl = header.querySelector<HTMLElement>('.pane-title');
-      const initialTitle = spec?.title || (cwd ? cwd.split('/').pop() || cwd : '');
+      const initialTitle = spec?.title || (cwd ? cwdBasename(cwd) : '');
       if (titleEl && initialTitle) titleEl.textContent = initialTitle;
       if (cwd) setFavoriteActive(isFavorite(cwd));
 

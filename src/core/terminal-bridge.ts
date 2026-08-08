@@ -32,6 +32,12 @@ export interface TerminalBridge {
   onExit(paneId: string, cb: (code: number) => void): () => void;
   /** Live cwd of a pane's shell (for session-restore snapshots + titles). */
   cwd(paneId: string): Promise<string>;
+  /**
+   * Live cwds of several panes in one round trip, keyed by paneId. Panes that
+   * no longer exist are absent. Preferred over cwd() in a loop: on macOS the
+   * lookup forks an lsof, and this pays for one instead of one per pane.
+   */
+  cwds(paneIds: string[]): Promise<Record<string, string>>;
   /** Absolute path of a dropped File (for drag-and-drop into the pty). */
   pathForFile(file: File): string;
 }
