@@ -3,13 +3,23 @@ import {
   BrowserWindow,
   Menu,
   clipboard,
+  dialog,
   ipcMain,
   shell,
   type MenuItemConstructorOptions
 } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { registerBridge, killAllPtys, detachAllPtys } from './bridge-electron.js';
+import { registerBridge, killAllPtys, detachAllPtys, ptyShellPids } from './bridge-electron.js';
+import {
+  snapshotPaneProcesses,
+  stillRunning,
+  terminate,
+  HANGUP_GRACE_MS,
+  type Stray
+} from './stray-processes.js';
+import { getSettings, saveSettings } from './settings.js';
+import type { StrayPolicy } from '../core/settings.js';
 import { registerConfigIpc } from './config-ipc.js';
 import { registerSettingsIpc } from './settings-ipc.js';
 import { registerMuteIpc } from './mute-ipc.js';
@@ -257,6 +267,9 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     // The renderer is gone but the ptys live in main: without this they'd keep
     // running headless (a `claude` inside one would even keep notifying).
+    // Record the shells first: on macOS the app outlives the window, so this
+    // can be the last moment their session ids are readable.
+    rememberPaneProcesses();
     killAllPtys();
     mainWindow = null;
   });
@@ -304,6 +317,73 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('before-quit', () => {
+// What was running under the panes the last time we could still see it. The
+// parent chain only leads to these processes while their shell is alive, so
+// every kill site takes the snapshot first — including the window-close path,
+// which on macOS can be the last look before the app idles in the dock.
+let paneProcesses: Stray[] = [];
+
+function rememberPaneProcesses(): void {
+  const seen = new Set(paneProcesses.map((s) => s.pid));
+  for (const s of snapshotPaneProcesses(ptyShellPids())) {
+    if (!seen.has(s.pid)) paneProcesses.push(s);
+  }
+}
+
+// What outlived the panes, and what to do about it. Runs after the ptys are
+// already dead, so there is no "cancel": the question is only whether these
+// processes stay up once the app is gone. See main/stray-processes.ts.
+async function handleStrays(policy: StrayPolicy): Promise<void> {
+  await new Promise((r) => setTimeout(r, HANGUP_GRACE_MS));
+  // Whatever the hangup was going to take down is gone by now; the rest chose
+  // to stay.
+  const strays = stillRunning(paneProcesses);
+  if (strays.length === 0) return;
+
+  if (policy === 'terminate') {
+    await terminate(strays);
+    return;
+  }
+
+  const list = strays.map((s) => `  ${s.label}  (pid ${s.pid})`).join('\n');
+  const { response, checkboxChecked } = await dialog.showMessageBox({
+    type: 'question',
+    // A detached process is the user's own doing — leaving it alone is the
+    // conservative answer, so it's the default one.
+    buttons: ['Leave running', 'Terminate'],
+    defaultId: 0,
+    cancelId: 0,
+    message:
+      strays.length === 1
+        ? 'One process is still running outside its pane'
+        : `${strays.length} processes are still running outside their panes`,
+    detail: `${list}\n\nClosing Cerberus won't stop them.`,
+    checkboxLabel: 'Always do this',
+    checkboxChecked: false
+  });
+
+  const chosen: StrayPolicy = response === 1 ? 'terminate' : 'leave';
+  if (checkboxChecked) saveSettings({ ...getSettings(), strayProcesses: chosen });
+  if (chosen === 'terminate') await terminate(strays);
+}
+
+// Set once the stray question has been answered (or skipped): app.quit() below
+// re-enters this handler, and the second pass must let the quit through.
+let strayCheckDone = false;
+
+app.on('before-quit', (e) => {
+  rememberPaneProcesses();
   killAllPtys();
+  if (strayCheckDone) return;
+
+  const policy = getSettings().strayProcesses ?? 'ask';
+  if (policy === 'leave') return;
+
+  // The scan and the dialog are both async, and nothing in Electron's quit
+  // sequence waits: hold the quit here and re-issue it once we have an answer.
+  e.preventDefault();
+  void handleStrays(policy).finally(() => {
+    strayCheckDone = true;
+    app.quit();
+  });
 });

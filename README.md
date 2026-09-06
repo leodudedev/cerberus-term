@@ -236,6 +236,23 @@ Dropping files onto a pane types their absolute paths into the session.
 The layout, per-pane cwds, tabs, favorites, and theme are restored on relaunch.
 Panes also survive a window reload — the shells keep running and reattach.
 
+### Leftover processes
+
+Closing a pane kills its shell, and the hangup takes down whatever was running
+in the foreground with it. What it can't take down is anything detached from
+that shell — a `nohup`ed build, a `disown`ed job, a dev server started with `&`
+in a pane you closed hours ago. Those keep running after the app is gone.
+
+So on quit Cerberus looks: it notes what the panes were running, kills the
+ptys, and a moment later checks who is still alive. Survivors are listed by
+name and pid, and you decide — **Leave running** or **Terminate** (SIGTERM,
+then SIGKILL for whoever ignores it). Tick *Always do this* to stop being
+asked, or set it up front under **Leftover processes on quit** in Settings:
+ask, terminate, or leave.
+
+Real daemons are out of scope. A process that called `setsid` or double-forked
+went out of its way to outlive its terminal, so it's left alone.
+
 ### Do not disturb
 
 The ✈ button at the right of the tab bar is a global do-not-disturb: while the

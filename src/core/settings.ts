@@ -4,6 +4,10 @@ import { HOOK_TARGETS, type TargetId } from './hook-targets.js';
 // .cerberus.json still overrides the overlapping fields (chatId/minRisk/…) in
 // the daemon; this is the global default that used to come from .env.
 
+export type StrayPolicy = 'ask' | 'terminate' | 'leave';
+
+export const STRAY_POLICIES: StrayPolicy[] = ['ask', 'terminate', 'leave'];
+
 export interface TelegramSettings {
   token?: string;
   chatId?: string;
@@ -15,6 +19,10 @@ export interface Settings {
   telegram: TelegramSettings;
   defaultShell?: string; // pty shell when a pane doesn't specify one
   skipCloseConfirm?: boolean; // when true, closing a pane/tab skips the confirm
+  // What to do on quit with processes that survive their pane's pty — a
+  // `nohup`ed build, a disowned dev server. 'ask' lists them and lets the
+  // answer decide, 'terminate' always kills them, 'leave' never looks.
+  strayProcesses?: StrayPolicy;
   // The agent CLIs we register notification hooks in. These are files outside
   // the app, owned by other tools, so the list is only ever what someone
   // explicitly ticked. Undefined means nobody has been asked yet — that, and
@@ -33,7 +41,8 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
-  skipCloseConfirm: false
+  skipCloseConfirm: false,
+  strayProcesses: 'ask'
 };
 
 // Fill the gaps in a settings object read off disk (or handed over by the
@@ -49,6 +58,11 @@ export function mergeSettings(parsed: Partial<Settings> | null | undefined): Set
     telegram: { ...DEFAULT_SETTINGS.telegram, ...(p.telegram ?? {}) },
     defaultShell: p.defaultShell ?? DEFAULT_SETTINGS.defaultShell,
     skipCloseConfirm: p.skipCloseConfirm ?? DEFAULT_SETTINGS.skipCloseConfirm,
+    // An unknown string here would silently disable the guard, so anything
+    // that isn't one of the three policies falls back to asking.
+    strayProcesses: STRAY_POLICIES.includes(p.strayProcesses as StrayPolicy)
+      ? p.strayProcesses
+      : DEFAULT_SETTINGS.strayProcesses,
     // No default on either: undefined is meaningful for both, and an empty
     // hookTargets must survive as an empty array rather than fall through.
     hookTargets: p.hookTargets ? parseTargetIds(p.hookTargets) : undefined,

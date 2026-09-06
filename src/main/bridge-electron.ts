@@ -357,6 +357,20 @@ export function registerBridge(getWindow: () => BrowserWindow | null): void {
   );
 }
 
+// Pids of the live pane shells. Each one is a session leader on POSIX, so this
+// is also the set of session ids the stray-process scan filters on.
+export function ptyShellPids(): number[] {
+  const pids: number[] = [];
+  for (const { proc } of ptys.values()) {
+    try {
+      pids.push(proc.pid);
+    } catch {
+      /* pty exited between the iteration and the read */
+    }
+  }
+  return pids;
+}
+
 export function killAllPtys(): void {
   for (const { proc } of ptys.values()) proc.kill();
   ptys.clear();

@@ -30,11 +30,20 @@ describe('mergeSettings', () => {
       telegram: { token: 't', chatId: '1', allowedChats: '1,2', lang: 'it' },
       defaultShell: '/bin/zsh',
       skipCloseConfirm: true,
+      strayProcesses: 'leave',
       hookTargets: ['claude']
     };
     expect(mergeSettings(saved)).toEqual(saved);
     // …and again, as it would be on the next app start.
     expect(mergeSettings(mergeSettings(saved))).toEqual(saved);
+  });
+
+  // An unreadable policy must not silently disable the quit-time guard: the
+  // only safe reading of a value we don't recognise is "ask me".
+  it('falls back to asking on an unknown stray policy', () => {
+    expect(mergeSettings({}).strayProcesses).toBe('ask');
+    expect(mergeSettings({ strayProcesses: 'nuke' as never }).strayProcesses).toBe('ask');
+    expect(mergeSettings({ strayProcesses: 'terminate' }).strayProcesses).toBe('terminate');
   });
 
   // The three states are all meaningful and all different: never asked, asked

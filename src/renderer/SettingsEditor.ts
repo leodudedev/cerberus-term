@@ -1,4 +1,4 @@
-import type { Settings } from '../core/settings.js';
+import { STRAY_POLICIES, type Settings, type StrayPolicy } from '../core/settings.js';
 
 // Global settings modal (reuses the config-modal styling). Opened via Cmd+,.
 
@@ -56,6 +56,23 @@ export async function openSettingsEditor(): Promise<void> {
   skipConfirm.type = 'checkbox';
   skipConfirm.className = 'settings-checkbox';
   skipConfirm.checked = s.skipCloseConfirm ?? false;
+
+  // What happens on quit to whatever outlived a pane's pty — a nohup'ed build,
+  // a disowned dev server. Labels say what the app does, not the stored value.
+  const strays = document.createElement('select');
+  strays.className = 'settings-input';
+  const STRAY_LABELS: Record<StrayPolicy, string> = {
+    ask: 'Ask me',
+    terminate: 'Terminate them',
+    leave: 'Leave them running'
+  };
+  for (const policy of STRAY_POLICIES) {
+    const o = document.createElement('option');
+    o.value = policy;
+    o.textContent = STRAY_LABELS[policy];
+    if ((s.strayProcesses ?? 'ask') === policy) o.selected = true;
+    strays.append(o);
+  }
 
   // One row per agent, each naming the file it writes to and its real state.
   // These live outside the app, in other tools' config — nobody should have to
@@ -134,6 +151,7 @@ export async function openSettingsEditor(): Promise<void> {
     row('Language', lang),
     row('Default shell', shell),
     row('Skip confirm on close', skipConfirm),
+    row('Leftover processes on quit', strays),
     hooksTitle,
     hooksBlock,
     hint,
@@ -172,6 +190,7 @@ export async function openSettingsEditor(): Promise<void> {
       },
       defaultShell: shell.value.trim() || undefined,
       skipCloseConfirm: skipConfirm.checked,
+      strayProcesses: strays.value as StrayPolicy,
       // Disabled rows keep reporting .checked, so an agent that's currently
       // uninstalled carries its stored answer through untouched.
       hookTargets: hookRows.filter((r) => r.input.checked).map((r) => r.id) as Settings['hookTargets']
