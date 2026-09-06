@@ -3,6 +3,8 @@ import { openConfigEditor } from './ConfigEditor.js';
 import { toggleFavorite } from './favorites.js';
 import { openFavoritesOverlay } from './FavoritesOverlay.js';
 import { makeMuteToggle } from './MuteToggle.js';
+import { openShortcutsOverlay } from './ShortcutsOverlay.js';
+import { IS_MAC } from './shortcuts.js';
 import {
   newLeaf,
   splitLeaf,
@@ -74,9 +76,19 @@ export class Workspace {
     add.title = 'New tab (Cmd+T)';
     add.addEventListener('click', () => this.newTab());
 
+    // The tmux-style bindings have no other entry point in the UI, so the
+    // cheat sheet gets a button of its own rather than living only in the menu.
+    const help = document.createElement('button');
+    help.type = 'button';
+    help.className = 'tabbar-btn';
+    help.textContent = '?';
+    help.title = `Keyboard shortcuts (${IS_MAC ? 'Cmd+/' : 'Ctrl+Shift+/'})`;
+    help.setAttribute('aria-label', 'Keyboard shortcuts');
+    help.addEventListener('click', () => openShortcutsOverlay());
+
     const actions = document.createElement('div');
     actions.className = 'tabbar-actions';
-    actions.append(add, makeMuteToggle());
+    actions.append(add, help, makeMuteToggle());
 
     // A trackpad swipes the strip horizontally on its own; a plain mouse wheel
     // only reports deltaY, which would otherwise do nothing here.

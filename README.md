@@ -211,6 +211,7 @@ permission prompt, and the Telegram push.
 | Resize | drag the divider | `Ctrl+B` then `H/J/K/L` |
 | New / close tab | `+` / `✕` in the tab bar | `Cmd+T` / `Cmd+W` |
 | Next / previous tab | click the tab | `Cmd+Shift+]` / `Cmd+Shift+[` |
+| Jump to tab 1–9 | click the tab | `Cmd+1` … `Cmd+9` |
 | Star this pane's cwd | ☆, or right-click the pane | — |
 | Jump to a favorite | ♡, or right-click the pane | — |
 | Clear a pane's buffer | right-click the pane | — |
@@ -221,6 +222,7 @@ permission prompt, and the Telegram push.
 | Newline without submitting | — | `Shift+Enter` |
 | Settings | menu → Settings… | `Cmd+,` |
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
+| Keyboard shortcuts | `?` at the right of the tab bar, or menu → Help | `Cmd+/` (`Ctrl+Shift+/`), or `Ctrl+B` then `?` |
 
 Where two keys are listed, the second is Windows/Linux: `Ctrl+C`, `Ctrl+F` and
 friends are control characters the shell owns, so those bindings move to

@@ -32,6 +32,7 @@ declare global {
     cerberusUI: {
       onOpenSettings(cb: () => void): void;
       onToggleTheme(cb: () => void): void;
+      onOpenShortcuts(cb: () => void): void;
       onOpenPane(cb: (p: OpenPanePayload) => void): void;
       onTab(cb: (action: TabAction, index?: number) => void): void;
       onPaneAttention(cb: (p: PaneAttentionPayload) => void): void;

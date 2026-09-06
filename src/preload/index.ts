@@ -111,12 +111,14 @@ interface PaneAttentionPayload {
 }
 let onOpenSettings: (() => void) | null = null;
 let onToggleTheme: (() => void) | null = null;
+let onOpenShortcuts: (() => void) | null = null;
 let onOpenPane: ((p: OpenPanePayload) => void) | null = null;
 let onTab: ((action: TabAction, index?: number) => void) | null = null;
 let onPaneAttention: ((p: PaneAttentionPayload) => void) | null = null;
 let onEdit: ((action: EditAction, text?: string) => void) | null = null;
 ipcRenderer.on('cerberus:open-settings', () => onOpenSettings?.());
 ipcRenderer.on('cerberus:toggle-theme', () => onToggleTheme?.());
+ipcRenderer.on('cerberus:open-shortcuts', () => onOpenShortcuts?.());
 ipcRenderer.on('cerberus:open-pane', (_e, p: OpenPanePayload) => onOpenPane?.(p));
 ipcRenderer.on('cerberus:tab', (_e, action: TabAction, index?: number) => onTab?.(action, index));
 ipcRenderer.on('cerberus:pane-attention', (_e, p: PaneAttentionPayload) => onPaneAttention?.(p));
@@ -127,6 +129,9 @@ contextBridge.exposeInMainWorld('cerberusUI', {
   },
   onToggleTheme: (cb: () => void) => {
     onToggleTheme = cb;
+  },
+  onOpenShortcuts: (cb: () => void) => {
+    onOpenShortcuts = cb;
   },
   onOpenPane: (cb: (p: OpenPanePayload) => void) => {
     onOpenPane = cb;

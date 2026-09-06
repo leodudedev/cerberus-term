@@ -5,7 +5,7 @@
 
 export type Dir = 'left' | 'right' | 'up' | 'down';
 export interface CerberusAction {
-  type: 'split' | 'kill' | 'focus' | 'resize' | 'zoom';
+  type: 'split' | 'kill' | 'focus' | 'resize' | 'zoom' | 'help';
   dir?: Dir;
 }
 
@@ -36,6 +36,9 @@ function resolve(e: KeyboardEvent): CerberusAction | null | undefined {
   if (k === '"' || k === '-') return { type: 'split', dir: 'down' };
   if (lower === 'x') return { type: 'kill' };
   if (lower === 'z') return { type: 'zoom' };
+  // Shift+/ on most layouts; accept the bare slash too so a layout that puts
+  // '?' behind a different modifier still reaches the cheat sheet.
+  if (k === '?' || k === '/') return { type: 'help' };
   if (k === 'Escape') return null; // cancel
 
   const focusMap: Record<string, Dir> = { h: 'left', j: 'down', k: 'up', l: 'right' };

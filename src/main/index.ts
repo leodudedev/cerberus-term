@@ -29,6 +29,7 @@ function buildMenu(): void {
   const isMac = process.platform === 'darwin';
   const openSettings = (): void => mainWindow?.webContents.send('cerberus:open-settings');
   const toggleTheme = (): void => mainWindow?.webContents.send('cerberus:toggle-theme');
+  const openShortcuts = (): void => mainWindow?.webContents.send('cerberus:open-shortcuts');
   const tab = (action: string): void => mainWindow?.webContents.send('cerberus:tab', action);
   // Clipboard can't go through role:'copy'/'paste': with the WebGL renderer a
   // terminal selection is drawn by xterm, not a DOM selection, so Chromium's
@@ -142,7 +143,20 @@ function buildMenu(): void {
             ]
           } as MenuItemConstructorOptions
         ]
-      : [])
+      : []),
+    {
+      // role:'help' so macOS files it under the standard Help menu (and gets its
+      // search field). Ctrl+/ is readline's undo, so off macOS the accelerator
+      // moves to Ctrl+Shift+/ like the other shell-owned keys.
+      role: 'help',
+      submenu: [
+        {
+          label: 'Keyboard Shortcuts',
+          accelerator: isMac ? 'Cmd+/' : 'Ctrl+Shift+/',
+          click: openShortcuts
+        }
+      ]
+    }
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));

@@ -233,6 +233,9 @@
         }
       }
       .tab-chip-title {
+        /* Fill the chip so the close button parks at the right edge even when
+           the label is shorter than the chip's min-width. */
+        flex: 1 1 auto;
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -561,6 +564,41 @@
       /* separates the caveat from the rows it applies to */
       .settings-note {
         margin-top: 10px;
+      }
+      /* shortcuts cheat sheet */
+      .shortcuts-list {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .shortcuts-group {
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+        margin: 14px 0 6px;
+      }
+      .shortcuts-list > .shortcuts-group:first-child {
+        margin-top: 0;
+      }
+      .shortcuts-row {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        padding: 3px 0;
+      }
+      /* Fixed key column so every label starts on the same line, which is what
+         makes the sheet scannable rather than a ragged list. */
+      .shortcuts-keys {
+        flex: 0 0 150px;
+        color: var(--text);
+        font-family: Menlo, Monaco, monospace;
+        font-size: 11px;
+        text-align: right;
+      }
+      .shortcuts-label {
+        flex: 1 1 auto;
+        color: var(--muted);
+        font-size: 12px;
       }
       /* confirm dialog */
       .confirm-modal {

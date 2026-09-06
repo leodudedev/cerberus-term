@@ -1,6 +1,7 @@
 import { Workspace } from './Workspace.js';
 import { openSettingsEditor } from './SettingsEditor.js';
 import { openHooksConsent } from './HooksConsent.js';
+import { openShortcutsOverlay } from './ShortcutsOverlay.js';
 import { installKeymap, type CerberusAction } from './keymap.js';
 import { applyPref, getPref, toggleTheme } from './themes.js';
 
@@ -41,7 +42,10 @@ if (host) {
   // tmux-style keyboard control (leader Ctrl+B).
   installKeymap();
   window.addEventListener('cerberus-action', (ev) => {
-    ws.handleCerberusAction((ev as CustomEvent<CerberusAction>).detail);
+    const action = (ev as CustomEvent<CerberusAction>).detail;
+    // The cheat sheet is UI, not a pane operation — it never reaches Workspace.
+    if (action.type === 'help') return openShortcutsOverlay();
+    ws.handleCerberusAction(action);
   });
 
   // Tab shortcuts routed from the native menu / main process.
@@ -49,6 +53,9 @@ if (host) {
 
   // Theme toggle (native menu View -> Toggle Theme).
   window.cerberusUI.onToggleTheme(() => toggleTheme());
+
+  // Help menu (Cmd+/ on macOS, Ctrl+Shift+/ elsewhere).
+  window.cerberusUI.onOpenShortcuts(() => openShortcutsOverlay());
 
   // Edit menu -> the focused terminal, or back to Chromium when no pane wants it
   // (settings modal inputs, or a copy with nothing selected).
