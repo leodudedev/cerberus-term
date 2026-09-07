@@ -30,6 +30,13 @@ Installers for each version are on the
 
 ### Changed
 
+- **CI actions bumped off the Node 20 runtime** — `actions/checkout@v7`,
+  `pnpm/action-setup@v6`, `actions/setup-node@v7`, `actions/upload-artifact@v7`.
+  Every run since 0.13.0 warned that these were being forced onto Node 24; that
+  substitution is a grace period, not a contract, and the release build is what
+  breaks when it ends. Behaviour is unchanged: the caching changes in
+  `setup-node` v5/v6 only affect the *automatic* path, and this repo names
+  `cache: pnpm` explicitly.
 - The README's install section leads with the script and demotes the direct
   downloads, and the quarantine note now says *why* it happens and that macOS 15
   moved "Open Anyway" into System Settings. The old right-click → Open it used
