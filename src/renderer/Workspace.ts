@@ -542,7 +542,7 @@ export class Workspace {
     }
   }
 
-  // ▤ -> the project's markdown, listed in a dropdown anchored to this pane and
+  // The document button -> the project's markdown, listed in a dropdown anchored to this pane and
   // read in an overlay over it. Nothing here touches the pty: the pane keeps its
   // size, so whatever TUI is running underneath never redraws.
   private async openDocs(leafId: string): Promise<void> {

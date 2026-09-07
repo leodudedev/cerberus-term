@@ -27,19 +27,32 @@ const GLYPH_SCALE: Record<string, {size: number, top: number}> = {
   '⬓': {size: 1, top: 0}, // split-down — baseline
   '✕': {size: 0.85, top: 2}, // kill — renders slightly bold/large
   '⚙': {size: 1.2, top: 1}, // gear — renders as a near-invisible dot
-  '▤': {size: 0.9, top: 1}, // docs — block glyph, heavy at full size
-  '⤢': {size: 1.1, top: 1}, // zoom — arrow glyph, slightly small at 12px
-  '⤡': {size: 1.1, top: 1} // unzoom
+  '⤢': {size: 1.45, top: 1}, // zoom — arrow glyph, reads small at 12px
+  '⤡': {size: 1.45, top: 1} // unzoom
 };
+
+// A few operations have no glyph that reads as what it does at 12px — the
+// document one especially, where every candidate is either an abstract block
+// or an emoji. Those get a stroked icon instead, drawn in currentColor so it
+// still follows the header's hover/active states.
+export const ICON_DOC =
+  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" ' +
+  'stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M3.75 1.75h5L12.25 5.25v9H3.75z"/><path d="M8.5 1.9V5.5h3.6"/>' +
+  '<path d="M6 8.4h4M6 11h4"/></svg>';
 
 function button(glyph: string, title: string, cmd: PaneCmd, leafId: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'pane-btn';
   b.type = 'button';
-  b.textContent = glyph;
+  if (glyph.startsWith('<svg')) {
+    b.innerHTML = glyph;
+  } else {
+    b.textContent = glyph;
+    b.style.fontSize = `${12 * (GLYPH_SCALE[glyph]?.size ?? 1)}px`;
+    b.style.marginTop = `${(GLYPH_SCALE[glyph]?.top ?? 1)}px`;
+  }
   b.title = title;
-  b.style.fontSize = `${12 * (GLYPH_SCALE[glyph]?.size ?? 1)}px`;
-  b.style.marginTop = `${(GLYPH_SCALE[glyph]?.top ?? 1)}px`;
   b.addEventListener('pointerdown', (e) => e.stopPropagation());
   b.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -79,7 +92,7 @@ export function makePaneHeader(
 
   // Same gate as the star: a follower pane tails a log outside any project of
   // its own, so a project-scoped document list would be listing someone else's.
-  const docs = button('▤', 'Project docs', 'open-docs', leafId);
+  const docs = button(ICON_DOC, 'Project docs', 'open-docs', leafId);
   docs.classList.add('pane-btn-docs');
 
   if (showFavorites) buttons.append(star, heart, docs);

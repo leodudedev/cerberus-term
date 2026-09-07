@@ -10,7 +10,7 @@ type Risk = 'safe' | 'caution' | 'danger';
 
 export interface ProjectConfig {
   mute?: boolean;
-  // Extra markdown globs for this project's ▤ dropdown, replacing the global
+  // Extra markdown globs for this project's document dropdown, replacing the global
   // list. Paths are relative to the project root; the scan never leaves it.
   docs?: { globs?: string[] };
   chatId?: string;

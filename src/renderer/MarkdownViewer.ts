@@ -2,7 +2,7 @@ import type { DocEntry } from '../core/docs-bridge.js';
 import { highlightCode, renderMarkdown, renderMermaid, slugify } from './markdown.js';
 import { currentTheme } from './themes.js';
 
-// The document viewer opened from the ▤ dropdown. Two modes, switchable from
+// The document viewer opened from the pane header's document dropdown. Two modes, switchable from
 // its own toolbar: over the pane (keeps the other sessions visible) or over the
 // whole window (what a wide mermaid diagram needs). Either way it's an overlay,
 // never a pane: the pty underneath is never resized, so the TUI in it doesn't
@@ -66,11 +66,23 @@ function relFrom(root: string, abs: string): string {
   return abs.slice(normalizedRoot.length + 1).split('\\').join('/');
 }
 
+// Same reasoning as the pane header's document icon: at toolbar size the ⌕ and
+// ⤢ glyphs come out hairline-thin in the system font, so the toolbar draws them
+// as stroked icons in currentColor.
+const SVG = (body: string): string =>
+  '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="none" ' +
+  `stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+
+const ICON_FIND = SVG('<circle cx="7" cy="7" r="4.25"/><path d="M10.2 10.2 14 14"/>');
+const ICON_EXPAND = SVG('<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/>');
+const ICON_COLLAPSE = SVG('<path d="M13 3 9.5 6.5M9.5 6.5h3M9.5 6.5v-3M3 13l3.5-3.5M6.5 9.5h-3M6.5 9.5v3"/>');
+
 function button(className: string, glyph: string, title: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = className;
-  b.textContent = glyph;
+  if (glyph.startsWith('<svg')) b.innerHTML = glyph;
+  else b.textContent = glyph;
   b.title = title;
   return b;
 }
@@ -98,8 +110,12 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   title.className = 'md-title';
   const spacer = document.createElement('span');
   spacer.className = 'md-spacer';
-  const findBtn = button('md-btn', '⌕', 'Find in document (Cmd+F)');
-  const expand = button('md-btn', fullscreen ? '⤡' : '⤢', 'Toggle full window');
+  const findBtn = button('md-btn md-btn-icon', ICON_FIND, 'Find in document (Cmd+F)');
+  const expand = button(
+    'md-btn md-btn-icon',
+    fullscreen ? ICON_COLLAPSE : ICON_EXPAND,
+    'Toggle full window'
+  );
   const closeBtn = button('md-btn md-close', '✕', 'Close (Esc)');
 
   bar.append(back, title, spacer, findBtn, expand, closeBtn);
@@ -369,7 +385,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
 
   expand.addEventListener('click', () => {
     fullscreen = !fullscreen;
-    expand.textContent = fullscreen ? '⤡' : '⤢';
+    expand.innerHTML = fullscreen ? ICON_COLLAPSE : ICON_EXPAND;
     mount();
     onFullscreenChange?.(fullscreen);
     content.focus();

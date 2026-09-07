@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { DEFAULT_DOC_GLOBS, type DocEntry, type DocsListResult } from './docs-bridge.js';
 
-// Which markdown files the pane's ▤ button lists. The scan is rooted at the
+// Which markdown files the pane's document button lists. The scan is rooted at the
 // project the pane sits in and never leaves it: the dropdown is a project tool,
 // not a file browser, and a viewer that can be pointed anywhere is a viewer that
 // can be pointed at ~/.ssh by a bad glob in a shared .cerberus.json.

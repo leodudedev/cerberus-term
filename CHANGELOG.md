@@ -12,7 +12,7 @@ Installers for each version are on the
 
 ### Added
 
-- **A markdown reader in every pane.** The new ▤ button in a pane header lists
+- **A markdown reader in every pane.** The new document button in a pane header lists
   the markdown of the project that pane is in — the repo root plus configurable
   folders (`docs/`, `doc/`, `documenti/`, `.claude/` by default), newest first
   with `CLAUDE.md`, `AGENTS.md` and `README.md` pinned — and opens the one you

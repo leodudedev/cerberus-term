@@ -15,7 +15,7 @@ export interface TelegramSettings {
   lang?: 'en' | 'it';
 }
 
-// The markdown browser behind the pane's ▤ button. `globs` are extra paths to
+// The markdown browser behind the pane's document button. `globs` are extra paths to
 // scan, relative to the project root and never above it; root-level markdown is
 // listed whatever they say. A per-project .cerberus.json can replace the list.
 export interface DocsSettings {

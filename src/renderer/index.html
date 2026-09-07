@@ -724,7 +724,7 @@
         color: #fff;
       }
 
-      /* ---- project docs dropdown (▤) --------------------------------------
+      /* ---- project docs dropdown --------------------------------------
          Anchored inside the pane body, like the find bar: a pane holding half
          the screen gets a list half the screen wide. */
       .docs-dropdown {
@@ -843,6 +843,14 @@
         font-size: 13px;
         line-height: 1.2;
         cursor: pointer;
+      }
+      /* icon buttons: the svg carries the size, so the padding just gives it a
+         hit area that matches the text ones */
+      .md-btn-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 6px;
       }
       .md-btn:hover:not(:disabled) {
         background: var(--btn-hover);
@@ -989,6 +997,8 @@
       /* find-in-document sits at the top-right of the viewer, over the content */
       .search-bar.md-find {
         top: 40px;
+        /* clear of the document's scrollbar, which .md-content always shows */
+        right: 28px;
         z-index: 21;
       }
       /* Painted with the CSS Custom Highlight API, so no <mark> is ever injected

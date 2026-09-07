@@ -77,7 +77,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     title: 'Project docs',
-    hint: "The ▤ button in a pane header lists the markdown in that pane's project.",
+    hint: "The document button in a pane header lists the markdown in that pane's project.",
     items: [
       { keys: '↑ ↓', label: 'Move through the file list' },
       { keys: 'Enter', label: 'Open the selected document' },

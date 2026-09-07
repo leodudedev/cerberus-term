@@ -1,6 +1,6 @@
 import type { DocEntry } from '../core/docs-bridge.js';
 
-// The ▤ button's dropdown: every markdown file in the project the pane sits in.
+// The document button's dropdown: every markdown file in the project the pane sits in.
 // Anchored inside the pane element (like the find bar) rather than centred on
 // the window — a pane holding half the screen gets a list half the screen wide,
 // which is what "open the docs of *this* pane" should look like.
@@ -24,7 +24,7 @@ function splitRel(rel: string): { dir: string; name: string } {
 export function openDocsDropdown(opts: DocsDropdownOptions): void {
   const { host, root, entries, truncated, onSelect, onClose } = opts;
 
-  // A second click on ▤ closes it, the way every dropdown behaves.
+  // A second click on the button closes it, the way every dropdown behaves.
   const already = openDropdowns.get(host);
   if (already) {
     already();
@@ -69,7 +69,7 @@ export function openDocsDropdown(opts: DocsDropdownOptions): void {
   const onOutside = (e: PointerEvent): void => {
     const target = e.target as HTMLElement | null;
     if (panel.contains(target)) return;
-    // The ▤ button itself toggles; letting the outside handler fire too would
+    // The button itself toggles; letting the outside handler fire too would
     // close and immediately reopen.
     if (target?.closest('.pane-btn-docs')) return;
     close();

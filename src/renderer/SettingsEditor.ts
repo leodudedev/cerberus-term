@@ -79,7 +79,7 @@ export async function openSettingsEditor(): Promise<void> {
     strays.append(o);
   }
 
-  // Which paths the pane's ▤ button scans, relative to the project root.
+  // Which paths the pane's document button scans, relative to the project root.
   // Root-level markdown is always listed, so an empty field is a valid answer
   // ("only what's at the top of the project") and not a broken one.
   const docGlobs = textInput((s.docs?.globs ?? []).join(', '));
