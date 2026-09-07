@@ -46,9 +46,12 @@ publish:
 
 # Stable, version-less artifact names so README can link to
 # releases/latest/download/<name> permanently.
+# zip alongside dmg: install.sh extracts it with ditto, and a curl download
+# never gets the Gatekeeper quarantine a browser download does.
 mac:
   target:
     - dmg
+    - zip
   category: public.app-category.developer-tools
   artifactName: ${productName}-mac-${arch}.${ext}
 

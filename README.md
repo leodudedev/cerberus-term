@@ -15,7 +15,7 @@
 ![xterm.js](https://img.shields.io/badge/xterm.js-2E2E2E?logo=gnometerminal&logoColor=white)
 ![license MIT](https://img.shields.io/badge/license-MIT-blue)
 
-[Download](#download) · [First run](#first-run) · [Controls](#controls) · [From your phone](#from-your-phone) · [Config](#per-project-config) · [Contributing](#contributing)
+[Install](#install) · [First run](#first-run) · [Controls](#controls) · [From your phone](#from-your-phone) · [Config](#per-project-config) · [Contributing](#contributing)
 
 <img src="assets/screenshot-app.png" alt="Cerberus running four panes: Codex, Claude Code, a shell, and Copilot CLI" width="900">
 
@@ -55,9 +55,24 @@ flowchart LR
     T -->|"keystroke / prompt"| A
 ```
 
-## Download
+## Install
 
-Grab the installer for your OS from the latest release:
+### macOS and Linux — one line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/leodudedev/cerberus-term/main/install.sh | sh
+```
+
+Installs `Cerberus.app` into `/Applications` on macOS, or the AppImage into
+`~/.local/share/cerberus-term` plus a menu entry on Linux. Run the same command
+again to update; the script checks the SHA-256 of what it downloads against the
+`SHA256SUMS-*.txt` published with the release, and refuses to touch an install
+while the app is running.
+
+Read it first if you'd rather — it's [`install.sh`](install.sh) in this repo, and
+`--version X.Y.Z` pins a specific release.
+
+### Manual download
 
 | OS | File |
 |----|------|
@@ -68,12 +83,18 @@ Grab the installer for your OS from the latest release:
 
 Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-term/releases/latest).
 
-> Builds aren't notarized yet. **macOS** flags the app as "damaged" (Gatekeeper
-> quarantine on a non-notarized app) — clear it once, then open normally:
+> Builds aren't signed or notarized yet, and a **browser** download is what
+> attaches the Gatekeeper quarantine that makes **macOS** call the app
+> "damaged". Clear it once, then open normally:
 > ```bash
 > xattr -cr /Applications/Cerberus.app
 > ```
-> **Windows**: dismiss the SmartScreen prompt. Signing/notarization is on the list.
+> On macOS 15 and later, "Open Anyway" lives in System Settings → Privacy &
+> Security; the old right-click → Open no longer works. The install script above
+> sidesteps all of this, because `curl` doesn't set the quarantine flag.
+>
+> **Windows**: dismiss the SmartScreen prompt — there's no equivalent shortcut
+> there. Signing and notarization are on the list.
 
 ## Requirements
 

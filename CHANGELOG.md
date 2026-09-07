@@ -8,6 +8,33 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [Unreleased]
+
+### Added
+
+- **A one-line installer for macOS and Linux**, `install.sh`, published in the
+  repo and now the first thing the README offers:
+  `curl -fsSL .../install.sh | sh`. The Gatekeeper quarantine that makes an
+  unsigned build open as "damaged" is attached by the *browser*, not by the
+  format — `curl` never sets it — so an install that never goes through a
+  browser opens on the first double click with no `xattr -cr`. It puts
+  `Cerberus.app` in `/Applications` on macOS and the AppImage plus a desktop
+  entry under `~/.local/share` on Linux, re-runs as an update, refuses to swap a
+  bundle out from under a running app, and verifies every download against the
+  release checksums.
+- **`SHA256SUMS-<os>.txt` on every release**, uploaded by the build workflow
+  after the installers land. The installer verifies against them, and a manual
+  download can now be checked by hand.
+- **A `zip` artifact for macOS** alongside the `.dmg`, which is what the
+  installer extracts — a disk image has to be mounted, an archive doesn't.
+
+### Changed
+
+- The README's install section leads with the script and demotes the direct
+  downloads, and the quarantine note now says *why* it happens and that macOS 15
+  moved "Open Anyway" into System Settings. The old right-click → Open it used
+  to imply stopped working there.
+
 ## [0.13.0] — 2026-09-07
 
 ### Added
