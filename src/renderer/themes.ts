@@ -39,6 +39,12 @@ const darkTheme: ITheme = {
   cursor: '#4a9d7f',
   cursorAccent: '#1a1a1a',
   selectionBackground: '#2b3a34',
+  // xterm draws its own scrollbar (a VS Code scrollable element), so the app's
+  // ::-webkit rules can't reach it — these keep the terminals' slider the same
+  // colour as every other scrollbar. Mirrors --scroll-thumb in index.html.
+  scrollbarSliderBackground: '#4a4a4a',
+  scrollbarSliderHoverBackground: '#5f7d72',
+  scrollbarSliderActiveBackground: '#6f9184',
   // Vivid ANSI palette (VS Code-family hues) so apps that only use the 16-color
   // ANSI set don't look washed-out. Truecolor apps bypass this via COLORTERM.
   black: '#3a3a3a',
@@ -68,6 +74,9 @@ const lightTheme: ITheme = {
   cursor: '#2f7d63',
   cursorAccent: '#f5f5f5',
   selectionBackground: '#cfe6dc',
+  scrollbarSliderBackground: '#bfbfbf',
+  scrollbarSliderHoverBackground: '#8fb3a7',
+  scrollbarSliderActiveBackground: '#7aa294',
   black: '#2a2a2a',
   red: '#c0392b',
   green: '#2f7d63',

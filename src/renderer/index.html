@@ -86,6 +86,22 @@
         background: var(--scroll-thumb-hover);
         background-clip: padding-box;
       }
+      /* xterm's scrollbar is a div it draws itself, not a native one, so the
+         rules above never reach it. Its colours come from the terminal theme
+         (themes.ts); the geometry has to be matched here. xterm writes the
+         slider's width and offset inline (14px wide, flush against the track),
+         so the override needs !important to land the same 6px thumb inside a
+         4px gutter the ::-webkit rules give every other scrollbar. */
+      .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+        width: 6px !important;
+        left: 4px !important;
+        border-radius: 3px;
+      }
+      .xterm .xterm-scrollable-element > .scrollbar.horizontal > .slider {
+        height: 6px !important;
+        top: 4px !important;
+        border-radius: 3px;
+      }
       /* workspace: tab strip on top, pane viewport below */
       .workspace {
         display: flex;
