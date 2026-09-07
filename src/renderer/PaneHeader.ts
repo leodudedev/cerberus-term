@@ -2,6 +2,8 @@
 // the same 'pane-cmd' window event as the temp keymap, tagged with this pane's
 // leafId so they act on their own pane regardless of focus.
 
+import { ICONS } from './icons.js';
+
 type PaneCmd =
   | 'split-right'
   | 'split-down'
@@ -16,42 +18,11 @@ function emit(cmd: PaneCmd, leafId: string): void {
   window.dispatchEvent(new CustomEvent('pane-cmd', { detail: { cmd, leafId } }));
 }
 
-// These glyphs come from different Unicode blocks (symbols, geometric shapes,
-// dingbats) and render at different intrinsic sizes at the same font-size in
-// the system font — scale each toward a common visual size.
-const GLYPH_SCALE: Record<string, {size: number, top: number}> = {
-  '☆': {size: 0.8, top: 2}, // star outline — renders oversized in the system font
-  '★': {size: 0.8, top: 2},
-  '♡': {size: 0.8, top: 2}, // heart suit — same, oversized
-  '◧': {size: 1, top: 0}, // split-right — baseline
-  '⬓': {size: 1, top: 0}, // split-down — baseline
-  '✕': {size: 0.85, top: 2}, // kill — renders slightly bold/large
-  '⚙': {size: 1.2, top: 1}, // gear — renders as a near-invisible dot
-  '⤢': {size: 1.45, top: 1}, // zoom — arrow glyph, reads small at 12px
-  '⤡': {size: 1.45, top: 1} // unzoom
-};
-
-// A few operations have no glyph that reads as what it does at 12px — the
-// document one especially, where every candidate is either an abstract block
-// or an emoji. Those get a stroked icon instead, drawn in currentColor so it
-// still follows the header's hover/active states.
-export const ICON_DOC =
-  '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" ' +
-  'stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' +
-  '<path d="M3.75 1.75h5L12.25 5.25v9H3.75z"/><path d="M8.5 1.9V5.5h3.6"/>' +
-  '<path d="M6 8.4h4M6 11h4"/></svg>';
-
-function button(glyph: string, title: string, cmd: PaneCmd, leafId: string): HTMLButtonElement {
+function button(icon: string, title: string, cmd: PaneCmd, leafId: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'pane-btn';
   b.type = 'button';
-  if (glyph.startsWith('<svg')) {
-    b.innerHTML = glyph;
-  } else {
-    b.textContent = glyph;
-    b.style.fontSize = `${12 * (GLYPH_SCALE[glyph]?.size ?? 1)}px`;
-    b.style.marginTop = `${(GLYPH_SCALE[glyph]?.top ?? 1)}px`;
-  }
+  b.innerHTML = icon;
   b.title = title;
   b.addEventListener('pointerdown', (e) => e.stopPropagation());
   b.addEventListener('click', (e) => {
@@ -59,6 +30,14 @@ function button(glyph: string, title: string, cmd: PaneCmd, leafId: string): HTM
     emit(cmd, leafId);
   });
   return b;
+}
+
+// The buttons come in groups — read, favorites, split, window — and a hairline
+// between them is what keeps eight same-weight icons from reading as one run.
+function separator(): HTMLElement {
+  const s = document.createElement('span');
+  s.className = 'pane-sep';
+  return s;
 }
 
 export interface PaneHeader {
@@ -85,27 +64,26 @@ export function makePaneHeader(
 
   // Favorites act on a pane's live cwd; follower/read-only panes tail a log and
   // have no interactive shell to cd, so they don't get the star/heart buttons.
+  // Same gate for the document list: a follower tails a log outside any project
+  // of its own, so it would be listing someone else's markdown.
   const showFavorites = opts.favorites !== false;
-  const star = button('☆', 'Add to favorites', 'toggle-favorite', leafId);
+  const star = button(ICONS.star, 'Add to favorites', 'toggle-favorite', leafId);
   star.classList.add('pane-btn-star');
-  const heart = button('♡', 'Open favorites', 'open-favorites', leafId);
-
-  // Same gate as the star: a follower pane tails a log outside any project of
-  // its own, so a project-scoped document list would be listing someone else's.
-  const docs = button(ICON_DOC, 'Project docs', 'open-docs', leafId);
+  const heart = button(ICONS.heart, 'Open favorites', 'open-favorites', leafId);
+  const docs = button(ICONS.doc, 'Project docs', 'open-docs', leafId);
   docs.classList.add('pane-btn-docs');
 
-  if (showFavorites) buttons.append(star, heart, docs);
-  const zoom = button('⤢', 'Zoom pane (Ctrl+B z)', 'zoom', leafId);
-  buttons.append(
-    zoom,
-    button('◧', 'Split right', 'split-right', leafId),
-    button('⬓', 'Split down', 'split-down', leafId),
-    button('✕', 'Close pane', 'kill', leafId)
-  );
+  const zoom = button(ICONS.expand, 'Zoom pane (Ctrl+B z)', 'zoom', leafId);
 
-  const gear = button('⚙', 'Edit .cerberus.json', 'config', leafId);
-  buttons.append(gear);
+  if (showFavorites) buttons.append(docs, separator(), star, heart, separator());
+  buttons.append(
+    button(ICONS.splitRight, 'Split right', 'split-right', leafId),
+    button(ICONS.splitDown, 'Split down', 'split-down', leafId),
+    separator(),
+    button(ICONS.sliders, 'Edit .cerberus.json', 'config', leafId),
+    zoom,
+    button(ICONS.close, 'Close pane', 'kill', leafId)
+  );
 
   header.append(title, buttons);
 
@@ -116,13 +94,13 @@ export function makePaneHeader(
   });
 
   const setFavoriteActive = (active: boolean): void => {
-    star.textContent = active ? '★' : '☆';
+    star.innerHTML = active ? ICONS.starFilled : ICONS.star;
     star.title = active ? 'Remove from favorites' : 'Add to favorites';
     star.classList.toggle('pane-btn-star-active', active);
   };
 
   const setZoomActive = (active: boolean): void => {
-    zoom.textContent = active ? '⤡' : '⤢';
+    zoom.innerHTML = active ? ICONS.collapse : ICONS.expand;
     zoom.title = active ? 'Restore pane (Ctrl+B z)' : 'Zoom pane (Ctrl+B z)';
   };
 

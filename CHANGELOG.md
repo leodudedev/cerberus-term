@@ -18,14 +18,30 @@ Installers for each version are on the
   with `CLAUDE.md`, `AGENTS.md` and `README.md` pinned — and opens the one you
   pick as a rendered document over the pane: headings, tables, highlighted code
   and mermaid diagrams in the app's own palette, with find-in-document
-  (`Cmd+F`), links between documents followed in place, ⤢ to take over the whole
-  window, and ✕ or Esc back to the CLI. The document is an overlay, not a pane,
+  (`Cmd+F`), links between documents followed in place, an expand button to take
+  over the whole window, and close or Esc back to the CLI. The document is an overlay, not a pane,
   so the pty underneath is never resized and the session in it never redraws.
 
   The scan is rooted at the project (nearest `.git`, else the pane's cwd) and
   cannot leave it: symlinks out are skipped, and a read outside the root is
   refused in main whatever the renderer asks for. The folder list is global in
   Settings and overridable per project with `docs.globs` in `.cerberus.json`.
+
+### Changed
+
+- **The pane header's buttons are drawn icons now, in groups.** They were
+  Unicode glyphs from half a dozen blocks, each landing at its own weight and
+  optical size at 12px — the settings gear was a dot, the document one an
+  anonymous block. They're one stroked set on a single grid, a little larger,
+  ordered document · favourites · splits · window and separated by hairlines,
+  with the close button last.
+- **The focused pane is framed on all four sides.** The highlight was an inset
+  outline, which the terminal canvas painted straight over, leaving the accent
+  only above and below the pane.
+- **Scrollbars follow the theme.** The platform scrollbar was a bright slab
+  against the dark panels; every scrolling surface — the document list, the
+  document itself, the settings, the terminals — now gets a thin one in the
+  app's own tones.
 
 ### Fixed
 

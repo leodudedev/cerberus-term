@@ -226,8 +226,8 @@ permission prompt, and the Telegram push.
 | Action | Mouse / button | Keyboard |
 |--------|----------------|----------|
 | Split right / down | ◧ / ⬓ in the pane header | `Ctrl+B` then `%` / `"` (or Cmd+D / Cmd+Shift+D) |
-| Kill pane | ✕, or right-click the pane | `Ctrl+B` then `x` (or Cmd+K) |
-| Zoom pane to the whole tab | ⤢ | `Ctrl+B` then `z` |
+| Kill pane | the close button, or right-click the pane | `Ctrl+B` then `x` (or Cmd+K) |
+| Zoom pane to the whole tab | the expand button | `Ctrl+B` then `z` |
 | Focus pane | click | `Ctrl+B` then `h/j/k/l` or arrows |
 | Resize | drag the divider | `Ctrl+B` then `H/J/K/L` |
 | New / close tab | `+` / `✕` in the tab bar | `Cmd+T` / `Cmd+W` |
@@ -263,9 +263,9 @@ project that pane is sitting in — the repo root plus whatever folders you
 configure (`docs/`, `doc/`, `documenti/`, `.claude/` by default), most recently
 touched first, with `CLAUDE.md`, `AGENTS.md` and `README.md` pinned on top. Pick
 one and it opens over the pane: headings, tables, syntax-highlighted code and
-mermaid diagrams, in the app's own light/dark palette. ⤢ takes it to the whole
+mermaid diagrams, in the app's own light/dark palette. Expand takes it to the whole
 window, `Cmd+F` searches inside it, links between documents are followed in
-place with ‹ to go back, and ✕ or Esc drops you straight back to the CLI. The
+place with the back button, and close or Esc drops you straight back to the CLI. The
 pane is never resized, so the session underneath doesn't redraw — and nothing
 outside the project is ever listed or read.
 

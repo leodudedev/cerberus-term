@@ -28,6 +28,8 @@
         --error: #e06c6c;
         --hint: #7a8a80;
         --overlay: rgba(0, 0, 0, 0.5);
+        --scroll-thumb: #4a4a4a;
+        --scroll-thumb-hover: #5f7d72;
       }
       :root[data-theme='light'] {
         --bg: #f5f5f5;
@@ -45,6 +47,8 @@
         --error: #c0392b;
         --hint: #5a7a70;
         --overlay: rgba(0, 0, 0, 0.35);
+        --scroll-thumb: #bfbfbf;
+        --scroll-thumb-hover: #8fb3a7;
       }
 
       html,
@@ -53,6 +57,36 @@
         height: 100%;
         background: var(--bg);
         overflow: hidden;
+      }
+      /* One scrollbar for the whole app, in the theme's own tones: the platform
+         one is a bright slab against a dark panel and it shows up in every list
+         (the document dropdown, the viewer, the settings). Styled rather than
+         overlaid, so it still reserves its gutter and nothing lands under it.
+         Both properties are set: `scrollbar-color` covers what Chromium draws
+         for `overflow: overlay` surfaces, the ::-webkit rules do the rest. */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scroll-thumb) transparent;
+      }
+      ::-webkit-scrollbar {
+        width: 11px;
+        height: 11px;
+      }
+      ::-webkit-scrollbar-track,
+      ::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        /* the transparent border is the padding: it keeps the thumb off the
+           edge of the gutter without a second element */
+        background: var(--scroll-thumb);
+        background-clip: padding-box;
+        border: 3px solid transparent;
+        border-radius: 8px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--scroll-thumb-hover);
+        background-clip: padding-box;
       }
       /* workspace: tab strip on top, pane viewport below */
       .workspace {
@@ -296,10 +330,18 @@
         background: var(--btn-hover);
         color: var(--text);
       }
-      /* focused pane highlight; inset outline so it doesn't shift layout */
-      .pane.focused {
-        outline: 1px solid var(--accent);
-        outline-offset: -1px;
+      /* Focused pane highlight. An inset outline is painted with the pane's own
+         box, so the terminal canvas — a descendant — paints straight over the
+         left and right edges and only the header/footer strips survive. A
+         pointer-transparent overlay above the content draws the full frame. */
+      .pane.focused::after,
+      .pane.attention::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border: 1px solid var(--accent);
+        pointer-events: none;
+        z-index: 30;
       }
       /* Zoomed pane: lifted over the rest of the layout instead of being pulled
          out of the tree, so its terminal and pty are untouched. The pane is
@@ -313,18 +355,18 @@
       }
       /* pending-permission highlight; cleared when the pane is focused.
          Wins over .focused via source order + !important on the color. */
-      .pane.attention {
-        outline: 2px solid rgba(240, 190, 40, 0.9) !important;
-        outline-offset: -2px;
+      .pane.attention::after {
+        border-width: 2px;
+        border-color: rgba(240, 190, 40, 0.9);
         animation: pane-attention 1s ease-in-out infinite;
       }
       @keyframes pane-attention {
         0%,
         100% {
-          outline-color: rgba(240, 190, 40, 0.9);
+          border-color: rgba(240, 190, 40, 0.9);
         }
         50% {
-          outline-color: rgba(240, 190, 40, 0.35);
+          border-color: rgba(240, 190, 40, 0.35);
         }
       }
       .splitter:hover {
@@ -360,17 +402,22 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 20px;
-        height: 20px;
+        width: 22px;
+        height: 22px;
         padding: 0;
         border: 0;
-        border-radius: 3px;
+        border-radius: 4px;
         background: transparent;
         color: var(--muted);
-        font-size: 12px;
-        font-variant-emoji: text;
-        line-height: 1;
+        line-height: 0;
         cursor: pointer;
+      }
+      /* hairline between the button groups (docs | favorites | split | window) */
+      .pane-sep {
+        width: 1px;
+        height: 12px;
+        margin: 0 3px;
+        background: var(--header-border);
       }
       .pane-btn:hover {
         background: var(--btn-hover);
@@ -617,6 +664,9 @@
         position: absolute;
         top: 4px;
         right: 12px;
+        /* a pane can be a third of the window wide — the bar shrinks with it
+           rather than running off the left edge */
+        max-width: calc(100% - 24px);
         z-index: 5;
         display: flex;
         align-items: center;
@@ -629,7 +679,8 @@
         font-family: system-ui, sans-serif;
       }
       .search-input {
-        width: 180px;
+        flex: 0 1 180px;
+        min-width: 0;
         background: var(--input-bg);
         color: var(--text);
         border: 1px solid var(--border);
@@ -834,23 +885,19 @@
         flex: 1 1 auto;
       }
       .md-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        padding: 0;
         background: transparent;
         color: var(--muted);
         border: 1px solid transparent;
         border-radius: 4px;
-        padding: 2px 7px;
-        font-size: 13px;
-        line-height: 1.2;
+        line-height: 0;
         cursor: pointer;
-      }
-      /* icon buttons: the svg carries the size, so the padding just gives it a
-         hit area that matches the text ones */
-      .md-btn-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2px 6px;
       }
       .md-btn:hover:not(:disabled) {
         background: var(--btn-hover);
@@ -998,7 +1045,7 @@
       .search-bar.md-find {
         top: 40px;
         /* clear of the document's scrollbar, which .md-content always shows */
-        right: 28px;
+        right: 22px;
         z-index: 21;
       }
       /* Painted with the CSS Custom Highlight API, so no <mark> is ever injected
