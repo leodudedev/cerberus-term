@@ -228,6 +228,10 @@ Where two keys are listed, the second is Windows/Linux: `Ctrl+C`, `Ctrl+F` and
 friends are control characters the shell owns, so those bindings move to
 `Ctrl+Shift`. The `Ctrl+B` leader arms for two seconds; Esc cancels it.
 
+The `?` panel is the complete list, resolved for the machine it's opened on, and
+it carries a few bindings this table leaves out — split aliases, arrow resizing,
+window and fullscreen keys.
+
 Find searches the focused pane's scrollback: Enter and Shift+Enter walk the
 matches, `Aa` and `.*` toggle case sensitivity and regex, Esc closes.
 
