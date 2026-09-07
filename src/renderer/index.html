@@ -69,8 +69,8 @@
         scrollbar-color: var(--scroll-thumb) transparent;
       }
       ::-webkit-scrollbar {
-        width: 11px;
-        height: 11px;
+        width: 14px;
+        height: 14px;
       }
       ::-webkit-scrollbar-track,
       ::-webkit-scrollbar-corner {
@@ -81,7 +81,7 @@
            edge of the gutter without a second element */
         background: var(--scroll-thumb);
         background-clip: padding-box;
-        border: 3px solid transparent;
+        border: 4px solid transparent;
         border-radius: 8px;
       }
       ::-webkit-scrollbar-thumb:hover {
@@ -334,12 +334,19 @@
          box, so the terminal canvas — a descendant — paints straight over the
          left and right edges and only the header/footer strips survive. A
          pointer-transparent overlay above the content draws the full frame. */
+      .pane {
+        /* a few px of gutter around every pane: the focus frame is drawn in it,
+           clear of the splitters and the window edge instead of flush against
+           them (where it was a hairline nobody could see) */
+        padding: 3px;
+      }
       .pane.focused::after,
       .pane.attention::after {
         content: '';
         position: absolute;
-        inset: 0;
+        inset: 1px;
         border: 1px solid var(--accent);
+        border-radius: 4px;
         pointer-events: none;
         z-index: 30;
       }
@@ -679,7 +686,7 @@
         font-family: system-ui, sans-serif;
       }
       .search-input {
-        flex: 0 1 180px;
+        width: 180px;
         min-width: 0;
         background: var(--input-bg);
         color: var(--text);
@@ -689,6 +696,11 @@
         font-family: Menlo, Monaco, monospace;
         font-size: 12px;
         outline: none;
+      }
+      /* only inside the find bar, a row flex container: the document dropdown is
+         a column, where a flex-basis would set the field's height instead */
+      .search-bar .search-input {
+        flex: 0 1 180px;
       }
       .search-input:focus {
         border-color: var(--accent);
