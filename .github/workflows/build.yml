@@ -58,7 +58,18 @@ jobs:
         run: |
           set -euo pipefail
           sums="SHA256SUMS-${{ runner.os }}.txt"
-          shasum -a 256 Cerberus-* > "$sums"
+          # Hashed with node rather than a shell tool: no single one spans the
+          # three runners (macOS has shasum and no sha256sum, Git for Windows
+          # the reverse), and setup-node has already put node on all of them.
+          # Output is `<hash>  <file>`, the format install.sh parses.
+          node -e '
+            const fs = require("fs"), crypto = require("crypto")
+            for (const file of process.argv.slice(1)) {
+              const hash = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex")
+              console.log(`${hash}  ${file}`)
+            }
+          ' Cerberus-* > "$sums"
+          cat "$sums"
           gh release upload "$GITHUB_REF_NAME" "$sums" --clobber
 
       - uses: actions/upload-artifact@v7
