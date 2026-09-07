@@ -8,7 +8,7 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
-## [Unreleased]
+## [0.14.0] — 2026-09-07
 
 ### Added
 
@@ -27,6 +27,13 @@ Installers for each version are on the
   download can now be checked by hand.
 - **A `zip` artifact for macOS** alongside the `.dmg`, which is what the
   installer extracts — a disk image has to be mounted, an archive doesn't.
+
+  Two things the script deliberately doesn't cover. **Windows** has no
+  equivalent: SmartScreen isn't attached by the download the way the macOS
+  quarantine is, so nothing short of a signing certificate removes that prompt —
+  keep using the `.exe`. And **Intel Macs** still aren't built, so the script
+  says so and stops rather than installing an Apple Silicon build that can't
+  run. Both are unchanged from before, not new limits.
 
 ### Changed
 
