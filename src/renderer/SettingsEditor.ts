@@ -1,4 +1,4 @@
-import { STRAY_POLICIES, type Settings, type StrayPolicy } from '../core/settings.js';
+import type { Settings, StrayPolicy } from '../core/settings.js';
 
 // Global settings modal (reuses the config-modal styling). Opened via Cmd+,.
 
@@ -61,12 +61,16 @@ export async function openSettingsEditor(): Promise<void> {
   // a disowned dev server. Labels say what the app does, not the stored value.
   const strays = document.createElement('select');
   strays.className = 'settings-input';
+  // Typed as a Record so a policy added to StrayPolicy fails the typecheck
+  // here instead of quietly dropping an option. The list is built from these
+  // keys rather than imported from core/settings: that module reaches
+  // node:path through hook-targets, which a renderer bundle cannot load.
   const STRAY_LABELS: Record<StrayPolicy, string> = {
     ask: 'Ask me',
     terminate: 'Terminate them',
     leave: 'Leave them running'
   };
-  for (const policy of STRAY_POLICIES) {
+  for (const policy of Object.keys(STRAY_LABELS) as StrayPolicy[]) {
     const o = document.createElement('option');
     o.value = policy;
     o.textContent = STRAY_LABELS[policy];
