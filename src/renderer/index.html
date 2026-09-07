@@ -62,12 +62,10 @@
          one is a bright slab against a dark panel and it shows up in every list
          (the document dropdown, the viewer, the settings). Styled rather than
          overlaid, so it still reserves its gutter and nothing lands under it.
-         Both properties are set: `scrollbar-color` covers what Chromium draws
-         for `overflow: overlay` surfaces, the ::-webkit rules do the rest. */
-      * {
-        scrollbar-width: thin;
-        scrollbar-color: var(--scroll-thumb) transparent;
-      }
+         Styled only through ::-webkit-*: setting `scrollbar-width` or
+         `scrollbar-color` puts Chromium back on its own painter for that
+         element and drops the rules below, which is what left the terminals
+         (xterm sets neither) looking nothing like the lists. */
       ::-webkit-scrollbar {
         width: 14px;
         height: 14px;
@@ -226,6 +224,10 @@
       .tab-container {
         position: absolute;
         inset: 0;
+        /* Keeps the bottom pane's focus frame off the window's own rounded
+           corners, which would clip the accent away exactly at the corner. */
+        padding: 0 4px 4px;
+        box-sizing: border-box;
       }
       .tab-chip {
         display: flex;
