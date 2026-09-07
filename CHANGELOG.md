@@ -8,6 +8,39 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.13.0] — 2026-09-07
+
+### Added
+
+- **A keyboard shortcut cheat sheet**, opened by the `?` button in the tab bar,
+  by `Cmd+/` (`Ctrl+Shift+/` elsewhere), or from Help → Keyboard Shortcuts. The
+  leader key also answers `Ctrl+B ?`. Every binding the app has was reachable
+  only from the README until now, which is the wrong place to look them up from
+  inside the app. The list is built per platform, so nobody reads a `Cmd` row on
+  Windows.
+
+- **Cerberus now asks before leaving processes behind.** Closing a pane kills
+  its shell, and with it whatever was running in the foreground — that part has
+  always worked. What survives is everything detached from the terminal: a
+  `nohup`ed build, a `disown`ed job, a dev server whose launching shell already
+  exited. Those used to keep running with nothing left on screen to say so.
+
+  On quit the panes are inventoried before their ptys are killed, and anything
+  from that inventory still alive a moment later is listed by name with the
+  choice to terminate it or leave it running. A tick box records the answer;
+  Settings → *Leftover processes on quit* changes it back to asking. A process
+  that deliberately left its terminal — `setsid`, a double-forked daemon — is
+  not listed, on purpose: it is not the terminal's to kill.
+
+  The Windows path (PowerShell inventory, `taskkill /T /F`) is implemented and
+  unit-tested but, like the rest of the Windows support, has not been exercised
+  on real hardware.
+
+### Fixed
+
+- The close button of a renamed tab now parks at the right edge of the chip
+  instead of sitting against the label.
+
 ## [0.12.0] — 2026-08-08
 
 ### Added
