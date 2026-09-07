@@ -723,6 +723,330 @@
         background: var(--error);
         color: #fff;
       }
+
+      /* ---- project docs dropdown (▤) --------------------------------------
+         Anchored inside the pane body, like the find bar: a pane holding half
+         the screen gets a list half the screen wide. */
+      .docs-dropdown {
+        position: absolute;
+        top: 4px;
+        right: 12px;
+        z-index: 6;
+        display: flex;
+        flex-direction: column;
+        width: min(420px, calc(100% - 24px));
+        max-height: min(60%, 420px);
+        padding: 6px;
+        gap: 6px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        font-family: system-ui, sans-serif;
+      }
+      .docs-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .docs-root {
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .docs-filter {
+        width: auto;
+      }
+      .docs-list {
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .docs-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .docs-row.active {
+        background: var(--btn-hover);
+      }
+      .docs-path {
+        color: var(--text);
+        font-family: Menlo, Monaco, monospace;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .docs-row.pinned .docs-path {
+        font-weight: 600;
+      }
+      .docs-dir {
+        color: var(--muted);
+      }
+      .docs-note {
+        padding: 0 4px 2px;
+      }
+
+      /* ---- markdown viewer -------------------------------------------------
+         Absolute over the pane body (the pane header stays visible), or fixed
+         over the whole window when full-screen. Either way the pty underneath
+         keeps its size and never redraws. */
+      .md-viewer {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        font-family: system-ui, sans-serif;
+      }
+      .md-viewer.fullscreen {
+        position: fixed;
+        z-index: 200;
+      }
+      .md-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--border);
+      }
+      .md-title {
+        color: var(--text);
+        font-family: Menlo, Monaco, monospace;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .md-spacer {
+        flex: 1 1 auto;
+      }
+      .md-btn {
+        flex: 0 0 auto;
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 2px 7px;
+        font-size: 13px;
+        line-height: 1.2;
+        cursor: pointer;
+      }
+      .md-btn:hover:not(:disabled) {
+        background: var(--btn-hover);
+        color: var(--text);
+      }
+      .md-btn:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .md-close:hover {
+        color: var(--error);
+      }
+      .md-content {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        outline: none;
+      }
+      .md-body {
+        max-width: 78ch;
+        margin: 0 auto;
+        padding: 24px 28px 64px;
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.65;
+      }
+      .md-body h1,
+      .md-body h2,
+      .md-body h3,
+      .md-body h4 {
+        line-height: 1.3;
+        margin: 1.6em 0 0.6em;
+      }
+      .md-body h1 {
+        font-size: 1.7em;
+      }
+      .md-body h2 {
+        font-size: 1.35em;
+        padding-bottom: 0.2em;
+        border-bottom: 1px solid var(--border);
+      }
+      .md-body h3 {
+        font-size: 1.15em;
+      }
+      .md-body > :first-child {
+        margin-top: 0;
+      }
+      .md-body a {
+        color: var(--accent);
+      }
+      .md-body code {
+        font-family: Menlo, Monaco, monospace;
+        font-size: 0.88em;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 4px;
+      }
+      .md-body pre.md-pre {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 12px;
+        overflow-x: auto;
+      }
+      .md-body pre.md-pre code {
+        background: none;
+        border: 0;
+        padding: 0;
+        font-size: 0.85em;
+        line-height: 1.5;
+      }
+      .md-body blockquote {
+        margin: 1em 0;
+        padding: 0.1em 1em;
+        border-left: 3px solid var(--border);
+        color: var(--muted);
+      }
+      .md-body table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92em;
+      }
+      .md-body th,
+      .md-body td {
+        border: 1px solid var(--border);
+        padding: 5px 9px;
+        text-align: left;
+      }
+      .md-body th {
+        background: var(--panel);
+      }
+      .md-body img {
+        max-width: 100%;
+      }
+      /* A path that resolved to nothing (or to something outside the project):
+         show the alt text as a placeholder instead of a broken-image icon. */
+      .md-body img.md-img-missing {
+        display: inline-block;
+        min-height: 1em;
+        padding: 2px 6px;
+        border: 1px dashed var(--border);
+        border-radius: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .md-body hr {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 2em 0;
+      }
+      .md-task {
+        color: var(--muted);
+        margin-right: 4px;
+      }
+      /* The source is the element's text until mermaid replaces it with an SVG;
+         hide it in between rather than flashing the diagram's code. */
+      .md-mermaid.pending {
+        visibility: hidden;
+      }
+      .md-mermaid {
+        margin: 1.2em 0;
+        text-align: center;
+        overflow-x: auto;
+      }
+      .md-mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
+      .md-mermaid-error {
+        white-space: pre-wrap;
+        text-align: left;
+        font-family: Menlo, Monaco, monospace;
+        font-size: 12px;
+        color: var(--error);
+        border: 1px solid var(--error);
+        border-radius: 6px;
+        padding: 8px 10px;
+      }
+      .md-error {
+        color: var(--error);
+        font-family: Menlo, Monaco, monospace;
+        font-size: 13px;
+      }
+      /* find-in-document sits at the top-right of the viewer, over the content */
+      .search-bar.md-find {
+        top: 40px;
+        z-index: 21;
+      }
+      /* Painted with the CSS Custom Highlight API, so no <mark> is ever injected
+         into the rendered document. */
+      ::highlight(md-find) {
+        background-color: rgba(255, 214, 0, 0.32);
+      }
+      ::highlight(md-find-active) {
+        background-color: #ffd600;
+        color: #1a1a1a;
+      }
+      /* highlight.js tokens, mapped onto the theme tokens so code follows
+         light/dark instead of shipping two stylesheets. */
+      .hljs-comment,
+      .hljs-quote {
+        color: var(--muted);
+        font-style: italic;
+      }
+      .hljs-keyword,
+      .hljs-selector-tag,
+      .hljs-literal,
+      .hljs-doctag,
+      .hljs-name {
+        color: #c678dd;
+      }
+      .hljs-string,
+      .hljs-regexp,
+      .hljs-addition,
+      .hljs-attribute {
+        color: var(--accent);
+      }
+      .hljs-number,
+      .hljs-variable,
+      .hljs-template-variable,
+      .hljs-type,
+      .hljs-built_in {
+        color: #d19a66;
+      }
+      .hljs-title,
+      .hljs-section,
+      .hljs-function .hljs-title {
+        color: #61afef;
+      }
+      .hljs-attr,
+      .hljs-symbol,
+      .hljs-bullet,
+      .hljs-meta {
+        color: #56b6c2;
+      }
+      .hljs-deletion {
+        color: var(--error);
+      }
+      .hljs-emphasis {
+        font-style: italic;
+      }
+      .hljs-strong {
+        font-weight: 700;
+      }
     </style>
   </head>
   <body>

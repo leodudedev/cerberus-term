@@ -15,6 +15,16 @@ export interface TelegramSettings {
   lang?: 'en' | 'it';
 }
 
+// The markdown browser behind the pane's ▤ button. `globs` are extra paths to
+// scan, relative to the project root and never above it; root-level markdown is
+// listed whatever they say. A per-project .cerberus.json can replace the list.
+export interface DocsSettings {
+  globs?: string[];
+  // Viewer default: true opens over the whole window, false over the pane. The
+  // viewer's own toolbar toggles it per document either way.
+  fullscreen?: boolean;
+}
+
 export interface Settings {
   telegram: TelegramSettings;
   defaultShell?: string; // pty shell when a pane doesn't specify one
@@ -37,12 +47,15 @@ export interface Settings {
   // build hookTargets, then dropped — never written back. Deliberately has no
   // default: undefined is what tells a fresh install apart from an upgrade.
   agentHooks?: boolean;
+  docs?: DocsSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   telegram: {},
   skipCloseConfirm: false,
   strayProcesses: 'ask'
+  // No `docs` default: an absent key is what makes DEFAULT_DOC_GLOBS apply, and
+  // a default object here would round-trip into every settings file.
 };
 
 // Fill the gaps in a settings object read off disk (or handed over by the
@@ -67,7 +80,18 @@ export function mergeSettings(parsed: Partial<Settings> | null | undefined): Set
     // hookTargets must survive as an empty array rather than fall through.
     hookTargets: p.hookTargets ? parseTargetIds(p.hookTargets) : undefined,
     hookTargetsPlatform: p.hookTargetsPlatform,
-    agentHooks: p.agentHooks ?? legacyHooks
+    agentHooks: p.agentHooks ?? legacyHooks,
+    // Left undefined when nothing was ever saved, so the object round-trips
+    // unchanged; an empty globs array is a real answer ("root markdown only")
+    // and must not fall through to the defaults.
+    docs: p.docs
+      ? {
+          globs: Array.isArray(p.docs.globs)
+            ? p.docs.globs.filter((g): g is string => typeof g === 'string')
+            : undefined,
+          fullscreen: p.docs.fullscreen === true
+        }
+      : undefined
   };
 }
 

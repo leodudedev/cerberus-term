@@ -10,6 +10,23 @@ Installers for each version are on the
 
 ## [Unreleased]
 
+### Added
+
+- **A markdown reader in every pane.** The new ▤ button in a pane header lists
+  the markdown of the project that pane is in — the repo root plus configurable
+  folders (`docs/`, `doc/`, `documenti/`, `.claude/` by default), newest first
+  with `CLAUDE.md`, `AGENTS.md` and `README.md` pinned — and opens the one you
+  pick as a rendered document over the pane: headings, tables, highlighted code
+  and mermaid diagrams in the app's own palette, with find-in-document
+  (`Cmd+F`), links between documents followed in place, ⤢ to take over the whole
+  window, and ✕ or Esc back to the CLI. The document is an overlay, not a pane,
+  so the pty underneath is never resized and the session in it never redraws.
+
+  The scan is rooted at the project (nearest `.git`, else the pane's cwd) and
+  cannot leave it: symlinks out are skipped, and a read outside the root is
+  refused in main whatever the renderer asks for. The folder list is global in
+  Settings and overridable per project with `docs.globs` in `.cerberus.json`.
+
 ### Fixed
 
 - **The installer no longer replaces Cerberus while it's running.** Its guard

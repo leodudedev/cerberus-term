@@ -8,6 +8,7 @@ import type {
   SaveResult as SettingsSaveResult
 } from '../core/settings.js';
 import type { MuteBridge } from '../core/mute-bridge.js';
+import type { DocsBridge, DocsListResult, DocsReadResult } from '../core/docs-bridge.js';
 
 // Per-pane fan-out for the shared pty:data / pty:exit channels. The main
 // process tags every message with its paneId; we dispatch to subscribers here
@@ -93,6 +94,14 @@ const muteBridge: MuteBridge = {
 };
 
 contextBridge.exposeInMainWorld('cerberusMute', muteBridge);
+
+const docsBridge: DocsBridge = {
+  list: (paneId) => ipcRenderer.invoke('docs:list', paneId) as Promise<DocsListResult>,
+  read: (paneId, abs) => ipcRenderer.invoke('docs:read', paneId, abs) as Promise<DocsReadResult>,
+  asset: (paneId, abs) => ipcRenderer.invoke('docs:asset', paneId, abs) as Promise<string | null>
+};
+
+contextBridge.exposeInMainWorld('cerberusDocs', docsBridge);
 
 // Native-menu -> renderer bridge (Cmd+, opens settings). A contextBridge
 // callback avoids cross-world DOM-event issues.

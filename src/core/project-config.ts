@@ -10,6 +10,9 @@ type Risk = 'safe' | 'caution' | 'danger';
 
 export interface ProjectConfig {
   mute?: boolean;
+  // Extra markdown globs for this project's ▤ dropdown, replacing the global
+  // list. Paths are relative to the project root; the scan never leaves it.
+  docs?: { globs?: string[] };
   chatId?: string;
   minRisk?: Risk;
   notifyIdle?: boolean; // false = skip "waiting for input" notifications
@@ -92,7 +95,10 @@ export function readProjectConfig(cwd: string): ProjectConfig {
       minRisk: (['safe', 'caution', 'danger'] as const).includes(parsed.minRisk as Risk)
         ? parsed.minRisk
         : undefined,
-      notifyIdle: parsed.notifyIdle === false ? false : undefined
+      notifyIdle: parsed.notifyIdle === false ? false : undefined,
+      docs: Array.isArray(parsed.docs?.globs)
+        ? { globs: parsed.docs.globs.filter((g): g is string => typeof g === 'string') }
+        : undefined
     };
     cache.set(file, { mtimeMs, cfg });
     return cfg;

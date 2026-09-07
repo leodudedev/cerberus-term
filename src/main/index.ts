@@ -23,6 +23,7 @@ import type { StrayPolicy } from '../core/settings.js';
 import { registerConfigIpc } from './config-ipc.js';
 import { registerSettingsIpc } from './settings-ipc.js';
 import { registerMuteIpc } from './mute-ipc.js';
+import { registerDocsIpc } from './docs-ipc.js';
 import { initAttention, clearAttention } from './attention.js';
 import { startCerberus } from './cerberus/index.js';
 
@@ -287,6 +288,7 @@ app.whenReady().then(() => {
   registerConfigIpc();
   registerSettingsIpc();
   registerMuteIpc(() => mainWindow);
+  registerDocsIpc();
   initAttention(() => mainWindow);
   // Renderer asks to close the window after the last tab is closed.
   ipcMain.on('cerberus:close-window', () => mainWindow?.close());

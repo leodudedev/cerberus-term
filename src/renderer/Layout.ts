@@ -2,6 +2,7 @@ import { createTerminalPane, type TerminalPane } from './Terminal.js';
 import { makeSplitter } from './Splitter.js';
 import { makePaneHeader } from './PaneHeader.js';
 import { openSearchOverlay } from './SearchOverlay.js';
+import { viewerFor } from './MarkdownViewer.js';
 import { openPaneContextMenu } from './PaneContextMenu.js';
 import { isFavorite } from './favorites.js';
 import type { PaneNode } from './pane-tree.js';
@@ -149,7 +150,21 @@ export class Layout {
     // Anchored to the body, not the leaf: the leaf's first row is the pane
     // header, and the bar should float over the terminal itself.
     const body = entry?.el.querySelector<HTMLElement>('.pane-body');
-    if (entry && body) openSearchOverlay(body, entry.pane.search);
+    if (!entry || !body) return;
+    // A document open over this pane owns the shortcut: Cmd+F there means
+    // "search the document", not "search the scrollback behind it".
+    const viewer = viewerFor(body);
+    if (viewer?.isOpen()) {
+      viewer.openFind();
+      return;
+    }
+    openSearchOverlay(body, entry.pane.search);
+  }
+
+  // The terminal half of a leaf, which is what pane-scoped overlays (find bar,
+  // docs dropdown, document viewer) anchor to — the header stays visible above.
+  paneBodyOf(leafId: string): HTMLElement | null {
+    return this.leaves.get(leafId)?.el.querySelector<HTMLElement>('.pane-body') ?? null;
   }
 
   // leafId -> paneId for every live pane. Persisted so the next renderer can

@@ -9,6 +9,7 @@ type PaneCmd =
   | 'config'
   | 'toggle-favorite'
   | 'open-favorites'
+  | 'open-docs'
   | 'zoom';
 
 function emit(cmd: PaneCmd, leafId: string): void {
@@ -26,6 +27,7 @@ const GLYPH_SCALE: Record<string, {size: number, top: number}> = {
   '⬓': {size: 1, top: 0}, // split-down — baseline
   '✕': {size: 0.85, top: 2}, // kill — renders slightly bold/large
   '⚙': {size: 1.2, top: 1}, // gear — renders as a near-invisible dot
+  '▤': {size: 0.9, top: 1}, // docs — block glyph, heavy at full size
   '⤢': {size: 1.1, top: 1}, // zoom — arrow glyph, slightly small at 12px
   '⤡': {size: 1.1, top: 1} // unzoom
 };
@@ -75,7 +77,12 @@ export function makePaneHeader(
   star.classList.add('pane-btn-star');
   const heart = button('♡', 'Open favorites', 'open-favorites', leafId);
 
-  if (showFavorites) buttons.append(star, heart);
+  // Same gate as the star: a follower pane tails a log outside any project of
+  // its own, so a project-scoped document list would be listing someone else's.
+  const docs = button('▤', 'Project docs', 'open-docs', leafId);
+  docs.classList.add('pane-btn-docs');
+
+  if (showFavorites) buttons.append(star, heart, docs);
   const zoom = button('⤢', 'Zoom pane (Ctrl+B z)', 'zoom', leafId);
   buttons.append(
     zoom,

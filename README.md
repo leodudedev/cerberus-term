@@ -235,11 +235,13 @@ permission prompt, and the Telegram push.
 | Jump to tab 1–9 | click the tab | `Cmd+1` … `Cmd+9` |
 | Star this pane's cwd | ☆, or right-click the pane | — |
 | Jump to a favorite | ♡, or right-click the pane | — |
+| Read the project's markdown | ▤ in the pane header | ↑ ↓ and Enter in the list, Esc to close |
 | Clear a pane's buffer | right-click the pane | — |
 | Edit `.cerberus.json` | ⚙ | — |
 | Mute every Telegram push | ✈ at the right of the tab bar | — |
 | Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
 | Find in pane | menu → Edit → Find… | `Cmd+F` (`Ctrl+Shift+F`) |
+| Find in the open document | ⌕ in the viewer bar | `Cmd+F` (`Ctrl+Shift+F`) |
 | Newline without submitting | — | `Shift+Enter` |
 | Settings | menu → Settings… | `Cmd+,` |
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
@@ -255,6 +257,17 @@ window and fullscreen keys.
 
 Find searches the focused pane's scrollback: Enter and Shift+Enter walk the
 matches, `Aa` and `.*` toggle case sensitivity and regex, Esc closes.
+
+**▤ reads the docs without leaving the pane.** It lists the markdown of the
+project that pane is sitting in — the repo root plus whatever folders you
+configure (`docs/`, `doc/`, `documenti/`, `.claude/` by default), most recently
+touched first, with `CLAUDE.md`, `AGENTS.md` and `README.md` pinned on top. Pick
+one and it opens over the pane: headings, tables, syntax-highlighted code and
+mermaid diagrams, in the app's own light/dark palette. ⤢ takes it to the whole
+window, `Cmd+F` searches inside it, links between documents are followed in
+place with ‹ to go back, and ✕ or Esc drops you straight back to the CLI. The
+pane is never resized, so the session underneath doesn't redraw — and nothing
+outside the project is ever listed or read.
 
 Dropping files onto a pane types their absolute paths into the session.
 
@@ -331,6 +344,7 @@ cwd or any directory above it:
 | `chatId` | route its pushes to a different Telegram chat |
 | `minRisk` | only notify at/above this risk (`safe` \| `caution` \| `danger`) |
 | `notifyIdle` | set to `false` to notify only on permissions, never on waiting-for-input |
+| `docs.globs` | folders the ▤ document list scans, relative to the project root (replaces the global list) |
 
 ## Security
 

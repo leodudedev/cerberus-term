@@ -1,4 +1,5 @@
 import type { Settings, StrayPolicy } from '../core/settings.js';
+import { DEFAULT_DOC_GLOBS } from '../core/docs-bridge.js';
 
 // Global settings modal (reuses the config-modal styling). Opened via Cmd+,.
 
@@ -78,6 +79,17 @@ export async function openSettingsEditor(): Promise<void> {
     strays.append(o);
   }
 
+  // Which paths the pane's ▤ button scans, relative to the project root.
+  // Root-level markdown is always listed, so an empty field is a valid answer
+  // ("only what's at the top of the project") and not a broken one.
+  const docGlobs = textInput((s.docs?.globs ?? []).join(', '));
+  docGlobs.placeholder = DEFAULT_DOC_GLOBS.join(', ');
+
+  const docsFullscreen = document.createElement('input');
+  docsFullscreen.type = 'checkbox';
+  docsFullscreen.className = 'settings-checkbox';
+  docsFullscreen.checked = s.docs?.fullscreen === true;
+
   // One row per agent, each naming the file it writes to and its real state.
   // These live outside the app, in other tools' config — nobody should have to
   // guess which ones we touched, and the list grows as agents are added.
@@ -156,6 +168,8 @@ export async function openSettingsEditor(): Promise<void> {
     row('Default shell', shell),
     row('Skip confirm on close', skipConfirm),
     row('Leftover processes on quit', strays),
+    row('Docs folders (csv)', docGlobs),
+    row('Open docs full window', docsFullscreen),
     hooksTitle,
     hooksBlock,
     hint,
@@ -195,6 +209,17 @@ export async function openSettingsEditor(): Promise<void> {
       defaultShell: shell.value.trim() || undefined,
       skipCloseConfirm: skipConfirm.checked,
       strayProcesses: strays.value as StrayPolicy,
+      docs: {
+        // Empty field -> undefined, which is what makes the defaults apply
+        // again; an empty *array* would mean "scan nothing but the root".
+        globs: docGlobs.value.trim()
+          ? docGlobs.value
+              .split(/[,\n]/)
+              .map((g) => g.trim())
+              .filter(Boolean)
+          : undefined,
+        fullscreen: docsFullscreen.checked
+      },
       // Disabled rows keep reporting .checked, so an agent that's currently
       // uninstalled carries its stored answer through untouched.
       hookTargets: hookRows.filter((r) => r.input.checked).map((r) => r.id) as Settings['hookTargets']

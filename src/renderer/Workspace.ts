@@ -2,6 +2,9 @@ import { Layout } from './Layout.js';
 import { openConfigEditor } from './ConfigEditor.js';
 import { toggleFavorite } from './favorites.js';
 import { openFavoritesOverlay } from './FavoritesOverlay.js';
+import { openDocsDropdown } from './DocsDropdown.js';
+import { openMarkdownViewer } from './MarkdownViewer.js';
+import type { DocEntry } from '../core/docs-bridge.js';
 import { makeMuteToggle } from './MuteToggle.js';
 import { openShortcutsOverlay } from './ShortcutsOverlay.js';
 import { IS_MAC } from './shortcuts.js';
@@ -51,6 +54,8 @@ export class Workspace {
   private readonly viewport: HTMLElement;
   private persistTimer: number | undefined;
   private skipCloseConfirm = false;
+  // Viewer default from Settings; the viewer's own toggle writes it back.
+  private docsFullscreen = false;
 
   constructor(host: HTMLElement) {
     host.style.cssText = 'width:100vw;height:100vh;background:var(--bg)';
@@ -518,6 +523,8 @@ export class Workspace {
             /* pane died before cwd resolved */
           });
       }
+    } else if (cmd === 'open-docs') {
+      void this.openDocs(target);
     } else if (cmd === 'open-favorites') {
       const p = t.layout.paneIdOf(target);
       if (p) {
@@ -532,6 +539,53 @@ export class Workspace {
             /* pane died before it resolved */
           });
       }
+    }
+  }
+
+  // ▤ -> the project's markdown, listed in a dropdown anchored to this pane and
+  // read in an overlay over it. Nothing here touches the pty: the pane keeps its
+  // size, so whatever TUI is running underneath never redraws.
+  private async openDocs(leafId: string): Promise<void> {
+    const t = this.active();
+    const host = t?.layout.paneBodyOf(leafId);
+    const pending = t?.layout.paneIdOf(leafId);
+    if (!t || !host || !pending) return;
+
+    let paneId: string;
+    try {
+      paneId = await pending;
+    } catch {
+      return; // pane died before its pty resolved
+    }
+
+    const { root, entries, truncated } = await window.cerberusDocs.list(paneId);
+    openDocsDropdown({
+      host,
+      root,
+      entries,
+      truncated,
+      onSelect: (entry: DocEntry) => {
+        openMarkdownViewer({
+          paneId,
+          host,
+          root,
+          entry,
+          fullscreen: this.docsFullscreen,
+          onClose: () => t.layout.focusLeaf(leafId),
+          onFullscreenChange: (fullscreen) => void this.saveDocsFullscreen(fullscreen)
+        });
+      },
+      onClose: () => t.layout.focusLeaf(leafId)
+    });
+  }
+
+  private async saveDocsFullscreen(fullscreen: boolean): Promise<void> {
+    this.docsFullscreen = fullscreen;
+    try {
+      const s = await window.cerberusSettings.get();
+      await window.cerberusSettings.save({ ...s, docs: { ...s.docs, fullscreen } });
+    } catch {
+      /* settings unwritable — the choice still holds for this session */
     }
   }
 
@@ -596,6 +650,7 @@ export class Workspace {
     try {
       const s = await window.cerberusSettings.get();
       this.skipCloseConfirm = !!s.skipCloseConfirm;
+      this.docsFullscreen = !!s.docs?.fullscreen;
     } catch {
       /* settings unavailable — keep confirming (the safe default) */
     }
