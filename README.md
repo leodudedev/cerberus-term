@@ -225,7 +225,7 @@ permission prompt, and the Telegram push.
 
 | Action | Mouse / button | Keyboard |
 |--------|----------------|----------|
-| Split right / down | ◧ / ⬓ in the pane header | `Ctrl+B` then `%` / `"` (or Cmd+D / Cmd+Shift+D) |
+| Split right / down | the split buttons in the pane header | `Ctrl+B` then `%` / `"` (or Cmd+D / Cmd+Shift+D) |
 | Kill pane | the close button, or right-click the pane | `Ctrl+B` then `x` (or Cmd+K) |
 | Zoom pane to the whole tab | the expand button | `Ctrl+B` then `z` |
 | Focus pane | click | `Ctrl+B` then `h/j/k/l` or arrows |
@@ -233,15 +233,15 @@ permission prompt, and the Telegram push.
 | New / close tab | `+` / `✕` in the tab bar | `Cmd+T` / `Cmd+W` |
 | Next / previous tab | click the tab | `Cmd+Shift+]` / `Cmd+Shift+[` |
 | Jump to tab 1–9 | click the tab | `Cmd+1` … `Cmd+9` |
-| Star this pane's cwd | ☆, or right-click the pane | — |
-| Jump to a favorite | ♡, or right-click the pane | — |
+| Star this pane's cwd | the star button, or right-click the pane | — |
+| Jump to a favorite | the heart button, or right-click the pane | — |
 | Read the project's markdown | the document button in the pane header | ↑ ↓ and Enter in the list, Esc to close |
 | Clear a pane's buffer | right-click the pane | — |
-| Edit `.cerberus.json` | ⚙ | — |
+| Edit `.cerberus.json` | the sliders button in the pane header | — |
 | Mute every Telegram push | ✈ at the right of the tab bar | — |
 | Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
 | Find in pane | menu → Edit → Find… | `Cmd+F` (`Ctrl+Shift+F`) |
-| Find in the open document | ⌕ in the viewer bar | `Cmd+F` (`Ctrl+Shift+F`) |
+| Find in the open document | the find button in the viewer bar | `Cmd+F` (`Ctrl+Shift+F`) |
 | Newline without submitting | — | `Shift+Enter` |
 | Settings | menu → Settings… | `Cmd+,` |
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
