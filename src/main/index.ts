@@ -346,6 +346,7 @@ async function handleStrays(policy: StrayPolicy): Promise<void> {
   }
 
   const list = strays.map((s) => `  ${s.label}  (pid ${s.pid})`).join('\n');
+  const one = strays.length === 1;
   const { response, checkboxChecked } = await dialog.showMessageBox({
     type: 'question',
     // A detached process is the user's own doing — leaving it alone is the
@@ -353,11 +354,10 @@ async function handleStrays(policy: StrayPolicy): Promise<void> {
     buttons: ['Leave running', 'Terminate'],
     defaultId: 0,
     cancelId: 0,
-    message:
-      strays.length === 1
-        ? 'One process is still running outside its pane'
-        : `${strays.length} processes are still running outside their panes`,
-    detail: `${list}\n\nClosing Cerberus won't stop them.`,
+    message: one
+      ? 'One process is still running outside its pane'
+      : `${strays.length} processes are still running outside their panes`,
+    detail: `${list}\n\nClosing Cerberus won't stop ${one ? 'it' : 'them'}.`,
     checkboxLabel: 'Always do this',
     checkboxChecked: false
   });
