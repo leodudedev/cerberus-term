@@ -8,6 +8,21 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [Unreleased]
+
+### Fixed
+
+- **The installer no longer replaces Cerberus while it's running.** Its guard
+  used `pgrep`, which by default excludes its own ancestors — so run from a
+  Cerberus pane, the one place an update is most likely to be typed, it never
+  saw the app it was looking for and went ahead anyway. It now reads the process
+  list directly, and a pane is recognised before that: `CERBERUS_PANE_ID` says
+  outright that the shell belongs to the app being replaced, so the script says
+  that rather than a vaguer "it's open".
+
+  The README serves the script from `main`, so this is live for everyone without
+  waiting for a release.
+
 ## [0.14.0] — 2026-09-07
 
 ### Added

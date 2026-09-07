@@ -109,10 +109,27 @@ case "$OS" in
 esac
 
 # Replacing a bundle under a running app leaves it in a half-swapped state.
-if pgrep -f 'Cerberus\.app/Contents/MacOS/Cerberus' >/dev/null 2>&1 ||
-   pgrep -f 'cerberus-term/Cerberus\.AppImage' >/dev/null 2>&1; then
-  die "Cerberus is running — quit it first, then re-run this script."
+#
+# Only our own panes export CERBERUS_PANE_ID, so it settles the most likely case
+# — someone updating from a pane of the very app being replaced — before any
+# process list is involved, and can say something more useful than "it's open".
+if [ -n "${CERBERUS_PANE_ID:-}" ]; then
+  die "this shell is a Cerberus pane, so the app being replaced is the one
+       hosting it. Quit Cerberus and re-run from Terminal (or any terminal
+       outside the app)."
 fi
+
+# `pgrep -f` is the obvious check here and the wrong one: it excludes its own
+# ancestors unless given -a, which macOS has and Linux spells differently, so
+# run from a pane it silently never sees the app it is looking for. Reading ps
+# into a variable behaves the same on both, and a case pattern can't match the
+# way a `ps | grep` pipeline matches its own grep.
+PROCS="$(ps -Ao args= 2>/dev/null || true)"
+case "$PROCS" in
+  *"/Cerberus.app/Contents/MacOS/Cerberus"* | *"Cerberus.AppImage"*)
+    die "Cerberus is running — quit it first, then re-run this script."
+    ;;
+esac
 
 # --------------------------------------------------------------- download ---
 
