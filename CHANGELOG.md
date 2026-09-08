@@ -16,7 +16,9 @@ Installers for each version are on the
   while an agent rewrites it used to show you the version you opened; the viewer
   now notices the new file and re-renders it where you were reading, scroll
   position kept. It follows a save that replaces the file wholesale — a temp
-  file plus a rename — which is how editors and agents usually write.
+  file plus a rename — which is how editors and agents usually write, and waits
+  for the writing to stop before re-rendering. A document in a background tab
+  isn't watched at all; it catches up when you come back to it.
 
 ### Changed
 

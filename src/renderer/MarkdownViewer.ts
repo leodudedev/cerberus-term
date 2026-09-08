@@ -446,10 +446,12 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   // the old one never hears about.
   let seenMtime: number | null = null;
   const RELOAD_POLL_MS = 1500;
+  // The mtime of a file still being written, held until it stops moving.
+  let pendingMtime: number | null = null;
   const poll = window.setInterval(() => {
-    // Nothing to see while the window is in the background, and the check costs
-    // a stat in main either way.
-    if (document.hidden) return;
+    // Nothing to poll for a window in the background or a document sitting in
+    // an inactive tab — those keep their DOM, so only the layout knows.
+    if (document.hidden || overlay.offsetParent === null) return;
     void (async () => {
       const at = await window.cerberusDocs.mtime(paneId, current.abs);
       // Null is a deleted or unreadable file: keep showing what we have rather
@@ -460,6 +462,14 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
         return;
       }
       if (at === seenMtime) return;
+      // One tick of quiet before re-rendering. A file being appended to (a log,
+      // an agent writing a long document) would otherwise re-parse, re-highlight
+      // and re-draw its mermaid diagrams on every single tick.
+      if (at !== pendingMtime) {
+        pendingMtime = at;
+        return;
+      }
+      pendingMtime = null;
       await load(current, undefined, true);
     })();
   }, RELOAD_POLL_MS);

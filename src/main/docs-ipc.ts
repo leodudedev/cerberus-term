@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { realpath, stat } from 'node:fs/promises';
 import { extname, isAbsolute, sep } from 'node:path';
 import { getPaneCwd } from './bridge-electron.js';
 import { getSettings } from './settings.js';
@@ -76,13 +77,16 @@ export function registerDocsIpc(): void {
     }
   });
 
-  ipcMain.handle('docs:mtime', (_e, paneId: string, abs: string): number | null => {
+  // Async, unlike its neighbours: this one is polled while a document is open,
+  // and a sync stat on a slow mount would hold up main — which is also where
+  // every pane's output passes through.
+  ipcMain.handle('docs:mtime', async (_e, paneId: string, abs: string): Promise<number | null> => {
     if (!abs || !isAbsolute(abs) || !isMarkdown(abs)) return null;
     const root = rootFor(paneId);
     try {
-      const real = realpathSync(abs);
+      const real = await realpath(abs);
       if (!isUnder(real, root)) return null;
-      return statSync(real).mtimeMs;
+      return (await stat(real)).mtimeMs;
     } catch {
       return null; // deleted, or replaced by something we don't read
     }
