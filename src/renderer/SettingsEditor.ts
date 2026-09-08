@@ -90,12 +90,12 @@ export async function openSettingsEditor(): Promise<void> {
   docsFullscreen.className = 'settings-checkbox';
   docsFullscreen.checked = s.docs?.fullscreen === true;
 
-  // Off by default, and the viewer's own toolbar button flips it too: a badge
-  // row is worth a request to shields.io only when the user says so.
+  // On by default, and the viewer's own toolbar button flips it too: unchecking
+  // it is what stops a document reaching shields.io and friends.
   const docsRemoteImages = document.createElement('input');
   docsRemoteImages.type = 'checkbox';
   docsRemoteImages.className = 'settings-checkbox';
-  docsRemoteImages.checked = s.docs?.remoteImages === true;
+  docsRemoteImages.checked = s.docs?.remoteImages !== false;
 
   // One row per agent, each naming the file it writes to and its real state.
   // These live outside the app, in other tools' config — nobody should have to

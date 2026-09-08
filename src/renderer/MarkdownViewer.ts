@@ -316,8 +316,8 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
 
   // A README's badge row. The page can't load those itself (CSP), and leaving
   // the URL in place buys a broken-image glyph painted over the alt text, so the
-  // src moves to a data-attribute and the alt text stands in as a chip until the
-  // toolbar toggle says main may go and fetch them.
+  // src moves to a data-attribute and main fetches it right after. With the
+  // toolbar toggle off the alt text stands in as a chip instead.
   const parkRemoteImages = (): void => {
     for (const img of article.querySelectorAll<HTMLImageElement>('img[src]')) {
       const src = img.getAttribute('src') ?? '';

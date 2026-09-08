@@ -24,8 +24,10 @@ export interface DocsSettings {
   // viewer's own toolbar toggles it per document either way.
   fullscreen?: boolean;
   // Whether the viewer may fetch the images a document points at over the
-  // network (README badges, mostly). Off by default: opening a markdown file
-  // should not tell a third-party host that this machine just opened it.
+  // network (README badges, mostly). On unless explicitly turned off: a badge
+  // row that renders as a line of alt-text chips reads as a broken document.
+  // Turning it off keeps a document from telling a third-party host that this
+  // machine just opened it.
   remoteImages?: boolean;
 }
 
@@ -94,7 +96,7 @@ export function mergeSettings(parsed: Partial<Settings> | null | undefined): Set
             ? p.docs.globs.filter((g): g is string => typeof g === 'string')
             : undefined,
           fullscreen: p.docs.fullscreen === true,
-          remoteImages: p.docs.remoteImages === true
+          remoteImages: p.docs.remoteImages !== false
         }
       : undefined
   };

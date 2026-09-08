@@ -8,6 +8,17 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [Unreleased]
+
+### Changed
+
+- **Documents load their remote images by default.** The badge row of a README
+  now fills in on its own instead of waiting for the globe button, which was one
+  click too many for something every git host renders without asking. The button
+  and the Settings checkbox still turn it off, per machine, and everything else
+  about the fetch is unchanged: no cookies, https only, 2 MB and 6 seconds per
+  image.
+
 ## [0.16.0] — 2026-09-08
 
 ### Added

@@ -56,9 +56,10 @@ export class Workspace {
   private skipCloseConfirm = false;
   // Viewer default from Settings; the viewer's own toggle writes it back.
   private docsFullscreen = false;
-  // Off until asked for: opening a document should not hand a third-party host
-  // the fact that this machine just opened it.
-  private docsRemoteImages = false;
+  // On unless Settings (or the viewer's own toggle) says otherwise; turning it
+  // off keeps a document from handing a third-party host the fact that this
+  // machine just opened it.
+  private docsRemoteImages = true;
 
   constructor(host: HTMLElement) {
     host.style.cssText = 'width:100vw;height:100vh;background:var(--bg)';
@@ -666,7 +667,7 @@ export class Workspace {
       const s = await window.cerberusSettings.get();
       this.skipCloseConfirm = !!s.skipCloseConfirm;
       this.docsFullscreen = !!s.docs?.fullscreen;
-      this.docsRemoteImages = !!s.docs?.remoteImages;
+      this.docsRemoteImages = s.docs?.remoteImages !== false;
     } catch {
       /* settings unavailable — keep confirming (the safe default) */
     }
