@@ -40,4 +40,8 @@ export interface DocsBridge {
   // (off the browser session, so no cookies) and returned as a data: URL. The
   // viewer only calls it when the user has turned remote images on.
   remoteAsset(url: string): Promise<string | null>;
+  // Modification time of an open document, polled by the viewer so a file
+  // rewritten under it (an agent editing the very spec you are reading) shows
+  // up without being reopened. Null when it's gone or outside the root.
+  mtime(paneId: string, abs: string): Promise<number | null>;
 }

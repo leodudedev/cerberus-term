@@ -352,12 +352,13 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     }
   };
 
-  const load = async (entry: DocEntry, anchor?: string): Promise<void> => {
+  const load = async (entry: DocEntry, anchor?: string, keepScroll = false): Promise<void> => {
     current = entry;
     title.textContent = relFrom(root, entry.abs);
     title.title = entry.abs;
     back.disabled = history.length === 0;
     clearFind();
+    const scroll = content.scrollTop;
 
     const res = await window.cerberusDocs.read(paneId, entry.abs);
     if (!res.ok) {
@@ -369,7 +370,11 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
       return;
     }
     article.innerHTML = renderMarkdown(res.content);
-    content.scrollTop = 0;
+    // A reload keeps you where you were reading; opening a document starts at
+    // the top. Either way the mtime we just rendered is the one to compare
+    // against, so a save that lands mid-read isn't missed.
+    content.scrollTop = keepScroll ? scroll : 0;
+    seenMtime = await window.cerberusDocs.mtime(paneId, entry.abs);
     decorate();
     void inlineImages();
     if (anchor) {
@@ -434,6 +439,31 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     content.focus();
   });
 
+  // Documents are read once, so a file rewritten underneath — an agent editing
+  // the very spec you have open — would sit there stale until reopened. Polling
+  // the mtime rather than fs.watch: an editor (or our own settings writer) that
+  // saves through a temp file and a rename replaces the inode, which a watch on
+  // the old one never hears about.
+  let seenMtime: number | null = null;
+  const RELOAD_POLL_MS = 1500;
+  const poll = window.setInterval(() => {
+    // Nothing to see while the window is in the background, and the check costs
+    // a stat in main either way.
+    if (document.hidden) return;
+    void (async () => {
+      const at = await window.cerberusDocs.mtime(paneId, current.abs);
+      // Null is a deleted or unreadable file: keep showing what we have rather
+      // than blanking the document someone is reading.
+      if (at === null) return;
+      if (seenMtime === null) {
+        seenMtime = at; // a stat that failed earlier, answering again now
+        return;
+      }
+      if (at === seenMtime) return;
+      await load(current, undefined, true);
+    })();
+  }, RELOAD_POLL_MS);
+
   const onTheme = (): void => decorate();
   window.addEventListener('theme-change', onTheme);
 
@@ -442,6 +472,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     if (closed) return;
     closed = true;
     clearFind();
+    window.clearInterval(poll);
     window.removeEventListener('theme-change', onTheme);
     overlay.remove();
     openViewers.delete(host);

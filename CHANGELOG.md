@@ -10,6 +10,14 @@ Installers for each version are on the
 
 ## [Unreleased]
 
+### Added
+
+- **An open document reloads itself when the file changes.** Reading a spec
+  while an agent rewrites it used to show you the version you opened; the viewer
+  now notices the new file and re-renders it where you were reading, scroll
+  position kept. It follows a save that replaces the file wholesale — a temp
+  file plus a rename — which is how editors and agents usually write.
+
 ### Changed
 
 - **Documents load their remote images by default.** The badge row of a README

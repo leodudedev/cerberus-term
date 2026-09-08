@@ -76,6 +76,18 @@ export function registerDocsIpc(): void {
     }
   });
 
+  ipcMain.handle('docs:mtime', (_e, paneId: string, abs: string): number | null => {
+    if (!abs || !isAbsolute(abs) || !isMarkdown(abs)) return null;
+    const root = rootFor(paneId);
+    try {
+      const real = realpathSync(abs);
+      if (!isUnder(real, root)) return null;
+      return statSync(real).mtimeMs;
+    } catch {
+      return null; // deleted, or replaced by something we don't read
+    }
+  });
+
   ipcMain.handle('docs:remote-asset', async (_e, url: string): Promise<string | null> => {
     let parsed: URL;
     try {
