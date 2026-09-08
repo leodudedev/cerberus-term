@@ -2,9 +2,9 @@
 
 <img src="assets/cerberus-logo.png" alt="Cerberus — guard your sessions" width="480">
 
-**A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys and run whatever you like in each one: Claude Code, Copilot CLI, Codex, opencode, aider, a plain shell. When an AI session needs you, approve, deny or prompt it from your phone over Telegram, straight into the right pane.
+**A GUI terminal multiplexer with remote control** — split panes with the mouse or tmux-style keys and run whatever you like in each one: Claude Code, Copilot CLI, Codex, opencode, aider, a plain shell. Read the project's markdown right there in the pane, and when an AI session needs you, approve, deny or prompt it from your phone over Telegram, straight into the right pane.
 
-<sub>native panes · no tmux · permission prompts · risk-tagged commands · tabs · session restore · light/dark</sub>
+<sub>native panes · no tmux · project docs in-app · permission prompts · risk-tagged commands · tabs · session restore · light/dark</sub>
 
 ![CI](https://img.shields.io/github/actions/workflow/status/leodudedev/cerberus-term/ci.yml?branch=main&label=ci&logo=github)
 ![Electron](https://img.shields.io/badge/Electron-2C2E3B?logo=electron&logoColor=9FEAF9)
@@ -15,7 +15,7 @@
 ![xterm.js](https://img.shields.io/badge/xterm.js-2E2E2E?logo=gnometerminal&logoColor=white)
 ![license MIT](https://img.shields.io/badge/license-MIT-blue)
 
-[Install](#install) · [First run](#first-run) · [Controls](#controls) · [From your phone](#from-your-phone) · [Config](#per-project-config) · [Contributing](#contributing)
+[Install](#install) · [First run](#first-run) · [Controls](#controls) · [Docs in the pane](#your-projects-docs-in-the-pane) · [From your phone](#from-your-phone) · [Config](#per-project-config) · [Contributing](#contributing)
 
 <img src="assets/screenshot-app.png" alt="Cerberus running four panes: Codex, Claude Code, a shell, and Copilot CLI" width="900">
 
@@ -27,6 +27,11 @@
 A multiplexer first: native panes, no tmux, every pane a pty Cerberus owns — and
 whatever you'd type in a terminal runs in one. Claude Code in this pane, Copilot
 CLI in that one, Codex, opencode, aider, a plain shell, a build watcher.
+
+Every pane also carries its project's documentation. The document button lists
+the markdown of whatever project that pane sits in and renders it over the
+terminal — no browser, no second window, and the session underneath keeps
+running. See [your project's docs, in the pane](#your-projects-docs-in-the-pane).
 
 Then the remote half. When an AI session needs you — a permission prompt, waiting
 for input — it pushes a Telegram notification. From your phone you
@@ -130,12 +135,10 @@ it says what has actually been exercised rather than what ought to work.
   refuses to type into `ssh`. Copilot CLI is deliberately left out — see
   [below](#what-the-app-writes-outside-itself).
 - **Linux** is the honest gap. In a container the daemon, the registry, the pty
-  seam and the guard all pass on a real Linux pty, and both hook scripts —
-  `notify.sh` and `copilot-notify.sh` — were executed the way the agents execute
-  them and registered the right session. What nobody has done yet is run the app's
-  window on a Linux desktop, or drive a real `claude`/`copilot` there. The code
-  path is the same POSIX one macOS uses, so this is unverified rather than
-  doubtful. Reports welcome.
+  seam, the guard and both hook scripts pass on a real Linux pty. What nobody has
+  done yet is run the app's window on a Linux desktop, or drive a real
+  `claude`/`copilot` there — the code path is the same POSIX one macOS uses, so
+  this is unverified rather than doubtful. Reports welcome.
 
 ## First run
 
@@ -194,11 +197,10 @@ default there:
 ```
 
 Copilot CLI is not offered on Windows. The field it registers into is called
-`bash`, and nobody has yet measured what runs that value on Windows — a
-PowerShell line in a field that turns out to be literally bash would fail on
-every tool call. Claude Code's field is called `command` and *was* measured: it
-goes through PowerShell. One experiment settles it; until then the target is
-excluded there rather than guessed at.
+`bash`, and nobody has measured what runs that value there — a PowerShell line in
+a field that turns out to be literally bash would fail on every tool call. Claude
+Code's `command` field *was* measured: it goes through PowerShell. Until that one
+experiment is done, the target is excluded rather than guessed at.
 
 Nothing else in those files is touched — your model, your permissions, and any
 hooks you or another tool registered stay exactly as they are, and ours is added
@@ -242,7 +244,7 @@ permission prompt, and the Telegram push.
 | Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
 | Find in pane | menu → Edit → Find… | `Cmd+F` (`Ctrl+Shift+F`) |
 | Find in the open document | the find button in the viewer bar | `Cmd+F` (`Ctrl+Shift+F`) |
-| Load a document's remote images | the globe button in the viewer bar | — |
+| Stop loading a document's remote images | the globe button in the viewer bar | — |
 | Newline without submitting | — | `Shift+Enter` |
 | Settings | menu → Settings… | `Cmd+,` |
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
@@ -259,16 +261,8 @@ window and fullscreen keys.
 Find searches the focused pane's scrollback: Enter and Shift+Enter walk the
 matches, `Aa` and `.*` toggle case sensitivity and regex, Esc closes.
 
-**The document button reads the docs without leaving the pane.** It lists the markdown of the
-project that pane is sitting in — the repo root plus whatever folders you
-configure (`docs/`, `doc/`, `documenti/`, `.claude/` by default), most recently
-touched first, with `CLAUDE.md`, `AGENTS.md` and `README.md` pinned on top. Pick
-one and it opens over the pane: headings, tables, syntax-highlighted code and
-mermaid diagrams, in the app's own light/dark palette. Expand takes it to the whole
-window, `Cmd+F` searches inside it, links between documents are followed in
-place with the back button, and close or Esc drops you straight back to the CLI. The
-pane is never resized, so the session underneath doesn't redraw — and nothing
-outside the project is ever listed or read.
+**The document button reads the docs without leaving the pane** — see
+[your project's docs, in the pane](#your-projects-docs-in-the-pane).
 
 Dropping files onto a pane types their absolute paths into the session.
 
@@ -297,14 +291,37 @@ went out of its way to outlive its terminal, so it's left alone.
 The ✈ button at the right of the tab bar is a global do-not-disturb: while the
 plane shows crossed out, no session pushes to Telegram, so you can work at the
 keyboard undisturbed, and one click restores every session at once when you walk
-away. Clicking it opens a dialog spelling out what changes and what doesn't — an
-icon alone can't say, and getting it backwards is expensive in both directions.
+away. Clicking it opens a dialog spelling out what changes and what doesn't.
 
 It's independent of the per-project `mute` and of `/mute` from the chat —
 turning it off leaves those exactly as they were. Panes still flash locally when
 a session asks for a permission, and the state survives a restart. Without a bot
-token and chat ID the button is dimmed and inert — nothing pushes anyway; set
-them in Settings and it wakes up without a restart.
+token and chat ID the button is dimmed and inert; set them in Settings and it
+wakes up without a restart.
+
+## Your project's docs, in the pane
+
+The document button in a pane header lists the markdown of the project that pane
+is sitting in — the repo root plus whatever folders you configure (`docs/`,
+`doc/`, `documenti/`, `.claude/` by default), most recently touched first, with
+`CLAUDE.md`, `AGENTS.md` and `README.md` pinned on top. Type to filter, arrows
+and Enter to pick.
+
+The document opens over the pane: headings, tables, syntax-highlighted code and
+mermaid diagrams, in the app's own light/dark palette. `Cmd+F` searches inside
+it, links between documents are followed in place with a back button, the expand
+button takes it to the whole window, and Esc drops you back to the CLI.
+
+The pane is never resized while a document is open, so whatever TUI is running
+underneath never redraws — reading the spec doesn't disturb the agent working
+against it. Nothing outside the project root is ever listed or read, and a
+document's own screenshots are inlined from disk rather than fetched.
+
+Images a document points at over the network — a README's badge row — are
+pulled by the app outside the browser session, so no cookie of yours goes out
+with them, over https only and capped in size and time. The globe button in the
+viewer bar turns that off per machine, and remote images fall back to chips
+carrying their alt text.
 
 ## From your phone
 
