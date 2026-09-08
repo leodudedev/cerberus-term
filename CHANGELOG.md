@@ -8,6 +8,28 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.16.0] — 2026-09-08
+
+### Added
+
+- **Documents can load the images they point at, once you ask.** A README whose
+  badge row lives on a remote host used to render as a line of broken-image
+  glyphs, because the viewer refuses to let a document reach the network on its
+  own. Remote images now stand in as a small chip carrying their alt text, and a
+  globe button in the viewer bar fetches them on demand and swaps them in.
+
+  It is off by default and stays off until you turn it on, per the checkbox in
+  Settings: opening a markdown file should not tell a third-party host that this
+  machine just opened it. When you do turn it on, the fetch happens outside the
+  browser session — no cookies go out — over https only, capped at 2 MB and 6
+  seconds per image, and limited to the image formats the viewer already shows
+  from disk.
+
+### Fixed
+
+- The document list opened behind an already-open document, so reaching for
+  another file from inside one gave you a dropdown you could not see.
+
 ## [0.15.0] — 2026-09-07
 
 ### Added

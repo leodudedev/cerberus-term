@@ -242,6 +242,7 @@ permission prompt, and the Telegram push.
 | Copy / paste | — | `Cmd+C` / `Cmd+V` (`Ctrl+Shift+C` / `Ctrl+Shift+V`) |
 | Find in pane | menu → Edit → Find… | `Cmd+F` (`Ctrl+Shift+F`) |
 | Find in the open document | the find button in the viewer bar | `Cmd+F` (`Ctrl+Shift+F`) |
+| Load a document's remote images | the globe button in the viewer bar | — |
 | Newline without submitting | — | `Shift+Enter` |
 | Settings | menu → Settings… | `Cmd+,` |
 | Toggle theme | menu → View → Toggle Theme | `Cmd+Shift+L` |
