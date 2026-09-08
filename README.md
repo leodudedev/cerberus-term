@@ -17,7 +17,7 @@
 
 [Install](#install) · [First run](#first-run) · [Controls](#controls) · [Docs in the pane](#your-projects-docs-in-the-pane) · [From your phone](#from-your-phone) · [Config](#per-project-config) · [Contributing](#contributing)
 
-<img src="assets/screenshot-app.png" alt="Cerberus running four panes: Codex, Claude Code, a shell, and Copilot CLI" width="900">
+<img src="https://github.com/user-attachments/assets/c255eff1-9d45-4ef9-9ec4-766983574d4f" alt="Cerberus in action: splitting panes, running Claude Code and Codex side by side, reading a project doc in the pane, and approving a permission from Telegram" width="900">
 
 </div>
 
