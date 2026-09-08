@@ -23,10 +23,13 @@ export interface ViewerOptions {
   root: string;
   entry: DocEntry;
   fullscreen: boolean;
+  // Whether a document may pull the images it points at off the network.
+  remoteImages: boolean;
   // Called once the viewer is gone, so the caller can put focus back in the pty.
   onClose(): void;
   // Persisted when the toolbar toggle is used, so the choice sticks.
   onFullscreenChange?(fullscreen: boolean): void;
+  onRemoteImagesChange?(remoteImages: boolean): void;
 }
 
 const FIND_HIGHLIGHT = 'md-find';
@@ -68,6 +71,10 @@ function relFrom(root: string, abs: string): string {
   return abs.slice(normalizedRoot.length + 1).split('\\').join('/');
 }
 
+function remoteImagesTitle(on: boolean): string {
+  return on ? 'Web images on — click to stop fetching them' : 'Load images from the web';
+}
+
 function button(className: string, icon: string, title: string): HTMLButtonElement {
   const b = document.createElement('button');
   b.type = 'button';
@@ -78,12 +85,13 @@ function button(className: string, icon: string, title: string): HTMLButtonEleme
 }
 
 export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
-  const { paneId, host, root, onClose, onFullscreenChange } = opts;
+  const { paneId, host, root, onClose, onFullscreenChange, onRemoteImagesChange } = opts;
 
   const existing = openViewers.get(host);
   if (existing) existing.close();
 
   let fullscreen = opts.fullscreen;
+  let remoteImages = opts.remoteImages;
   let current: DocEntry = opts.entry;
   // Where "back" goes: every internal link followed pushes the document it left.
   const history: DocEntry[] = [];
@@ -101,6 +109,8 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   const spacer = document.createElement('span');
   spacer.className = 'md-spacer';
   const findBtn = button('md-btn', ICONS.find, 'Find in document (Cmd+F)');
+  const remoteBtn = button('md-btn', ICONS.globe, remoteImagesTitle(remoteImages));
+  remoteBtn.classList.toggle('md-btn-on', remoteImages);
   const expand = button(
     'md-btn',
     fullscreen ? ICONS.collapse : ICONS.expand,
@@ -108,7 +118,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   );
   const closeBtn = button('md-btn md-close', ICONS.close, 'Close (Esc)');
 
-  bar.append(back, title, spacer, findBtn, expand, closeBtn);
+  bar.append(back, title, spacer, remoteBtn, findBtn, expand, closeBtn);
 
   const content = document.createElement('div');
   content.className = 'md-content';
@@ -285,8 +295,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   };
 
   // A document's own screenshots. The page's CSP allows `data:` and nothing
-  // remote, so main hands the bytes over inlined; anything with a scheme
-  // (a shields.io badge) is left alone and simply doesn't load.
+  // remote, so main hands the bytes over inlined.
   const inlineImages = async (): Promise<void> => {
     const images = article.querySelectorAll<HTMLImageElement>('img[data-md-src]');
     for (const img of images) {
@@ -301,9 +310,44 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
       if (data) img.src = data;
       else img.classList.add('md-img-missing');
     }
-    // Remote images (a README's badge row) are blocked by the page's CSP. Style
-    // them as the alt-text chip rather than leaving a broken-image glyph.
-    for (const img of article.querySelectorAll<HTMLImageElement>('img[src^="http"]')) {
+    parkRemoteImages();
+    if (remoteImages) void loadRemoteImages();
+  };
+
+  // A README's badge row. The page can't load those itself (CSP), and leaving
+  // the URL in place buys a broken-image glyph painted over the alt text, so the
+  // src moves to a data-attribute and the alt text stands in as a chip until the
+  // toolbar toggle says main may go and fetch them.
+  const parkRemoteImages = (): void => {
+    for (const img of article.querySelectorAll<HTMLImageElement>('img[src]')) {
+      const src = img.getAttribute('src') ?? '';
+      if (!/^https?:/i.test(src)) continue;
+      img.dataset['mdRemote'] = src;
+      img.removeAttribute('src');
+      img.classList.add('md-img-missing');
+    }
+  };
+
+  // In parallel: a badge row is a dozen requests to the same host, and doing
+  // them one after another would have the document filling in for seconds.
+  const loadRemoteImages = async (): Promise<void> => {
+    const images = [...article.querySelectorAll<HTMLImageElement>('img[data-md-remote]')];
+    await Promise.all(
+      images.map(async (img) => {
+        const url = img.dataset['mdRemote'];
+        if (!url || img.getAttribute('src')) return;
+        const data = await window.cerberusDocs.remoteAsset(url);
+        // No data: offline, not an image, too big. The chip stays.
+        if (!data) return;
+        img.src = data;
+        img.classList.remove('md-img-missing');
+      })
+    );
+  };
+
+  const dropRemoteImages = (): void => {
+    for (const img of article.querySelectorAll<HTMLImageElement>('img[data-md-remote]')) {
+      img.removeAttribute('src');
       img.classList.add('md-img-missing');
     }
   };
@@ -372,6 +416,15 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     (fullscreen ? document.body : host).append(overlay);
     content.scrollTop = scroll;
   };
+
+  remoteBtn.addEventListener('click', () => {
+    remoteImages = !remoteImages;
+    remoteBtn.classList.toggle('md-btn-on', remoteImages);
+    remoteBtn.title = remoteImagesTitle(remoteImages);
+    if (remoteImages) void loadRemoteImages();
+    else dropRemoteImages();
+    onRemoteImagesChange?.(remoteImages);
+  });
 
   expand.addEventListener('click', () => {
     fullscreen = !fullscreen;

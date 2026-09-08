@@ -37,5 +37,9 @@ export const ICONS = {
   collapse: icon('<path d="M14 10h6M14 10V4M10 14H4M10 14v6M14 10l7-7M3 21l7-7"/>'),
   close: icon('<path d="M18 6L6 18M6 6l12 12"/>'),
   back: icon('<path d="M15 5l-7 7 7 7"/>'),
-  find: icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3L21 21"/>')
+  find: icon('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.3 15.3L21 21"/>'),
+  globe: icon(
+    '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/>' +
+      '<path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>'
+  )
 };

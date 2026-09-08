@@ -56,6 +56,9 @@ export class Workspace {
   private skipCloseConfirm = false;
   // Viewer default from Settings; the viewer's own toggle writes it back.
   private docsFullscreen = false;
+  // Off until asked for: opening a document should not hand a third-party host
+  // the fact that this machine just opened it.
+  private docsRemoteImages = false;
 
   constructor(host: HTMLElement) {
     host.style.cssText = 'width:100vw;height:100vh;background:var(--bg)';
@@ -571,8 +574,10 @@ export class Workspace {
           root,
           entry,
           fullscreen: this.docsFullscreen,
+          remoteImages: this.docsRemoteImages,
           onClose: () => t.layout.focusLeaf(leafId),
-          onFullscreenChange: (fullscreen) => void this.saveDocsFullscreen(fullscreen)
+          onFullscreenChange: (fullscreen) => void this.saveDocsFullscreen(fullscreen),
+          onRemoteImagesChange: (remoteImages) => void this.saveDocsRemoteImages(remoteImages)
         });
       },
       onClose: () => t.layout.focusLeaf(leafId)
@@ -584,6 +589,16 @@ export class Workspace {
     try {
       const s = await window.cerberusSettings.get();
       await window.cerberusSettings.save({ ...s, docs: { ...s.docs, fullscreen } });
+    } catch {
+      /* settings unwritable — the choice still holds for this session */
+    }
+  }
+
+  private async saveDocsRemoteImages(remoteImages: boolean): Promise<void> {
+    this.docsRemoteImages = remoteImages;
+    try {
+      const s = await window.cerberusSettings.get();
+      await window.cerberusSettings.save({ ...s, docs: { ...s.docs, remoteImages } });
     } catch {
       /* settings unwritable — the choice still holds for this session */
     }
@@ -651,6 +666,7 @@ export class Workspace {
       const s = await window.cerberusSettings.get();
       this.skipCloseConfirm = !!s.skipCloseConfirm;
       this.docsFullscreen = !!s.docs?.fullscreen;
+      this.docsRemoteImages = !!s.docs?.remoteImages;
     } catch {
       /* settings unavailable — keep confirming (the safe default) */
     }

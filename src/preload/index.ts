@@ -98,7 +98,8 @@ contextBridge.exposeInMainWorld('cerberusMute', muteBridge);
 const docsBridge: DocsBridge = {
   list: (paneId) => ipcRenderer.invoke('docs:list', paneId) as Promise<DocsListResult>,
   read: (paneId, abs) => ipcRenderer.invoke('docs:read', paneId, abs) as Promise<DocsReadResult>,
-  asset: (paneId, abs) => ipcRenderer.invoke('docs:asset', paneId, abs) as Promise<string | null>
+  asset: (paneId, abs) => ipcRenderer.invoke('docs:asset', paneId, abs) as Promise<string | null>,
+  remoteAsset: (url) => ipcRenderer.invoke('docs:remote-asset', url) as Promise<string | null>
 };
 
 contextBridge.exposeInMainWorld('cerberusDocs', docsBridge);

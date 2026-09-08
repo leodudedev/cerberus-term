@@ -43,6 +43,15 @@ function isUnder(child: string, parent: string): boolean {
   return child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 }
 
+// A README's badge row points at shields.io and friends. The renderer's CSP
+// blocks anything remote, so main fetches the bytes and hands back a data: URL.
+// Node's fetch, not Electron's net: nothing here rides on the browser session,
+// so no cookie of the user's is ever attached to a request a document asked for.
+// Only reached when the viewer's toggle is on — see DocsSettings.remoteImages.
+const REMOTE_TIMEOUT_MS = 6000;
+const MAX_REMOTE_BYTES = 2_000_000;
+const REMOTE_TYPES = new Set(Object.values(ASSET_TYPES));
+
 export function registerDocsIpc(): void {
   ipcMain.handle('docs:list', (_e, paneId: string): DocsListResult => {
     const cwd = getPaneCwd(paneId);
@@ -64,6 +73,38 @@ export function registerDocsIpc(): void {
       return `data:${type};base64,${readFileSync(real).toString('base64')}`;
     } catch {
       return null; // missing, unreadable, or a broken link in the document
+    }
+  });
+
+  ipcMain.handle('docs:remote-asset', async (_e, url: string): Promise<string | null> => {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+    // https only: a plain-http badge would leak the request in clear and is not
+    // worth downgrading the connection for.
+    if (parsed.protocol !== 'https:') return null;
+
+    try {
+      const res = await fetch(parsed, {
+        signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
+        redirect: 'follow',
+        credentials: 'omit',
+        referrerPolicy: 'no-referrer',
+        headers: { accept: 'image/*' }
+      });
+      if (!res.ok) return null;
+      const type = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase();
+      if (!type || !REMOTE_TYPES.has(type)) return null;
+      const declared = Number(res.headers.get('content-length'));
+      if (Number.isFinite(declared) && declared > MAX_REMOTE_BYTES) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.byteLength > MAX_REMOTE_BYTES) return null;
+      return `data:${type};base64,${buf.toString('base64')}`;
+    } catch {
+      return null; // offline, timed out, TLS, DNS — the document keeps its chip
     }
   });
 

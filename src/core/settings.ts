@@ -23,6 +23,10 @@ export interface DocsSettings {
   // Viewer default: true opens over the whole window, false over the pane. The
   // viewer's own toolbar toggles it per document either way.
   fullscreen?: boolean;
+  // Whether the viewer may fetch the images a document points at over the
+  // network (README badges, mostly). Off by default: opening a markdown file
+  // should not tell a third-party host that this machine just opened it.
+  remoteImages?: boolean;
 }
 
 export interface Settings {
@@ -89,7 +93,8 @@ export function mergeSettings(parsed: Partial<Settings> | null | undefined): Set
           globs: Array.isArray(p.docs.globs)
             ? p.docs.globs.filter((g): g is string => typeof g === 'string')
             : undefined,
-          fullscreen: p.docs.fullscreen === true
+          fullscreen: p.docs.fullscreen === true,
+          remoteImages: p.docs.remoteImages === true
         }
       : undefined
   };

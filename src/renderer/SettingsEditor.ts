@@ -90,6 +90,13 @@ export async function openSettingsEditor(): Promise<void> {
   docsFullscreen.className = 'settings-checkbox';
   docsFullscreen.checked = s.docs?.fullscreen === true;
 
+  // Off by default, and the viewer's own toolbar button flips it too: a badge
+  // row is worth a request to shields.io only when the user says so.
+  const docsRemoteImages = document.createElement('input');
+  docsRemoteImages.type = 'checkbox';
+  docsRemoteImages.className = 'settings-checkbox';
+  docsRemoteImages.checked = s.docs?.remoteImages === true;
+
   // One row per agent, each naming the file it writes to and its real state.
   // These live outside the app, in other tools' config — nobody should have to
   // guess which ones we touched, and the list grows as agents are added.
@@ -170,6 +177,7 @@ export async function openSettingsEditor(): Promise<void> {
     row('Leftover processes on quit', strays),
     row('Docs folders (csv)', docGlobs),
     row('Open docs full window', docsFullscreen),
+    row('Load doc images from the web', docsRemoteImages),
     hooksTitle,
     hooksBlock,
     hint,
@@ -218,7 +226,8 @@ export async function openSettingsEditor(): Promise<void> {
               .map((g) => g.trim())
               .filter(Boolean)
           : undefined,
-        fullscreen: docsFullscreen.checked
+        fullscreen: docsFullscreen.checked,
+        remoteImages: docsRemoteImages.checked
       },
       // Disabled rows keep reporting .checked, so an agent that's currently
       // uninstalled carries its stored answer through untouched.

@@ -36,4 +36,8 @@ export interface DocsBridge {
   // `data:` and nothing remote, so this is how a repo's own screenshots show up
   // without opening the renderer to the network. Null when it can't be served.
   asset(paneId: string, abs: string): Promise<string | null>;
+  // A badge or any other image a document points at over https, fetched by main
+  // (off the browser session, so no cookies) and returned as a data: URL. The
+  // viewer only calls it when the user has turned remote images on.
+  remoteAsset(url: string): Promise<string | null>;
 }
