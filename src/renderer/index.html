@@ -807,12 +807,14 @@
 
       /* ---- project docs dropdown --------------------------------------
          Anchored inside the pane body, like the find bar: a pane holding half
-         the screen gets a list half the screen wide. */
+         the screen gets a list half the screen wide.
+         Sits above .md-viewer (z-index 20) and the pane focus frame (30), so
+         reopening the list over an open document brings it to the front. */
       .docs-dropdown {
         position: absolute;
         top: 4px;
         right: 12px;
-        z-index: 6;
+        z-index: 40;
         display: flex;
         flex-direction: column;
         width: min(420px, calc(100% - 24px));
