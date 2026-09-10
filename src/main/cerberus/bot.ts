@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { Bot, InlineKeyboard } from "grammy";
+import { Bot, GrammyError, InlineKeyboard } from "grammy";
 import { actionKeysFor } from "../../core/config.js";
 import { RISK_ICON, RISK_RANK, riskFor, type Risk } from "../../core/classify.js";
 import {
@@ -15,12 +15,135 @@ import { putApproval } from "./remote-approvals.js";
 import { mute, unmute, listMuted, parseDuration } from "../../core/mute.js";
 import { iconForProject } from "../../core/icon.js";
 import { t, timeLocale } from "../../core/i18n.js";
+import type { BotState, BotStatus } from "../../core/mute-bridge.js";
 
 // Telegram layer: push attention events, and route replies/buttons back to the
 // originating tmux pane via send-keys.
 
 let bot: Bot | null = null;
 let chatId: string | null = null;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+// Polling supervisor. grammy already retries a failed getUpdates by itself —
+// network errors, 5xx and 429 sleep 3s and go again, forever — and only ever
+// rethrows on two codes: 401 (token revoked) and 409 (a second getUpdates on
+// the same token: a `pnpm dev` instance next to the installed app, or the same
+// token on two machines). Both used to land in a bare .catch(): the poller died,
+// nothing said so, and the phone went quiet while the hooks kept firing. That
+// silent false negative is the failure this loop exists to make visible.
+let status: BotStatus = { state: "off" };
+let statusSink: ((s: BotStatus) => void) | null = null;
+// Bumped on every (re)start so a supervisor left over from a previous token —
+// one sleeping out its backoff — exits instead of resurrecting a dead bot.
+let generation = 0;
+// A 401 is not a bad moment, it's a bad token: retrying can only spin. Set so
+// the resume nudge doesn't keep poking it either; cleared on the next initBot,
+// which is what saving a new token triggers.
+let fatal = false;
+
+const BACKOFF_MS = 3_000;
+const MAX_BACKOFF_MS = 60_000;
+// Telegram redelivers any update whose offset was never committed. bot.stop()
+// commits it, but that commit is a network call we sometimes have to abandon
+// (see stopQuietly), so a restart can replay the last batch — and a replayed
+// message:text would type the same prompt into the pane a second time.
+const seenUpdates = new Set<number>();
+const SEEN_UPDATES_MAX = 500;
+
+export function getBotStatus(): BotStatus {
+  return status;
+}
+
+// Set once, by whoever owns the window. Fires immediately so a sink registered
+// after the bot booted doesn't start out blank.
+export function setBotStatusSink(fn: (s: BotStatus) => void): void {
+  statusSink = fn;
+  fn(status);
+}
+
+function setStatus(state: BotState, reason?: string): void {
+  status = reason ? { state, reason } : { state };
+  statusSink?.(status);
+}
+
+// Whether polling is live. Not the same question as getBotStatus(): during a
+// backoff the status is "error" and this is false, which is exactly when a
+// nudge is worth something.
+export function botRunning(): boolean {
+  return bot?.isRunning() === true;
+}
+
+// Should a wake-up (or any other nudge) try to bring polling back? Not while
+// it's running, not without credentials, and not after a 401.
+export function botNeedsRestart(): boolean {
+  return !fatal && bot !== null && !bot.isRunning();
+}
+
+async function supervise(gen: number, b: Bot): Promise<void> {
+  let backoff = BACKOFF_MS;
+  while (gen === generation) {
+    setStatus("starting");
+    try {
+      // Resolves only when polling stops, which here means bot.stop() ran.
+      await b.start({
+        onStart: (me) => {
+          if (gen !== generation) return;
+          console.log(`[bot] @${me.username} attivo`);
+          setStatus("online");
+        },
+      });
+      if (gen === generation) setStatus("off", "polling stopped");
+      return;
+    } catch (e) {
+      if (gen !== generation) return;
+      const code = e instanceof GrammyError ? e.error_code : undefined;
+      const msg = (e as Error)?.message ?? String(e);
+      if (code === 401) {
+        fatal = true;
+        console.error("[bot] token rifiutato (401) — polling fermo");
+        setStatus("error", "token rejected (401) — check the bot token in Settings");
+        return;
+      }
+      console.error("[bot] polling terminato con errore:", msg);
+      setStatus(
+        "error",
+        code === 409
+          ? "the same bot token is polling elsewhere (409) — another Cerberus instance?"
+          : msg,
+      );
+      await sleep(backoff);
+      backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+    }
+  }
+}
+
+// stop() kills the poll synchronously — it clears the running flag and aborts
+// the in-flight fetch before awaiting anything — and only then commits the
+// update offset over the network. That commit goes through the api client's
+// retry, which gets no abort signal and backs off for up to 20 minutes, so
+// awaiting it with the network down would hang the restart for as long as the
+// network stays down. Give it a moment, then walk away: the poller is already
+// dead, and an uncommitted offset only costs a replayed update, which
+// seenUpdates drops.
+async function stopQuietly(b: Bot): Promise<void> {
+  try {
+    await Promise.race([b.stop(), sleep(3_000)]);
+  } catch (e) {
+    console.error("[bot] stop failed:", (e as Error).message);
+  }
+}
+
+// Rebuild the bot against the current credentials. Returns what initBot returns:
+// false when there are none, which is a working state (nothing pushes), not an
+// error.
+export function restartBot(): boolean {
+  const old = bot;
+  bot = null;
+  generation++; // orphans the supervisor before the old instance is touched
+  if (old) void stopQuietly(old);
+  return initBot();
+}
 // Chats allowed as notification targets and as command sources: the default
 // chat plus TELEGRAM_ALLOWED_CHATS (csv). Guards per-project chatId overrides.
 const allowedChats = new Set<string>();
@@ -35,8 +158,11 @@ export function initBot(): boolean {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   chatId = process.env.TELEGRAM_CHAT_ID ?? null;
 
+  fatal = false;
+
   if (!token || !chatId) {
     console.warn("[bot] TELEGRAM_BOT_TOKEN/CHAT_ID mancanti — push disabilitato");
+    setStatus("off", "no bot token / chat id");
     return false;
   }
 
@@ -50,6 +176,22 @@ export function initBot(): boolean {
   // Whitelist: ignore anything not from an allowed chat.
   bot.use(async (ctx, next) => {
     if (!allowedChats.has(String(ctx.chat?.id))) return;
+    // Drop an update we already handled. Only a restart can produce one (see
+    // seenUpdates), and letting it through would replay whatever it carried —
+    // a keystroke, or a whole prompt, into a live agent pane.
+    const id = ctx.update.update_id;
+    if (seenUpdates.has(id)) {
+      console.warn(`[bot] update ${id} già gestito — ignorato`);
+      return;
+    }
+    seenUpdates.add(id);
+    // Insertion-ordered, so the first entries are the oldest ones.
+    if (seenUpdates.size > SEEN_UPDATES_MAX) {
+      for (const old of seenUpdates) {
+        seenUpdates.delete(old);
+        if (seenUpdates.size <= SEEN_UPDATES_MAX / 2) break;
+      }
+    }
     await next();
   });
 
@@ -214,9 +356,7 @@ export function initBot(): boolean {
     }
   });
 
-  bot
-    .start({ onStart: (me) => console.log(`[bot] @${me.username} attivo`) })
-    .catch((e) => console.error("[bot] polling terminato con errore:", e?.message ?? e));
+  void supervise(++generation, bot);
   return true;
 }
 

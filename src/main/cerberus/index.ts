@@ -1,4 +1,4 @@
-import { app, type BrowserWindow } from 'electron';
+import { app, powerMonitor, type BrowserWindow } from 'electron';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { applySettingsToEnv, getSettings, migrateHookSettings } from '../settings.js';
@@ -12,6 +12,7 @@ import {
 } from './hook-install.js';
 import { HOOK_TARGETS } from '../../core/hook-targets.js';
 import { startDaemon } from './daemon.js';
+import { botNeedsRestart, restartBot } from './bot.js';
 
 // Boot the Cerberus remote-control core from the Electron main process:
 // load Telegram creds, point persistence at userData, install CLI hooks,
@@ -64,4 +65,16 @@ export function startCerberus(getWindow: () => BrowserWindow | null): void {
   const fmtPath = join(base, 'bin', 'claude-stream.jq');
 
   startDaemon(getWindow, { fmtPath });
+
+  // Sleep can leave the long poll waiting on a socket the OS never reports as
+  // dead; grammy's client only aborts that after 500s, so remote control can
+  // stay silently down for minutes after the lid opens. Nudge it awake instead
+  // of waiting out the timeout — and only when polling really isn't running, so
+  // a healthy poll is never interrupted (a restart can't commit its update
+  // offset while the network is still coming back up).
+  powerMonitor.on('resume', () => {
+    if (!botNeedsRestart()) return;
+    console.log('[cerberus] resume — restarting the Telegram poller');
+    restartBot();
+  });
 }

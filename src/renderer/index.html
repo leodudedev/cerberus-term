@@ -223,6 +223,16 @@
       .tabbar-telegram.muted:hover .mute-slash-bg {
         stroke: var(--btn-hover);
       }
+      /* The poller is down — revoked token, or a second instance holding the
+         same one. Still clickable (the mute flag is local and unaffected), but
+         off-brand-colour so a phone that stopped ringing has a visible cause.
+         Wins over .muted: a silenced bot that also can't poll is one problem. */
+      .tabbar-telegram.offline,
+      .tabbar-telegram.offline:hover,
+      .tabbar-telegram.offline.muted,
+      .tabbar-telegram.offline.muted:hover {
+        color: var(--error);
+      }
       /* No token/chat id: nothing to silence. Dimmed and inert, but still there
          with a tooltip pointing at Settings. */
       .tabbar-telegram.unconfigured,

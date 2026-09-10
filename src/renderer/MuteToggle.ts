@@ -25,6 +25,11 @@ export function makeMuteToggle(): HTMLElement {
 
   let muted = false;
   let busy = false;
+  // A dead long poll has no other symptom: the hooks keep firing and the panes
+  // keep flashing, only the phone goes quiet — which reads as "nothing needs
+  // me". So the button carries the reason. It stays live either way: the mute
+  // flag is local and still worth flipping.
+  let botError: string | null = null;
   // Without a bot token + chat id nothing pushes anywhere, so a live switch
   // would promise a silence it isn't causing. Stay visible but inert, and say
   // why — hiding it would just make the feature invisible to whoever hasn't
@@ -34,11 +39,14 @@ export function makeMuteToggle(): HTMLElement {
   const paint = (): void => {
     btn.disabled = !configured;
     btn.classList.toggle('unconfigured', !configured);
+    btn.classList.toggle('offline', Boolean(botError) && configured);
     btn.title = !configured
       ? 'Telegram not configured — add a bot token and chat ID in Settings (Cmd+,)'
-      : muted
-        ? 'Telegram notifications OFF for every session — click to re-enable'
-        : 'Telegram notifications ON — click to silence every session';
+      : botError
+        ? `Telegram remote control is down: ${botError}`
+        : muted
+          ? 'Telegram notifications OFF for every session — click to re-enable'
+          : 'Telegram notifications ON — click to silence every session';
     btn.classList.toggle('muted', muted && configured);
     btn.setAttribute('aria-pressed', String(muted && configured));
     // Icon-only button: the label is the only thing a screen reader gets.
@@ -68,6 +76,17 @@ export function makeMuteToggle(): HTMLElement {
       .catch(() => {
         /* assume configured rather than disable a working toggle */
       });
+    // Pulled as well as pushed: a reload misses every status sent before the
+    // page existed, and the poller only pushes on a change.
+    void window.cerberusMute
+      .botStatus()
+      .then((s) => {
+        botError = s.state === 'error' ? (s.reason ?? 'polling stopped') : null;
+        paint();
+      })
+      .catch(() => {
+        /* no status available — say nothing rather than cry wolf */
+      });
   };
 
   refresh();
@@ -79,6 +98,11 @@ export function makeMuteToggle(): HTMLElement {
   // Flipped from elsewhere (a future remote command): follow along.
   window.cerberusMute.onChange((active) => {
     muted = active;
+    paint();
+  });
+
+  window.cerberusMute.onBotStatus((s) => {
+    botError = s.state === 'error' ? (s.reason ?? 'polling stopped') : null;
     paint();
   });
 

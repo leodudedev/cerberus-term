@@ -7,7 +7,7 @@ import type {
   HookTargetStatus,
   SaveResult as SettingsSaveResult
 } from '../core/settings.js';
-import type { MuteBridge } from '../core/mute-bridge.js';
+import type { BotStatus, MuteBridge } from '../core/mute-bridge.js';
 import type { DocsBridge, DocsListResult, DocsReadResult } from '../core/docs-bridge.js';
 
 // Per-pane fan-out for the shared pty:data / pty:exit channels. The main
@@ -84,12 +84,19 @@ contextBridge.exposeInMainWorld('cerberusSettings', settingsBridge);
 let onMuteAll: ((active: boolean) => void) | null = null;
 ipcRenderer.on('cerberus:mute-all', (_e, active: boolean) => onMuteAll?.(active));
 
+let onBotStatus: ((s: BotStatus) => void) | null = null;
+ipcRenderer.on('cerberus:bot-status', (_e, s: BotStatus) => onBotStatus?.(s));
+
 const muteBridge: MuteBridge = {
   getAll: () => ipcRenderer.invoke('mute:get-all') as Promise<boolean>,
   setAll: (on) => ipcRenderer.invoke('mute:set-all', on) as Promise<boolean>,
   configured: () => ipcRenderer.invoke('mute:configured') as Promise<boolean>,
   onChange: (cb) => {
     onMuteAll = cb;
+  },
+  botStatus: () => ipcRenderer.invoke('bot:status') as Promise<BotStatus>,
+  onBotStatus: (cb) => {
+    onBotStatus = cb;
   }
 };
 

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { getSettings, saveSettings, applySettingsToEnv } from './settings.js';
 import { hooksStatus, installAgentHooks, uninstallAgentHooks } from './cerberus/hook-install.js';
+import { restartBot } from './cerberus/bot.js';
 import { parseTargetIds } from '../core/settings.js';
 import type { Settings, SaveResult, HookTargetStatus } from '../core/settings.js';
 import { HOOK_TARGETS, type TargetId } from '../core/hook-targets.js';
@@ -20,6 +21,17 @@ function applyHookTargets(chosen: TargetId[]): SaveResult {
   return { ok: true };
 }
 
+// What the bot actually polls with. applySettingsToEnv() is the only writer, so
+// comparing the env across it is what tells a credential edit apart from any
+// other settings change.
+function telegramCreds(): string {
+  return [
+    process.env['TELEGRAM_BOT_TOKEN'],
+    process.env['TELEGRAM_CHAT_ID'],
+    process.env['TELEGRAM_ALLOWED_CHATS']
+  ].join('\u0000');
+}
+
 export function registerSettingsIpc(): void {
   ipcMain.handle('settings:get', (): Settings => getSettings());
 
@@ -30,7 +42,12 @@ export function registerSettingsIpc(): void {
       // Stamped with the platform: an answer is only meaningful on the one it
       // was given on. See isPreWindowsConsent.
       saveSettings({ ...s, hookTargets: chosen, hookTargetsPlatform: process.platform });
-      applySettingsToEnv(); // refresh env now; bot re-polls a new token on next launch
+      const before = telegramCreds();
+      applySettingsToEnv();
+      // New credentials take effect now rather than on the next launch. Only on
+      // an actual change: a restart drops the poll for a moment, and every other
+      // settings save (shell, docs, hooks) would otherwise pay for it.
+      if (telegramCreds() !== before) restartBot();
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }
