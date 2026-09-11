@@ -8,6 +8,32 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.18.0] — 2026-09-11
+
+### Fixed
+
+- **A dropped Telegram connection no longer takes remote control down for
+  good.** Two things could end the bot's connection for the rest of the session:
+  a token that stopped being valid, and a second Cerberus polling with the same
+  token — a laptop and a desktop sharing one bot, or a development copy running
+  beside the installed app. Neither said anything. Every notification simply
+  stopped arriving, and since a quiet phone is also what "nothing needs you"
+  looks like, there was no way to tell the two apart. The connection now comes
+  back on its own, waiting a little longer between attempts for as long as the
+  problem lasts, and the ✈ button in the tab bar turns red with the reason in
+  its tooltip when it can't.
+- Waking the Mac no longer leaves the phone silent for minutes. A connection
+  that went to sleep mid-request can come back to a socket that never answers
+  again; Cerberus now reopens it on wake instead of waiting for it to time out.
+  A moment of silence right after the lid opens is still normal — the network
+  itself has to come back first.
+
+### Changed
+
+- A new bot token or chat ID in Settings takes effect immediately. It used to
+  need a restart of the app, which was easy to miss: the settings said one thing
+  and the bot kept using the old credentials until the next launch.
+
 ## [0.17.0] — 2026-09-08
 
 ### Added

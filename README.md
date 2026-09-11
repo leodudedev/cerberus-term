@@ -293,6 +293,11 @@ plane shows crossed out, no session pushes to Telegram, so you can work at the
 keyboard undisturbed, and one click restores every session at once when you walk
 away. Clicking it opens a dialog spelling out what changes and what doesn't.
 
+The same button is where the bot reports a problem: if the connection to
+Telegram goes down — the token was revoked, or a second Cerberus is polling with
+it — the plane turns red and its tooltip says which. It stays clickable, because
+do-not-disturb is a local switch and works either way.
+
 It's independent of the per-project `mute` and of `/mute` from the chat —
 turning it off leaves those exactly as they were. Panes still flash locally when
 a session asks for a permission, and the state survives a restart. Without a bot
