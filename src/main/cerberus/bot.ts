@@ -198,7 +198,9 @@ export function initBot(): boolean {
 
   // Buttons: approve / deny / esc -> keystrokes into the session's pane.
   bot.on("callback_query:data", async (ctx) => {
-    const [action, sessionId] = ctx.callbackQuery.data.split(":");
+    // `decisionId` is only present on Codex permission buttons: it pins the
+    // tap to the exact request the message was sent for. See codex-decisions.
+    const [action, sessionId, decisionId] = ctx.callbackQuery.data.split(":");
     // Inert marker button left after a handled message: nothing to do.
     if (action === "noop") {
       await ctx.answerCallbackQuery({ text: t.handled });
@@ -212,10 +214,13 @@ export function initBot(): boolean {
     // the keymap path below, which types into the pane.
     if (s?.agent === "codex" && (action === "approve" || action === "always" || action === "deny")) {
       const decision = action === "deny" ? "deny" : "allow";
-      const resolved = resolveCodexDecision(sessionId!, decision);
+      const resolved = resolveCodexDecision(sessionId!, decisionId, decision);
       if (!resolved) {
-        // The decision window (codex-decisions.ts) already closed: the hook
-        // abstained and Codex's own prompt is live at the keyboard by now.
+        // Either the decision window (codex-decisions.ts) closed — the hook
+        // abstained and Codex's own prompt is live at the keyboard by now —
+        // or this message belongs to a request that is no longer the pending
+        // one. Both have to fail: answering anyway would tell the user they
+        // approved something Codex either never saw or never asked about.
         await ctx.answerCallbackQuery({ text: t.expired });
         return;
       }
@@ -418,11 +423,17 @@ export interface PushOptions {
   minRisk?: Risk; // skip notifications below this risk level
 }
 
-export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Promise<void> {
-  if (!bot || !chatId) return;
+// Resolves true only if a message actually went out. Most callers fire and
+// forget, but Codex's PermissionRequest blocks its hook — and therefore the
+// whole turn, with Codex's own prompt suppressed behind it — waiting for a tap
+// on that message. Every silent return below is a case where no such message
+// exists, so waiting on one would freeze the session for the full window with
+// nothing able to end it early.
+export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Promise<boolean> {
+  if (!bot || !chatId) return false;
 
   const risk = s.toolName ? riskFor(s.toolName, s.command) : "caution";
-  if (opts.minRisk && RISK_RANK[risk] < RISK_RANK[opts.minRisk]) return;
+  if (opts.minRisk && RISK_RANK[risk] < RISK_RANK[opts.minRisk]) return false;
 
   // Resolve target: honor a per-project override only if allow-listed.
   let target = chatId;
@@ -437,7 +448,7 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
   const key = `${s.sessionId}::${target}::${s.lastMessage}::${s.toolName}::${s.command}`;
   const now = Date.now();
   const prev = lastPush.get(key) ?? 0;
-  if (now - prev < DEDUPE_MS) return;
+  if (now - prev < DEDUPE_MS) return false;
   pruneLastPush(now);
   lastPush.set(key, now);
 
@@ -478,6 +489,7 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
   linkMessage(sent.message_id, s.sessionId);
   // Buttoned message -> track it so a local approval can retire the buttons.
   if (kb) livePerm.set(s.sessionId, { chatId: target, messageId: sent.message_id });
+  return true;
 }
 
 // A permission approved/handled on the PC (no remote tap): strip the dangling
@@ -537,9 +549,13 @@ function buildKeyboard(s: SessionInfo): InlineKeyboard | undefined {
   // would type into the session's prompt. "Nega" uses Escape, which cancels any
   // dialog regardless of option count, so a separate "Esc" button is redundant.
   if (s.isPermission) {
-    const kb = new InlineKeyboard().text(t.btnApprove, `approve:${s.sessionId}`);
-    if (s.hasAlways) kb.text(t.btnAlways, `always:${s.sessionId}`);
-    kb.text(t.btnDeny, `deny:${s.sessionId}`);
+    // Codex carries the id of the request this message is about, so a tap on
+    // a message left behind by an earlier one can be told apart and refused
+    // rather than applied to whatever is pending now.
+    const target = s.decisionId ? `${s.sessionId}:${s.decisionId}` : s.sessionId;
+    const kb = new InlineKeyboard().text(t.btnApprove, `approve:${target}`);
+    if (s.hasAlways) kb.text(t.btnAlways, `always:${target}`);
+    kb.text(t.btnDeny, `deny:${target}`);
     return kb;
   }
   return undefined;

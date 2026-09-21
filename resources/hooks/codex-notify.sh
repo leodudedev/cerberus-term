@@ -19,8 +19,14 @@
 
 payload=$(cat)
 
+# Which event this is decides whether we wait for an answer below. Codex emits
+# compact JSON today; the optional whitespace keeps this working if it ever
+# pretty-prints, because failing to recognise PermissionRequest here is silent
+# — the hook would return nothing and every remote approval would quietly stop
+# reaching it. `hook_event_name` is a top-level key that precedes `tool_input`,
+# so a command containing the same text cannot shadow the real one.
 event=""
-if [[ "$payload" =~ \"hook_event_name\":\"([^\"]*)\" ]]; then
+if [[ "$payload" =~ \"hook_event_name\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
   event="${BASH_REMATCH[1]}"
 fi
 
@@ -40,8 +46,13 @@ EOF
 )
 
 if [ "$event" = "PermissionRequest" ]; then
-  # -m above the daemon's own wait: a ceiling for a dead/hung daemon, not the
-  # thing that's supposed to fire in the normal case.
+  # Three nested deadlines, each giving up before the one around it:
+  #   daemon 25s  <  this curl 30s  <  the 35s timeout registered in
+  #   ~/.codex/hooks.json (see CODEX_DECISION_WINDOW_MS in core/hook-targets).
+  # In the normal case the daemon answers first and neither of the others
+  # fires; -m is only a ceiling for a daemon that died holding the request.
+  # Codex killing the hook first would be the bad order: the answer would
+  # arrive to a process that is already gone.
   curl -s -m 30 -X POST "http://127.0.0.1:${CERBERUS_PORT:-8898}/event" \
     -H 'content-type: application/json' \
     -H "x-cerberus-token: ${CERBERUS_TOKEN:-}" \

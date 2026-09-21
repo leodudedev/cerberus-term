@@ -34,10 +34,23 @@ export interface HookTarget {
   // every one of these has to survive garbage.
   has(list: unknown[], command: string): boolean;
   // `event` is passed through so a target whose per-event limits differ (Codex
-  // clamps SessionEnd to 3s, see docs/todo.md #1.9) can register the timeout it
-  // will actually get, instead of a value Codex silently overrides and warns
-  // about. Claude and Copilot ignore it — their timeout is uniform.
+  // clamps SessionEnd to 3s and kills a PermissionRequest hook at its timeout,
+  // see docs/todo.md #1.9) can register the timeout it will actually get,
+  // instead of a value Codex silently overrides. Claude and Copilot ignore it
+  // — their timeout is uniform.
   add(list: unknown[], command: string, event: string): unknown[];
+  // Bring an entry we registered in an earlier version up to the shape `add`
+  // would produce today. `has` only matches on the command path, so without
+  // this a field we later corrected — a timeout, say — would stay wrong
+  // forever on every machine that had already installed it: installOne sees
+  // its own command, considers the event done, and never rewrites it.
+  //
+  // Rewrites IN PLACE. Never remove-and-reappend: Codex keys hook trust by the
+  // entry's position within its event (`…:pre_tool_use:0:0`, docs/todo.md
+  // #1.6b), so reordering silently drops the trust with no error anywhere.
+  // Changing the definition at all does re-arm the review prompt, which is
+  // correct — Codex hashes what it trusted and wants to see the new version.
+  refresh?(list: unknown[], command: string, event: string): { list: unknown[]; changed: boolean };
   prune(list: unknown[], isOurs: (command: string) => boolean): { list: unknown[]; removed: number };
 }
 
@@ -176,6 +189,34 @@ interface CodexGroup {
   hooks?: CodexHandler[];
 }
 
+// How long Telegram gets to answer a Codex PermissionRequest before the hook
+// gives up and lets Codex's own prompt take over. Lives here, next to the
+// timeout that has to outlive it, because the two are one decision: Codex
+// kills the hook process at `timeout` seconds (docs/todo.md #1.9), so a
+// window wider than the registered timeout is a window the answer can never
+// reach — the tap resolves a hook Codex has already abandoned, and the phone
+// reports an approval that never happened.
+//
+// Ordering, widest last: daemon 25s < the script's own `curl -m 30` < 35s
+// here. Each layer gives up before the one that contains it.
+export const CODEX_DECISION_WINDOW_MS = 25_000;
+const CODEX_PERMISSION_TIMEOUT_S = 35;
+
+function codexTimeout(event: string): number {
+  // SessionEnd defaults to 1s and is hard-capped at 3s: registering more just
+  // makes Codex log "clamping SessionEnd hook timeout" on every startup.
+  if (event === 'SessionEnd') return 3;
+  // The only event we block on. Everything else is fire-and-forget, so the
+  // short timeout is the right one there — it bounds a stalled curl instead
+  // of holding up a tool call.
+  if (event === 'PermissionRequest') return CODEX_PERMISSION_TIMEOUT_S;
+  return 5;
+}
+
+function codexHandler(command: string, event: string): CodexHandler {
+  return { type: 'command', command, timeout: codexTimeout(event), statusMessage: 'Cerberus' };
+}
+
 const codex: HookTarget = {
   id: 'codex',
   label: 'Codex CLI',
@@ -193,19 +234,29 @@ const codex: HookTarget = {
   has: (list, command) =>
     (list as CodexGroup[]).some((g) => g?.hooks?.some((h) => h?.command === command)),
 
-  // SessionEnd's own timeout defaults to 1s and is hard-capped at 3s by Codex
-  // (docs/todo.md #1.9); every other event we register is capped higher, so 5s
-  // is safe there. Registering 5 for SessionEnd anyway works — Codex just
-  // clamps it and logs a warning on every `codex` startup — so it's set right
-  // here instead of leaving a permanent, harmless-but-noisy warning behind.
-  add: (list, command, event) => [
-    ...list,
-    {
-      hooks: [
-        { type: 'command', command, timeout: event === 'SessionEnd' ? 3 : 5, statusMessage: 'Cerberus' }
-      ]
-    }
-  ],
+  add: (list, command, event) => [...list, { hooks: [codexHandler(command, event)] }],
+
+  refresh: (list, command, event) => {
+    const desired = codexHandler(command, event);
+    let changed = false;
+    const groups = (list as CodexGroup[]).map((g) => {
+      if (!g?.hooks) return g;
+      let touched = false;
+      const hooks = g.hooks.map((h) => {
+        if (h?.command !== command) return h;
+        // Spread over the existing entry rather than replacing it: anything
+        // someone added by hand alongside our fields is none of our business.
+        const merged = { ...h, ...desired };
+        if (JSON.stringify(merged) === JSON.stringify(h)) return h;
+        touched = true;
+        return merged;
+      });
+      if (!touched) return g;
+      changed = true;
+      return { ...g, hooks };
+    });
+    return { list: changed ? groups : list, changed };
+  },
 
   prune: (list, isOurs) => {
     let removed = 0;
@@ -229,7 +280,13 @@ export function codexConfigBlockedReason(configToml: string): string | null {
   if (/^\s*allow_managed_hooks_only\s*=\s*true\b/m.test(configToml)) {
     return 'Codex is set to allow managed hooks only — ours would be ignored';
   }
-  if (/^\[hooks(?!\.state)/m.test(configToml)) {
+  // Anchored on a real table header, not on the prefix: `^\[hooks` alone both
+  // misses an indented `  [hooks]` (legal TOML — we'd install and Codex would
+  // warn about the collision on every startup) and claims unrelated tables
+  // whose name merely starts with it, `[hooks_backup]` being the obvious one
+  // — which would refuse the install forever, citing hooks that aren't there.
+  // `[hooks.state…]` is Codex's own trust bookkeeping and never a definition.
+  if (/^\s*\[hooks(?:\]|\.(?!state[.\]]))/m.test(configToml)) {
     return 'Codex already has hooks configured in config.toml — add ours by hand';
   }
   return null;

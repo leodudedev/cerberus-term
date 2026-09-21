@@ -19,6 +19,13 @@ export interface SessionInfo {
   options: string[]; // AskUserQuestion answer labels → per-option buttons
   hasAlways: boolean; // dialog offers a "don't ask again" option (read from pane)
   isPermission: boolean; // event was a permission request (buttons make sense)
+  // Codex only: the id of the PermissionRequest this session is currently
+  // blocked on, carried into the button callbacks so a tap can be matched to
+  // the request it was shown for. Undefined for agents we answer by keystroke,
+  // which address the pane rather than a specific pending request. A value
+  // restored from the snapshot is necessarily stale — the waiter map is in
+  // memory — and resolves to "expired", which is the right answer.
+  decisionId?: string;
   lastSeen: number;
 }
 

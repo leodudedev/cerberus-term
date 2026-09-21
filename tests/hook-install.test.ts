@@ -10,7 +10,12 @@ import {
   installedTargets,
   stableScript
 } from '../src/main/cerberus/hook-install.js';
-import { commandFor, isStaleCommand, type TargetId } from '../src/core/hook-targets.js';
+import {
+  codexConfigBlockedReason,
+  commandFor,
+  isStaleCommand,
+  type TargetId
+} from '../src/core/hook-targets.js';
 
 // install/uninstall/status all take the home dir, so a tmpdir keeps the real
 // ~/.claude, ~/.copilot and ~/.codex out of it. The registered command still
@@ -39,7 +44,15 @@ interface CopilotSettings {
 interface CodexSettings {
   hooks: Record<
     string,
-    { hooks: { type?: string; command?: string; timeout?: number; statusMessage?: string }[] }[]
+    {
+      hooks: {
+        type?: string;
+        command?: string;
+        timeout?: number;
+        statusMessage?: string;
+        note?: string;
+      }[];
+    }[]
   >;
   [k: string]: unknown;
 }
@@ -322,6 +335,12 @@ describe('codex', () => {
     expect(s.hooks['SessionEnd']).toEqual([
       { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 3, statusMessage: 'Cerberus' }] }
     ]);
+    // PermissionRequest is the one we block on while Telegram is asked: Codex
+    // kills the hook at this timeout, so it has to outlive the daemon's 25s
+    // decision window or no remote answer can ever reach it.
+    expect(s.hooks['PermissionRequest']).toEqual([
+      { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 35, statusMessage: 'Cerberus' }] }
+    ]);
     expect(hooksStatus(home).find((t) => t.id === 'codex')?.installed).toBe(true);
   });
 
@@ -392,6 +411,111 @@ describe('codex', () => {
   it('reports no trust field before hooks.json is even installed', () => {
     withConfigDir('.codex');
     expect(hooksStatus(home).find((t) => t.id === 'codex')?.trust).toBeUndefined();
+  });
+
+  // The upgrade path. `has` matches on the command path alone, so an entry a
+  // previous version wrote with a different timeout would otherwise keep it
+  // forever — which is exactly how the 5s PermissionRequest timeout survived
+  // the fix that was supposed to correct it.
+  it('rewrites an entry of ours whose shape has drifted', () => {
+    withConfigDir('.codex');
+    writeFileSync(
+      codexFile(),
+      JSON.stringify({
+        hooks: {
+          PermissionRequest: [
+            { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 5, statusMessage: 'Cerberus' }] }
+          ]
+        }
+      })
+    );
+    installAgentHooks(ALL, home);
+
+    const handler = read<CodexSettings>(codexFile()).hooks['PermissionRequest']![0]!.hooks[0]!;
+    expect(handler.timeout).toBe(35);
+  });
+
+  // Codex keys hook trust by the entry's position within its event, so a
+  // rewrite that reorders anything drops the trust with no error anywhere.
+  it('rewrites in place, leaving other hooks and the ordering untouched', () => {
+    withConfigDir('.codex');
+    writeFileSync(
+      codexFile(),
+      JSON.stringify({
+        description: 'hand-written',
+        hooks: {
+          PermissionRequest: [
+            { hooks: [{ type: 'command', command: '/opt/theirs.sh' }] },
+            { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 5, statusMessage: 'Cerberus', note: 'mine' }] }
+          ]
+        }
+      })
+    );
+    installAgentHooks(ALL, home);
+
+    const after = read<CodexSettings>(codexFile());
+    const groups = after.hooks['PermissionRequest']!;
+    expect(groups).toHaveLength(2);
+    expect(groups[0]!.hooks[0]!.command).toBe('/opt/theirs.sh'); // still first
+    expect(groups[1]!.hooks[0]).toEqual({
+      type: 'command',
+      command: CODEX_NOTIFY,
+      timeout: 35,
+      statusMessage: 'Cerberus',
+      note: 'mine' // fields we don't own are left alone
+    });
+    expect(after['description']).toBe('hand-written');
+  });
+
+  it('does not rewrite, or report a change, when the entry is already current', () => {
+    withConfigDir('.codex');
+    installAgentHooks(ALL, home);
+    const first = read<CodexSettings>(codexFile());
+    installAgentHooks(ALL, home);
+    expect(read<CodexSettings>(codexFile())).toEqual(first);
+  });
+
+  // Becoming unavailable after the fact is the case that matters: our entries
+  // are already in hooks.json, and a disabled row would strand them there.
+  it('stays removable once registered, even when config.toml later blocks it', () => {
+    withConfigDir('.codex');
+    installAgentHooks(ALL, home);
+    writeFileSync(codexToml(), '[hooks.PreToolUse]\ncommand = "/opt/other/hook"\n');
+
+    const status = hooksStatus(home).find((t) => t.id === 'codex')!;
+    expect(status.available).toBe(false); // no new writes
+    expect(status.installed).toBe(true); // but ours are in there
+    expect(status.reason).toMatch(/config\.toml/);
+
+    expect(uninstallAgentHooks(['codex'], home).ok).toBe(true);
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.installed).toBe(false);
+  });
+});
+
+describe('codexConfigBlockedReason', () => {
+  it('catches a real hooks table, indented or not', () => {
+    expect(codexConfigBlockedReason('[hooks]\n')).toMatch(/config\.toml/);
+    expect(codexConfigBlockedReason('[hooks.PreToolUse]\n')).toMatch(/config\.toml/);
+    expect(codexConfigBlockedReason('  [hooks.PreToolUse]\n')).toMatch(/config\.toml/);
+  });
+
+  it("ignores Codex's own trust bookkeeping", () => {
+    expect(codexConfigBlockedReason('[hooks.state."/x/hooks.json:pre_tool_use:0:0"]\n')).toBeNull();
+  });
+
+  // Prefix matching here would refuse the install forever, blaming hooks that
+  // are not there.
+  it('does not claim an unrelated table that merely starts with hooks', () => {
+    expect(codexConfigBlockedReason('[hooks_backup]\n')).toBeNull();
+    expect(codexConfigBlockedReason('[hooksetup]\n')).toBeNull();
+  });
+
+  it('reports managed-hooks-only separately', () => {
+    expect(codexConfigBlockedReason('allow_managed_hooks_only = true\n')).toMatch(/managed/);
+  });
+
+  it('is silent on a config with nothing to do with hooks', () => {
+    expect(codexConfigBlockedReason('model = "gpt-5.6-sol"\n')).toBeNull();
   });
 });
 

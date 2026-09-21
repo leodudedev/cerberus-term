@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage } from "node:http";
+import { randomUUID } from "node:crypto";
 import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
-import { RISK_RANK, riskFor } from "../../core/classify.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
 import { upsertSession, dropSession } from "../../core/registry.js";
 import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bot.js";
@@ -26,7 +26,11 @@ import { ALWAYS_OPTION_RE, dialogOptionsBlock, extractQuestionOptions } from "..
 import { resolveFollowPath } from "../../core/follow-path.js";
 import { paneSpawnCwds } from "../bridge-electron.js";
 import { getDaemonToken } from "./token.js";
-import { awaitCodexDecision } from "./codex-decisions.js";
+import {
+  awaitCodexDecision,
+  cancelCodexDecision,
+  type Outcome
+} from "./codex-decisions.js";
 
 // HTTP daemon that receives detection events from the hook scripts.
 // Three producers, one endpoint:
@@ -299,6 +303,12 @@ const server = createServer(async (req, res) => {
 
       const detail = await lastCodexText(hook.transcript_path);
       const profile = profileFromConfigDir(body?.config_dir, "codex");
+      // Identifies this request for the whole round trip. A permission answered
+      // at the keyboard leaves its Telegram message with live buttons (nothing
+      // fires a PostToolUse to retire them when the answer was "no"), so
+      // without an id a tap on that leftover would settle whatever request is
+      // open now — approving a command the user never read.
+      const decisionId = randomUUID();
       const session = upsertSession({
         sessionId,
         agent,
@@ -315,41 +325,71 @@ const server = createServer(async (req, res) => {
         options: [],
         hasAlways: false, // no TUI "don't ask again" parsing for Codex — 1.7b
         isPermission: true,
+        decisionId,
       });
 
       if (pane) emit?.("cerberus:pane-attention", { pane, sessionId: session.sessionId });
       requestAttention();
 
       const pcfg = readProjectConfig(session.cwd);
-      const risk = name ? riskFor(name, command) : "caution"; // mirrors pushAttention's own fallback
-      const belowMinRisk = !!pcfg.minRisk && RISK_RANK[risk] < RISK_RANK[pcfg.minRisk];
-      let decision: "allow" | "deny" | "timeout" = "timeout";
+      let decision: Outcome = "timeout";
       if (pcfg.mute || isMuted(session.cwd)) {
+        // Muted: no message is coming, so don't hold the turn hostage waiting
+        // for a tap on it. Abstain immediately and let Codex ask on screen.
         console.log("[mute]", session.cwd);
-      } else if (belowMinRisk) {
-        // Same gate pushAttention applies internally — checked here too so we
-        // don't hold the hook open for nothing when no message will ever be
-        // sent to answer it from.
-        console.log("[minrisk-skip]", session.cwd);
       } else {
-        const wait = awaitCodexDecision(sessionId);
-        void pushAttention(session, { chatId: pcfg.chatId, minRisk: pcfg.minRisk }).catch((e) =>
-          console.error("[bot] push failed", e),
-        );
-        decision = await wait;
+        // Registered before the push so a tap can never land before there is
+        // something to receive it.
+        const wait = awaitCodexDecision(sessionId, decisionId);
+        // The hook can die while we hold its request open — Codex timing it
+        // out, the user pressing Escape, the pane going away. The socket
+        // closing is the only signal we get; without acting on it the waiter
+        // survives, and a tap arriving afterwards would be reported to the
+        // phone as an approval that Codex never received.
+        req.on("close", () => cancelCodexDecision(sessionId, decisionId));
+
+        // Awaited, not fire-and-forget: its answer decides whether waiting is
+        // meaningful at all. It returns false whenever no message went out —
+        // no bot configured, below the project's minRisk, suppressed as a
+        // duplicate — and in every one of those cases blocking would freeze
+        // the turn for the full window with Codex's own prompt hidden behind
+        // it and nothing able to end it early. Installing the Codex hooks
+        // without ever setting up Telegram is the common shape of that.
+        const sent = await pushAttention(session, {
+          chatId: pcfg.chatId,
+          minRisk: pcfg.minRisk,
+        }).catch((e) => {
+          console.error("[bot] push failed", e);
+          return false;
+        });
+        if (sent) {
+          decision = await wait;
+        } else {
+          cancelCodexDecision(sessionId, decisionId);
+          console.log("[codex] nothing pushed — abstaining", session.cwd);
+        }
       }
 
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(
-        decision === "timeout"
-          ? JSON.stringify({})
-          : JSON.stringify({
-              hookSpecificOutput: {
-                hookEventName: "PermissionRequest",
-                decision: { behavior: decision },
-              },
-            }),
-      );
+      // The hook may already be gone (see the close handler above); writing to
+      // its socket then is harmless but pointless.
+      if (!res.destroyed && !res.writableEnded) {
+        res.writeHead(200, { "content-type": "application/json" });
+        // An abstain has to be an object Codex accepts and finds no decision
+        // in. `{}` validates: its output schema defaults every property and
+        // requires none — while rejecting anything unknown, which is why the
+        // daemon's old generic `{"ok":true}` reply produced "hook returned
+        // invalid permission-request JSON output" on every Codex permission.
+        res.end(
+          decision === "timeout"
+            ? "{}"
+            : JSON.stringify({
+                hookSpecificOutput: {
+                  hookEventName: "PermissionRequest",
+                  decision: { behavior: decision },
+                },
+              }),
+        );
+      }
       return;
     }
 

@@ -145,7 +145,11 @@ it says what has actually been exercised rather than what ought to work.
 - **Codex CLI approvals answer natively**, not via keystrokes: the hook itself
   returns allow/deny to Codex, so there's no on-screen dialog to parse the way
   Claude's and Copilot's are. Approve/Deny in Telegram has ~25s to arrive; past
-  that the hook abstains and Codex's own local prompt takes over as usual.
+  that the hook abstains and Codex's own local prompt takes over as usual. The
+  same happens immediately, without the wait, whenever there is no notification
+  to answer — the project is muted, the push was below its `minRisk`, or you
+  haven't set up a bot at all — so installing the Codex hooks without Telegram
+  costs you nothing.
 
 ## First run
 
@@ -206,8 +210,10 @@ Codex CLI, under `PreToolUse`, `PostToolUse`, `PermissionRequest` and
 { "hooks": [{ "type": "command", "command": "/Users/you/.cerberus-term/hooks/codex-notify.sh", "timeout": 5, "statusMessage": "Cerberus" }] }
 ```
 
-(`SessionEnd`'s registers `"timeout": 3` instead — Codex hard-caps that one event
-at 3s and warns on every startup otherwise.)
+The timeout differs per event, because Codex kills a hook when it expires:
+`PermissionRequest` gets **35s** — it has to outlive the window in which your
+phone can answer it — while `SessionEnd` gets **3s**, the most Codex allows
+there before it clamps the value and warns about it on every startup.
 
 On Windows the same Claude Code entry reads the PowerShell script and runs it in
 the shell the CLI already started, which is both faster than spawning a second

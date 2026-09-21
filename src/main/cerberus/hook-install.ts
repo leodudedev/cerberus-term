@@ -263,6 +263,14 @@ function installOne(t: HookTarget, home: string, platform: HookPlatform): void {
     if (!t.has(list, command)) {
       list = t.add(list, command, ev);
       changed = true;
+    } else if (t.refresh) {
+      // Already registered — but possibly by a version of us that wrote a
+      // field differently. `has` only compares the command path, so nothing
+      // else would ever notice. See HookTarget.refresh for why this rewrites
+      // in place instead of re-adding.
+      const res = t.refresh(list, command, ev);
+      list = res.list;
+      if (res.changed) changed = true;
     }
     settings.hooks[ev] = list;
   }

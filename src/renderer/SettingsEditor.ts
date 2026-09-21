@@ -119,15 +119,22 @@ export async function openSettingsEditor(): Promise<void> {
     // Its config folder is gone, so we can't register there — but leave the
     // stored answer alone. Reinstalling that CLI shouldn't silently cost the
     // choice already made about it.
-    input.disabled = !t.available;
+    //
+    // Still ours to remove while entries of ours are on disk, though: a target
+    // can become unavailable AFTER we registered in it (Codex goes that way
+    // the moment a hooks table appears in its config.toml), and disabling the
+    // row then would strand our hooks there with no way to untick them.
+    input.disabled = !t.available && !t.installed;
 
-    const state = !t.available
-      ? (t.reason ?? 'not installed here')
-      : t.installed
-        ? t.trust === 'pending'
+    const state = t.installed
+      ? t.reason
+        ? `registered — ${t.reason}`
+        : t.trust === 'pending'
           ? 'registered — awaiting trust in Codex (/hooks)'
           : 'registered'
-        : 'not registered';
+      : t.available
+        ? 'not registered'
+        : (t.reason ?? 'not installed here');
     // On the same line as the tickbox: the path is the point of the row, and a
     // separate line under it read as a note about the section instead.
     const detail = document.createElement('span');
