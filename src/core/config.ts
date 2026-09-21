@@ -48,7 +48,18 @@ export function actionKeysFor(agent: Agent | undefined): Record<string, string[]
 // CLI (assistant recap, tool command) stays in whatever language it arrives in.
 // Default port 8898 for cerberus-term (the tmux mycli daemon owns 8899, so we
 // bind a distinct port and inject CERBERUS_PORT into each pty so hooks reach us).
+//
+// Getters, not plain values: ES module imports are resolved (and this module
+// evaluated) before any code runs, which is before startCerberus() gets to
+// call loadEnvFile() — a plain `port: Number(process.env.CERBERUS_PORT ?? …)`
+// would freeze in the default forever, no matter what CERBERUS_ENV_FILE says.
+// A getter reads process.env fresh on every access, once callers actually
+// read config.port/config.lang at runtime, after loadEnvFile() has run.
 export const config = {
-  port: Number(process.env.CERBERUS_PORT ?? process.env.PORT ?? 8898),
-  lang: (process.env.CERBERUS_LANG ?? "").toLowerCase().startsWith("it") ? "it" : "en",
-} as const;
+  get port(): number {
+    return Number(process.env.CERBERUS_PORT ?? process.env.PORT ?? 8898);
+  },
+  get lang(): "en" | "it" {
+    return (process.env.CERBERUS_LANG ?? "").toLowerCase().startsWith("it") ? "it" : "en";
+  },
+};
