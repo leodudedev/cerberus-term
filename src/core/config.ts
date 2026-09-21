@@ -26,6 +26,16 @@ export const actionKeys: Record<Agent, Record<string, string[]>> = {
     deny: ["Escape"],
     esc: ["Escape"],
   },
+  // Unused today: Codex answers PermissionRequest natively (see
+  // codex-decisions.ts and docs/todo.md #1.7b), so bot.ts never reaches
+  // actionKeysFor() for a codex session. Kept so Record<Agent, ...> stays
+  // exhaustive and this doesn't silently break if that ever changes.
+  codex: {
+    approve: ["1", "Enter"],
+    always: ["2", "Enter"],
+    deny: ["Escape"],
+    esc: ["Escape"],
+  },
 };
 
 export function actionKeysFor(agent: Agent | undefined): Record<string, string[]> {

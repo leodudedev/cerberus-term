@@ -26,4 +26,14 @@ describe('profileFromConfigDir', () => {
     expect(profileFromConfigDir('/')).toBe('claude');
     expect(profileFromConfigDir('...')).toBe('claude');
   });
+
+  it("falls back to a caller-given default, e.g. Codex's own", () => {
+    expect(profileFromConfigDir(undefined, 'codex')).toBe('codex');
+    expect(profileFromConfigDir('   ', 'codex')).toBe('codex');
+    expect(profileFromConfigDir('/')).not.toBe('codex'); // default stays claude when omitted
+  });
+
+  it('still names a second account after its dir when a default is given', () => {
+    expect(profileFromConfigDir('/Users/me/.codex-work', 'codex')).toBe('codex-work');
+  });
 });

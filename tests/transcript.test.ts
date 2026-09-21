@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lastAssistantText, lastCopilotText } from '../src/core/transcript.js';
+import { lastAssistantText, lastCodexText, lastCopilotText } from '../src/core/transcript.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -103,5 +103,54 @@ describe('lastCopilotText', () => {
   it('returns "" for a missing path or a missing file', async () => {
     expect(await lastCopilotText(undefined)).toBe('');
     expect(await lastCopilotText('/no/such/events.jsonl')).toBe('');
+  });
+});
+
+// Codex's rollout: a flat event_msg stream sharing the file with token-usage
+// records and other bookkeeping. The turn boundary is a UserMessage item; the
+// text is the last AgentMessage after it.
+const codexUser = (t: string): unknown => ({
+  type: 'event_msg',
+  payload: { item: { type: 'UserMessage', content: [{ type: 'text', text: t }] } }
+});
+const codexAgent = (t: string): unknown => ({
+  type: 'event_msg',
+  payload: { item: { type: 'AgentMessage', content: [{ type: 'Text', text: t }] } }
+});
+
+describe('lastCodexText', () => {
+  it('returns the agent text of the current turn', async () => {
+    const p = jsonl([codexUser('do it'), codexAgent('working on it')]);
+    expect(await lastCodexText(p)).toBe('working on it');
+  });
+
+  it('does not reach back past the last real user message', async () => {
+    const p = jsonl([
+      codexUser('first ask'),
+      codexAgent('old answer'),
+      codexUser('second ask'),
+      { type: 'event_msg', payload: { type: 'task_started' } }
+    ]);
+    expect(await lastCodexText(p)).toBe('');
+  });
+
+  it('ignores unrelated event_msg rows (token usage, world_state, ...)', async () => {
+    const p = jsonl([
+      codexUser('go'),
+      { type: 'token_usage_record', payload: {} },
+      codexAgent('answer'),
+      { type: 'world_state', payload: {} }
+    ]);
+    expect(await lastCodexText(p)).toBe('answer');
+  });
+
+  it('skips a malformed trailing line instead of failing', async () => {
+    const p = jsonl([codexUser('go'), codexAgent('answer'), '{"type":"event_m']);
+    expect(await lastCodexText(p)).toBe('answer');
+  });
+
+  it('returns "" for a missing path or a missing file', async () => {
+    expect(await lastCodexText(undefined)).toBe('');
+    expect(await lastCodexText('/no/such/rollout.jsonl')).toBe('');
   });
 });

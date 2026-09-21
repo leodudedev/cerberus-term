@@ -1,7 +1,11 @@
-// Pending-tool cache fed by Copilot CLI `preToolUse` hook events.
-// Copilot's `notification` event (permission_prompt) carries no tool info and
-// no transcript path, so the daemon caches the most recent preToolUse per
-// session and reads it back when the permission notification arrives.
+// Pending-tool cache fed by PreToolUse-shaped hook events (Claude Code,
+// Copilot CLI, Codex).
+// Claude's `Notification` and Copilot's `notification` (permission_prompt)
+// carry no tool info and no transcript path, so the daemon caches the most
+// recent preToolUse per session and reads it back when the permission
+// notification arrives. Codex's `PermissionRequest` is self-sufficient and
+// doesn't need this read-back, but its PreToolUse still feeds the cache the
+// same way so the completion feed (PostToolUse) has a tool name to report.
 // Read is non-destructive: a re-notification for the same dialog still finds
 // the tool; staleness is bounded by the TTL and by the fact that every new
 // tool call overwrites the entry.
@@ -42,6 +46,31 @@ export function peekPendingTool(sessionId: string): PendingTool | null {
     return null;
   }
   return t;
+}
+
+// Codex's apply_patch reports its patch text in the same `command` field
+// summarizeToolArgs reads first — so without this, the Telegram push would
+// read "*** Begin Patch *** Add File: test.md…" instead of the file it
+// touches. Pull the target paths out of the patch headers instead. See
+// docs/todo.md #1.4b.
+const PATCH_FILE_RE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/gm;
+
+export function summarizeApplyPatch(patchText: string): string {
+  const files: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = PATCH_FILE_RE.exec(patchText))) files.push(m[1]!.trim());
+  return files.length ? files.join(", ") : patchText.slice(0, 200);
+}
+
+// Codex's tool_input needs the apply_patch detour above; everything else
+// (Bash, exec_command, MCP tools) goes through the same generic summary Claude
+// and Copilot use.
+export function summarizeCodexToolArgs(toolName: string, args: unknown): string {
+  if (toolName === "apply_patch") {
+    const a = typeof args === "object" && args ? (args as Record<string, unknown>) : {};
+    return summarizeApplyPatch(String(a.command ?? ""));
+  }
+  return summarizeToolArgs(args);
 }
 
 // Copilot's toolArgs may arrive as an object or as a JSON string; extract the

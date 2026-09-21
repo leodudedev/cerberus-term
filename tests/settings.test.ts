@@ -56,7 +56,7 @@ describe('mergeSettings', () => {
   });
 
   it('drops ids it has no target for', () => {
-    expect(parseTargetIds(['claude', 'codex', 42, null])).toEqual(['claude']);
+    expect(parseTargetIds(['claude', 'gemini', 42, null])).toEqual(['claude']);
     expect(parseTargetIds('claude')).toEqual([]);
     expect(parseTargetIds(undefined)).toEqual([]);
   });

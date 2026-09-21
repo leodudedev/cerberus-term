@@ -44,10 +44,13 @@ with it unset are silent by construction.
 
 **Nothing is written to another tool's config without being asked.** The hooks
 go into files Cerberus doesn't own — `~/.claude/settings.json`,
-`~/.copilot/settings.json` — so it names each one on first launch and registers
-only what you tick. Entries are appended, never substituted; the original is
-copied to `settings.json.cerberus-bak` before the first write, and the write
-itself is a temp file plus a rename. See
+`~/.copilot/settings.json`, `~/.codex/hooks.json` — so it names each one on
+first launch and registers only what you tick. Entries are appended, never
+substituted; the original is copied to `settings.json.cerberus-bak` (or
+`hooks.json.cerberus-bak` for Codex) before the first write, and the write
+itself is a temp file plus a rename. Codex additionally refuses to write at all
+when `~/.codex/config.toml` already configures hooks inline, rather than risk
+the startup warning Codex itself would raise over the collision. See
 [what the app writes](README.md#what-the-app-writes-outside-itself).
 
 **Follower panes are path-confined** and `POST /pane` requires an absolute path

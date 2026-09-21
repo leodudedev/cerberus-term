@@ -1,28 +1,47 @@
 import { createServer, type IncomingMessage } from "node:http";
 import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
+import { RISK_RANK, riskFor } from "../../core/classify.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
 import { upsertSession, dropSession } from "../../core/registry.js";
 import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bot.js";
 import { takeApproval } from "./remote-approvals.js";
-import { lastAssistantText, lastCopilotText, type ToolUse } from "../../core/transcript.js";
+import {
+  lastAssistantText,
+  lastCopilotText,
+  lastCodexText,
+  type ToolUse
+} from "../../core/transcript.js";
 import { readProjectConfig } from "../../core/project-config.js";
 import { isMuted } from "../../core/mute.js";
-import { putPendingTool, peekPendingTool, summarizeToolArgs } from "../../core/pending-tools.js";
+import {
+  putPendingTool,
+  peekPendingTool,
+  summarizeToolArgs,
+  summarizeCodexToolArgs
+} from "../../core/pending-tools.js";
 import { capturePane } from "../pane-control.js";
 import { requestAttention } from "../attention.js";
 import { ALWAYS_OPTION_RE, dialogOptionsBlock, extractQuestionOptions } from "../../core/dialog.js";
 import { resolveFollowPath } from "../../core/follow-path.js";
 import { paneSpawnCwds } from "../bridge-electron.js";
 import { getDaemonToken } from "./token.js";
+import { awaitCodexDecision } from "./codex-decisions.js";
 
 // HTTP daemon that receives detection events from the hook scripts.
-// Two producers, one endpoint:
+// Three producers, one endpoint:
 //  - Claude Code  `Notification` hook (hooks/notify.sh) — snake_case payload,
 //    enriched by reading the session transcript (JSONL).
 //  - Copilot CLI  `preToolUse` + `notification` hooks (hooks/copilot-notify.sh)
 //    — camelCase payload, no transcript: preToolUse feeds an in-memory cache
 //    that the permission notification reads back.
+//  - Codex CLI  `PreToolUse` + `PostToolUse` + `PermissionRequest` hooks
+//    (hooks/codex-notify.sh) — snake_case payload, close to Claude's shape.
+//    `PermissionRequest` carries its own tool_name/tool_input (Claude's
+//    `Notification` carries neither), so it doesn't need the pending-tool
+//    read-back, and it can answer allow/deny natively instead of us typing
+//    into the pane — see codex-decisions.ts and docs/todo.md #1.7b. Its HTTP
+//    request is held open until Telegram answers or a short timeout passes.
 
 interface HookPayload {
   // Claude Code (snake_case)
@@ -81,6 +100,13 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : null;
+}
+
+// Codex's PermissionRequest carries tool_input.description — the exact,
+// already-localised prompt text it put on screen (docs/todo.md #1.7c).
+function codexInputFields(input: unknown): { description: string } {
+  const o = typeof input === "object" && input ? (input as Record<string, unknown>) : {};
+  return { description: typeof o.description === "string" ? o.description : "" };
 }
 
 // Bridge to the renderer (set in startDaemon), used by external endpoints like
@@ -171,7 +197,8 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const agent: Agent = body?.agent === "copilot" ? "copilot" : "claude";
+    const agent: Agent =
+      body?.agent === "copilot" ? "copilot" : body?.agent === "codex" ? "codex" : "claude";
     const hook = body?.hook ?? {};
     // Pane identity: native panes report cerberus_pane (our paneId); tmux hooks
     // still send tmux_pane. Either way it's just the key we inject keystrokes to.
@@ -198,11 +225,11 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // Claude SessionEnd: the session is over (/exit, /clear, logout). Drop it
-    // now instead of letting it idle out after SESSION_TTL_MS — until it's
-    // gone, resolveTarget still resolves it and a Telegram reply gets typed
-    // into whatever the user started in that pane next.
-    if (agent === "claude" && hook.hook_event_name === "SessionEnd") {
+    // SessionEnd (Claude, Codex): the session is over (/exit, /clear, logout).
+    // Drop it now instead of letting it idle out after SESSION_TTL_MS — until
+    // it's gone, resolveTarget still resolves it and a Telegram reply gets
+    // typed into whatever the user started in that pane next.
+    if ((agent === "claude" || agent === "codex") && hook.hook_event_name === "SessionEnd") {
       const dropped = dropSession(sessionId);
       console.log("[session-end]", sessionId, dropped ? "dropped" : "(unknown)");
       res.writeHead(200, { "content-type": "application/json" });
@@ -210,16 +237,22 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // Claude Code PreToolUse: same idea as Copilot's preToolUse. The permission
-    // Notification carries neither tool_name nor tool_input, so cache the exact
-    // tool + input now and read it back when the notification arrives. This
-    // replaces the old, racy "guess the pending tool from the transcript",
-    // which returned the wrong tool on parallel batches and null when the
-    // tool_use had not been flushed yet. PreToolUse also fires inside subagents.
-    // Exit-0 with no output leaves the normal permission flow untouched.
-    if (agent === "claude" && hook.hook_event_name === "PreToolUse") {
+    // PreToolUse (Claude, Codex): same idea as Copilot's preToolUse. Claude's
+    // permission Notification carries neither tool_name nor tool_input, so
+    // cache the exact tool + input now and read it back when the notification
+    // arrives. This replaces the old, racy "guess the pending tool from the
+    // transcript", which returned the wrong tool on parallel batches and null
+    // when the tool_use had not been flushed yet. PreToolUse also fires inside
+    // subagents. Exit-0 with no output leaves the normal permission flow
+    // untouched. Codex's PermissionRequest is self-sufficient (docs/todo.md
+    // #1.7c) and doesn't read this back, but PostToolUse's completion feed
+    // still wants a tool name, so the cache is kept for both agents alike.
+    if ((agent === "claude" || agent === "codex") && hook.hook_event_name === "PreToolUse") {
       const name = String(hook.tool_name ?? "");
-      const command = summarizeToolArgs(hook.tool_input);
+      const command =
+        agent === "codex"
+          ? summarizeCodexToolArgs(name, hook.tool_input)
+          : summarizeToolArgs(hook.tool_input);
       const options = extractQuestionOptions(name, hook.tool_input);
       putPendingTool(sessionId, name, command, options);
       res.writeHead(200, { "content-type": "application/json" });
@@ -227,9 +260,14 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // Claude PostToolUse: if this tool was approved from Telegram, push its
-    // result back (completion feed). Locally-approved tools stay silent.
-    if (agent === "claude" && hook.hook_event_name === "PostToolUse") {
+    // PostToolUse (Claude, Codex): if this tool was approved from Telegram,
+    // push its result back (completion feed). Locally-approved tools stay
+    // silent. Codex can retry a sandboxed call before the user is ever asked
+    // (docs/todo.md #1.7c) — that PostToolUse arrives with no approval on
+    // record and no live Telegram message for this session yet, so takeApproval
+    // returns null and markHandledLocally is a no-op; nothing is stripped
+    // prematurely.
+    if ((agent === "claude" || agent === "codex") && hook.hook_event_name === "PostToolUse") {
       const appr = takeApproval(sessionId, String(hook.tool_name ?? ""));
       if (appr) {
         void pushCompletion({ chatId: appr.chatId, messageId: appr.messageId }).catch((e) =>
@@ -244,6 +282,74 @@ const server = createServer(async (req, res) => {
       }
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // PermissionRequest (Codex): self-sufficient — tool_name and tool_input
+    // arrive on the same event, so there's no read-back through the
+    // pending-tool cache the way Claude's Notification needs one. Answered
+    // natively: the HTTP response stays open while codex-decisions.ts waits
+    // for a Telegram tap, so the hook returns an allow/deny decision instead
+    // of us typing into a Codex TUI we've never parsed (docs/todo.md #1.7b).
+    if (agent === "codex" && hook.hook_event_name === "PermissionRequest") {
+      const name = String(hook.tool_name ?? "");
+      const { description } = codexInputFields(hook.tool_input);
+      const command = summarizeCodexToolArgs(name, hook.tool_input);
+      putPendingTool(sessionId, name, command);
+
+      const detail = await lastCodexText(hook.transcript_path);
+      const profile = profileFromConfigDir(body?.config_dir, "codex");
+      const session = upsertSession({
+        sessionId,
+        agent,
+        pane,
+        profile,
+        cwd: hook.cwd ?? "",
+        // description is the exact, already-localised prompt Codex put on
+        // screen (docs/todo.md #1.7c) — quote it instead of reconstructing
+        // intent from the command, which we can't do for Claude.
+        lastMessage: description || command,
+        detail,
+        toolName: name,
+        command,
+        options: [],
+        hasAlways: false, // no TUI "don't ask again" parsing for Codex — 1.7b
+        isPermission: true,
+      });
+
+      if (pane) emit?.("cerberus:pane-attention", { pane, sessionId: session.sessionId });
+      requestAttention();
+
+      const pcfg = readProjectConfig(session.cwd);
+      const risk = name ? riskFor(name, command) : "caution"; // mirrors pushAttention's own fallback
+      const belowMinRisk = !!pcfg.minRisk && RISK_RANK[risk] < RISK_RANK[pcfg.minRisk];
+      let decision: "allow" | "deny" | "timeout" = "timeout";
+      if (pcfg.mute || isMuted(session.cwd)) {
+        console.log("[mute]", session.cwd);
+      } else if (belowMinRisk) {
+        // Same gate pushAttention applies internally — checked here too so we
+        // don't hold the hook open for nothing when no message will ever be
+        // sent to answer it from.
+        console.log("[minrisk-skip]", session.cwd);
+      } else {
+        const wait = awaitCodexDecision(sessionId);
+        void pushAttention(session, { chatId: pcfg.chatId, minRisk: pcfg.minRisk }).catch((e) =>
+          console.error("[bot] push failed", e),
+        );
+        decision = await wait;
+      }
+
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        decision === "timeout"
+          ? JSON.stringify({})
+          : JSON.stringify({
+              hookSpecificOutput: {
+                hookEventName: "PermissionRequest",
+                decision: { behavior: decision },
+              },
+            }),
+      );
       return;
     }
 
@@ -286,7 +392,8 @@ const server = createServer(async (req, res) => {
     const isPermission =
       agent === "copilot" ? notifyType === "permission_prompt" : /permission/i.test(message);
 
-    // Enrichment.
+    // Enrichment. Unreachable for codex today — PermissionRequest reads its
+    // own transcript and returns above — kept correct anyway.
     //  - Claude: last assistant text = the human-readable context ("what Claude
     //    said"); the tool + input come from the PreToolUse cache below.
     //  - Copilot: no transcript — tool + input from the preToolUse cache too.
@@ -295,6 +402,8 @@ const server = createServer(async (req, res) => {
     let options: string[] = [];
     if (agent === "claude") {
       detail = await lastAssistantText(hook.transcript_path);
+    } else if (agent === "codex") {
+      detail = await lastCodexText(hook.transcript_path);
     }
     // Attach the pending tool when a permission is being asked, or when a fresh
     // AskUserQuestion is pending (it's an elicitation, not a "permission", but
@@ -336,7 +445,13 @@ const server = createServer(async (req, res) => {
       hasAlways = ALWAYS_OPTION_RE.test(dialogOptionsBlock(dialog));
     }
 
-    const profile: Profile = agent === "copilot" ? "copilot" : profileFromConfigDir(body?.config_dir);
+    // Unreachable for codex in practice — PermissionRequest returns above, and
+    // it's the only event we ask Codex to send an opinion through this path
+    // for. Kept correct anyway rather than assuming that never changes.
+    const profile: Profile =
+      agent === "copilot"
+        ? "copilot"
+        : profileFromConfigDir(body?.config_dir, agent === "codex" ? "codex" : undefined);
     const session = upsertSession({
       sessionId,
       agent,

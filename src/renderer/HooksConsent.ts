@@ -64,6 +64,14 @@ export function openHooksConsent(targets: HookTargetStatus[]): Promise<string[]>
         line(t.file),
         line(`${t.events.length} entries, under ${t.events.join(', ')}, running ${t.command}`)
       );
+      // Codex reviews and trusts a hook from inside its own /hooks screen
+      // before running it at all — silence otherwise, with no error anywhere.
+      // Disclosed here, not only in the README. See docs/todo.md #1.6.
+      if (t.id === 'codex') {
+        detail.append(
+          line('Codex will ask you to trust this hook the first time it fires — open Codex and run /hooks if nothing arrives.')
+        );
+      }
 
       modal.append(row, detail);
       return { id: t.id as string, input };

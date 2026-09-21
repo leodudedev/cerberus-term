@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // Deliberately free of fs and Electron so the shape logic is testable on its
 // own; the caller resolves the home dir and does the reading and writing.
 
-export type TargetId = 'claude' | 'copilot';
+export type TargetId = 'claude' | 'copilot' | 'codex';
 
 // Passed in rather than read from process.platform in here: the targets are
 // constants evaluated at import time, so a module-level read couldn't be faked
@@ -155,4 +155,95 @@ const copilot: HookTarget = {
   }
 };
 
-export const HOOK_TARGETS: readonly HookTarget[] = [claude, copilot];
+// --- Codex CLI ---------------------------------------------------------
+// ~/.codex/hooks.json — same nested-groups shape as Claude's settings.json,
+// under its own root file rather than inside a shared settings.json, plus an
+// unread/unwritten `description` key at the top level (see docs/todo.md #1.2).
+// No `matcher`: our entries fire on every tool, like the other two agents.
+
+interface CodexHandler {
+  type?: string;
+  command?: string;
+  timeout?: number;
+  statusMessage?: string;
+}
+interface CodexGroup {
+  matcher?: string;
+  hooks?: CodexHandler[];
+}
+
+const codex: HookTarget = {
+  id: 'codex',
+  label: 'Codex CLI',
+  script: (platform) => (platform === 'win32' ? 'codex-notify.ps1' : 'codex-notify.sh'),
+  // Not attempted on Windows yet — same caveat as Copilot: nobody has run a
+  // Codex CLI session there to confirm the command field behaves the same way.
+  supported: (platform) => platform !== 'win32',
+  // PermissionRequest is Codex's equivalent of Claude's `Notification` — Codex
+  // has no `Notification` event. SessionEnd lets the daemon drop the session
+  // the moment `/exit` (or similar) fires, per docs/todo.md #1.3.
+  events: ['PreToolUse', 'PostToolUse', 'PermissionRequest', 'SessionEnd'],
+  configDir: (home) => join(home, '.codex'),
+  settingsFile: (home) => join(home, '.codex', 'hooks.json'),
+
+  has: (list, command) =>
+    (list as CodexGroup[]).some((g) => g?.hooks?.some((h) => h?.command === command)),
+
+  add: (list, command) => [
+    ...list,
+    { hooks: [{ type: 'command', command, timeout: 5, statusMessage: 'Cerberus' }] }
+  ],
+
+  prune: (list, isOurs) => {
+    let removed = 0;
+    const groups = (list as CodexGroup[]).map((g) => {
+      if (!g?.hooks) return g;
+      const kept = g.hooks.filter((h) => !(h?.command && isOurs(h.command)));
+      removed += g.hooks.length - kept.length;
+      return { ...g, hooks: kept };
+    });
+    return { list: groups.filter((g) => !g?.hooks || g.hooks.length > 0), removed };
+  }
+};
+
+// Codex merges hooks.json with any inline `[hooks]` table in config.toml for
+// the same layer, and warns at startup if both exist. Writing ours on top of
+// an existing inline table would produce that warning on every launch, so we
+// refuse instead and tell Settings why. `[hooks.state...]` is Codex's own
+// trust-store bookkeeping (see codexTrustState below), not a hook definition,
+// and must not trip this. Pure string logic — the caller reads config.toml.
+export function codexConfigBlockedReason(configToml: string): string | null {
+  if (/^\s*allow_managed_hooks_only\s*=\s*true\b/m.test(configToml)) {
+    return 'Codex is set to allow managed hooks only — ours would be ignored';
+  }
+  if (/^\[hooks(?!\.state)/m.test(configToml)) {
+    return 'Codex already has hooks configured in config.toml — add ours by hand';
+  }
+  return null;
+}
+
+// PascalCase hooks.json event name -> the snake_case Codex uses as the trust
+// key's event segment (`PreToolUse` -> `pre_tool_use`). See docs/todo.md #1.6b.
+export function codexEventSnake(event: string): string {
+  return event.replace(/[A-Z]/g, (c, i) => (i > 0 ? '_' : '') + c.toLowerCase());
+}
+
+// Whether every one of our registered events has a trust entry for the given
+// hooks.json path. We deliberately don't require the `0:0` position: Codex
+// indexes trust by the hook's position among all groups on that event, which
+// shifts if the user has another hook registered too, and getting that exact
+// index right here would make us report "awaiting trust" forever on a machine
+// where it already works. A trust key naming our own hooks.json file is
+// necessarily about a hook we registered — good enough for a status line.
+export function codexTrustState(
+  configToml: string,
+  hooksJsonPath: string,
+  events: readonly string[]
+): 'granted' | 'pending' {
+  const granted = events.every((ev) =>
+    configToml.includes(`[hooks.state."${hooksJsonPath}:${codexEventSnake(ev)}:`)
+  );
+  return granted ? 'granted' : 'pending';
+}
+
+export const HOOK_TARGETS: readonly HookTarget[] = [claude, copilot, codex];

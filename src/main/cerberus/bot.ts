@@ -12,6 +12,7 @@ import {
 } from "../../core/registry.js";
 import { paneAlive, paneBlockedBy, sendKey, sendPrompt } from "../pane-control.js";
 import { putApproval } from "./remote-approvals.js";
+import { resolveCodexDecision } from "./codex-decisions.js";
 import { mute, unmute, listMuted, parseDuration } from "../../core/mute.js";
 import { iconForProject } from "../../core/icon.js";
 import { t, timeLocale } from "../../core/i18n.js";
@@ -204,6 +205,43 @@ export function initBot(): boolean {
       return;
     }
     const s = sessionId ? getSession(sessionId) : undefined;
+
+    // Codex answers PermissionRequest natively (docs/todo.md #1.7b): no
+    // keystrokes, no pane, no TUI parser — just resolve the promise the
+    // daemon's HTTP handler is blocked on. Handled entirely separately from
+    // the keymap path below, which types into the pane.
+    if (s?.agent === "codex" && (action === "approve" || action === "always" || action === "deny")) {
+      const decision = action === "deny" ? "deny" : "allow";
+      const resolved = resolveCodexDecision(sessionId!, decision);
+      if (!resolved) {
+        // The decision window (codex-decisions.ts) already closed: the hook
+        // abstained and Codex's own prompt is live at the keyboard by now.
+        await ctx.answerCallbackQuery({ text: t.expired });
+        return;
+      }
+      if (decision === "allow") {
+        putApproval(sessionId!, {
+          toolName: s.toolName,
+          command: s.command,
+          chatId: String(ctx.chat?.id ?? ""),
+          messageId: ctx.callbackQuery.message?.message_id,
+          ts: Date.now(),
+        });
+      }
+      const label = decision === "allow" ? t.markApproved : t.markDenied;
+      const when = new Date().toLocaleTimeString(timeLocale(), { hour: "2-digit", minute: "2-digit" });
+      livePerm.delete(sessionId!);
+      try {
+        await ctx.editMessageReplyMarkup({
+          reply_markup: new InlineKeyboard().text(`${label} · ${when}`, `noop:${sessionId}`),
+        });
+      } catch {
+        // message too old or already edited — ignore
+      }
+      await ctx.answerCallbackQuery({ text: `${action} → ${s.profile} ${s.pane}` });
+      return;
+    }
+
     // `optN` = pick the Nth option of an AskUserQuestion dialog (digit + Enter);
     // everything else is a fixed keymap that depends on the agent.
     const optMatch = action ? /^opt(\d+)$/.exec(action) : null;

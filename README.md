@@ -108,12 +108,15 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
   CLI, Codex, opencode, aider, a shell, `htop`, whatever you'd type in a
   terminal. The Telegram half is the part that varies, because it depends on each
   CLI's own hook support: see [what pushes where](#what-pushes-where).
-- **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code) and
-  [GitHub Copilot CLI](https://github.com/github/copilot-cli) push out of the
-  box: Cerberus offers to register its notification hooks in their config the
-  first time you open it, and writes to nothing you don't tick — see
+- **An AI CLI** in your `PATH`. [Claude Code](https://claude.com/claude-code),
+  [GitHub Copilot CLI](https://github.com/github/copilot-cli) and
+  [Codex CLI](https://github.com/openai/codex) push out of the box: Cerberus
+  offers to register its notification hooks in their config the first time you
+  open it, and writes to nothing you don't tick — see
   [what the app writes](#what-the-app-writes-outside-itself) for exactly what
-  changes. Any other CLI still runs in a pane; it just won't push.
+  changes. Codex also asks you, separately and inside Codex itself, to trust
+  the hook the first time it fires — see the note in that section. Any other
+  CLI still runs in a pane; it just won't push.
 - **A Telegram bot** for the remote half: talk to
   [@BotFather](https://t.me/BotFather) for a token, and to
   [@userinfobot](https://t.me/userinfobot) for your chat ID. Without them
@@ -124,21 +127,25 @@ Or see all assets on the [releases page](https://github.com/leodudedev/cerberus-
 Panes work the same everywhere. What follows is only about the Telegram half, and
 it says what has actually been exercised rather than what ought to work.
 
-| | Panes | Claude Code → Telegram | Copilot CLI → Telegram |
-| --- | --- | --- | --- |
-| **macOS** | tested | tested | tested |
-| **Windows 10/11** | tested | tested since 0.10.0 | not offered |
-| **Linux** | tested headless, GUI not | plumbing tested, real CLI not | plumbing tested, real CLI not |
+| | Panes | Claude Code → Telegram | Copilot CLI → Telegram | Codex CLI → Telegram |
+| --- | --- | --- | --- | --- |
+| **macOS** | tested | tested | tested | tested |
+| **Windows 10/11** | tested | tested since 0.10.0 | not offered | not offered |
+| **Linux** | tested headless, GUI not | plumbing tested, real CLI not | plumbing tested, real CLI not | plumbing tested, real CLI not |
 
 - **Windows** got the hooks in 0.10.0, on a physical machine: consent, the four
   Claude Code events, notifications, remote approve/deny, and the guard that
-  refuses to type into `ssh`. Copilot CLI is deliberately left out — see
-  [below](#what-the-app-writes-outside-itself).
+  refuses to type into `ssh`. Copilot CLI and Codex CLI are deliberately left
+  out — see [below](#what-the-app-writes-outside-itself).
 - **Linux** is the honest gap. In a container the daemon, the registry, the pty
-  seam, the guard and both hook scripts pass on a real Linux pty. What nobody has
-  done yet is run the app's window on a Linux desktop, or drive a real
-  `claude`/`copilot` there — the code path is the same POSIX one macOS uses, so
-  this is unverified rather than doubtful. Reports welcome.
+  seam, the guard and all three hook scripts pass on a real Linux pty. What
+  nobody has done yet is run the app's window on a Linux desktop, or drive a
+  real `claude`/`copilot`/`codex` there — the code path is the same POSIX one
+  macOS uses, so this is unverified rather than doubtful. Reports welcome.
+- **Codex CLI approvals answer natively**, not via keystrokes: the hook itself
+  returns allow/deny to Codex, so there's no on-screen dialog to parse the way
+  Claude's and Copilot's are. Approve/Deny in Telegram has ~25s to arrive; past
+  that the hook abstains and Codex's own local prompt takes over as usual.
 
 ## First run
 
@@ -155,24 +162,29 @@ it says what has actually been exercised rather than what ought to work.
 
 Two places, and nothing else:
 
-**1. `~/.cerberus-term/hooks/`** — `notify.sh` and `copilot-notify.sh` on macOS
-and Linux, `notify.ps1` on Windows, copied here from the app bundle on every
-launch, overwriting the previous copies. This
+**1. `~/.cerberus-term/hooks/`** — `notify.sh`, `copilot-notify.sh` and
+`codex-notify.sh` on macOS and Linux, `notify.ps1` on Windows, copied here from
+the app bundle on every launch, overwriting the previous copies. This
 directory is the stable home for them: hooks run in *every* session of that CLI,
 including ones outside Cerberus, so a path pointing inside the `.app` would break
 them all the day you move or delete it.
 
-**2. The config of the agent CLIs you tick** — currently `~/.claude/settings.json`
-and `~/.copilot/settings.json`. Nothing is written to either until you say so:
-the first launch shows a dialog listing the agents found on this machine, the
-exact file and events for each, and you choose. Decline and the answer is
-remembered — you won't be asked again, and nothing outside the app is touched.
+**2. The config of the agent CLIs you tick** — currently
+`~/.claude/settings.json`, `~/.copilot/settings.json` and `~/.codex/hooks.json`.
+Nothing is written to any of them until you say so: the first launch shows a
+dialog listing the agents found on this machine, the exact file and events for
+each, and you choose. Decline and the answer is remembered — you won't be asked
+again, and nothing outside the app is touched.
 
 An agent is only offered if its config folder already exists. If you don't have
-Copilot, `~/.copilot` is never created, and the same goes for `~/.claude`.
-Settings lists every file by name with its real state, and is where you change
-your mind later — including for an agent you install afterwards, which shows up
-there unticked rather than being enabled on your behalf.
+Copilot, `~/.copilot` is never created, and the same goes for `~/.claude` and
+`~/.codex`. Settings lists every file by name with its real state, and is where
+you change your mind later — including for an agent you install afterwards,
+which shows up there unticked rather than being enabled on your behalf. Codex is
+also withheld — with a reason shown in Settings — on a machine whose
+`~/.codex/config.toml` already configures hooks inline: writing ours on top
+would make Codex warn about the collision on every launch, so we leave it to be
+added by hand instead.
 
 Entries are **appended**, in each CLI's own shape. Claude Code, under
 `PreToolUse`, `PostToolUse`, `Notification` and `SessionEnd`:
@@ -187,6 +199,13 @@ Copilot CLI, under `preToolUse`, `notification` and `agentStop`:
 { "type": "command", "bash": "/Users/you/.cerberus-term/hooks/copilot-notify.sh", "timeoutSec": 5 }
 ```
 
+Codex CLI, under `PreToolUse`, `PostToolUse`, `PermissionRequest` and
+`SessionEnd` in its own `hooks.json` (no `matcher`, so it fires on every tool):
+
+```json
+{ "hooks": [{ "type": "command", "command": "/Users/you/.cerberus-term/hooks/codex-notify.sh", "timeout": 5, "statusMessage": "Cerberus" }] }
+```
+
 On Windows the same Claude Code entry reads the PowerShell script and runs it in
 the shell the CLI already started, which is both faster than spawning a second
 PowerShell and immune to the execution policy that blocks script files by
@@ -196,11 +215,19 @@ default there:
 { "matcher": "", "hooks": [{ "type": "command", "command": "Invoke-Expression (Get-Content -Raw 'C:\\Users\\you\\.cerberus-term\\hooks\\notify.ps1')" }] }
 ```
 
-Copilot CLI is not offered on Windows. The field it registers into is called
-`bash`, and nobody has measured what runs that value there — a PowerShell line in
-a field that turns out to be literally bash would fail on every tool call. Claude
-Code's `command` field *was* measured: it goes through PowerShell. Until that one
-experiment is done, the target is excluded rather than guessed at.
+Copilot CLI and Codex CLI are not offered on Windows yet. Copilot's field is
+called `bash`, and nobody has measured what runs that value there — a
+PowerShell line in a field that turns out to be literally bash would fail on
+every tool call. Claude Code's `command` field *was* measured: it goes through
+PowerShell. Codex is simply unmeasured there too. Until that experiment is
+done for each, the target is excluded rather than guessed at.
+
+**Codex also requires one manual step, inside Codex itself.** Non-managed
+command hooks must be reviewed and trusted from Codex's own `/hooks` screen
+before they run at all — Cerberus cannot do this for you, and there is no error
+if you skip it, only silence. Settings shows *awaiting trust* next to Codex
+until you do. Once trusted, refreshing the script on every launch does not
+retrigger the review — only editing the hook definition itself would.
 
 Nothing else in those files is touched — your model, your permissions, and any
 hooks you or another tool registered stay exactly as they are, and ours is added

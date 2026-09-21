@@ -13,6 +13,8 @@ import {
   HOOK_TARGETS,
   isStaleCommand,
   commandFor,
+  codexConfigBlockedReason,
+  codexTrustState,
   type HookPlatform,
   type HookTarget,
   type TargetId
@@ -93,6 +95,31 @@ function ownership(t: HookTarget, platform: HookPlatform): (command: string) => 
   return (command) => command === stable || isStaleCommand(command, script, stable);
 }
 
+// Codex-only: config.toml collision + trust-store status (docs/todo.md #1.1,
+// #1.6b). Neither applies to Claude or Copilot, which have no equivalent TOML
+// layer or trust gate, so this stays out of the generic HookTarget shape
+// rather than growing an unused field on every other row.
+function codexExtra(
+  home: string,
+  events: readonly string[],
+  hooksJsonInstalled: boolean
+): { reason?: string; trust?: 'granted' | 'pending' } {
+  const cfg = join(home, '.codex', 'config.toml');
+  let text = '';
+  try {
+    text = readFileSync(cfg, 'utf8');
+  } catch {
+    // No config.toml at all: nothing to collide with, and — if we're already
+    // installed — nothing trusted yet either, which reads the same as pending.
+    return hooksJsonInstalled ? { trust: 'pending' } : {};
+  }
+  const reason = codexConfigBlockedReason(text) ?? undefined;
+  if (!hooksJsonInstalled) return { reason };
+  const hooksJsonPath = join(home, '.codex', 'hooks.json');
+  const trust = codexTrustState(text, hooksJsonPath, events);
+  return { reason, trust };
+}
+
 // What we'd edit and what's actually there, per agent, so the UI can show the
 // real list — the exact files, events and command — instead of naming one
 // hardcoded path and asking to be trusted on the rest.
@@ -104,6 +131,7 @@ export function hooksStatus(home = homedir(), platform = hookPlatform()): HookTa
     const installed = Object.values(settings?.hooks ?? {}).some(
       (list) => Array.isArray(list) && t.prune(list, isOurs).removed > 0
     );
+    const extra = t.id === 'codex' ? codexExtra(home, t.events, installed) : {};
     return {
       id: t.id,
       label: t.label,
@@ -111,9 +139,12 @@ export function hooksStatus(home = homedir(), platform = hookPlatform()): HookTa
       events: [...t.events],
       command: commandOf(t, platform),
       // An agent we don't register on this platform is reported the same way as
-      // one that isn't installed: nothing to tick, nothing to ask about.
-      available: t.supported(platform) && existsSync(t.configDir(home)),
-      installed
+      // one that isn't installed: nothing to tick, nothing to ask about. A
+      // config.toml collision (Codex only) blocks it the same way, with a
+      // reason attached so Settings can say why.
+      available: t.supported(platform) && existsSync(t.configDir(home)) && !extra.reason,
+      installed,
+      ...extra
     };
   });
 }
@@ -207,6 +238,10 @@ export function syncHookScripts(
 function installOne(t: HookTarget, home: string, platform: HookPlatform): void {
   if (!t.supported(platform)) return; // not an agent we register on this platform
   if (!existsSync(t.configDir(home))) return; // CLI not installed here — not ours to create
+  // Never write into a config.toml collision even if the caller still asks:
+  // Settings marks the row unavailable for the same reason, but installAgentHooks
+  // takes ids directly and has no other way to hear about it.
+  if (t.id === 'codex' && codexExtra(home, t.events, false).reason) return;
   const file = t.settingsFile(home);
 
   const settings = readSettings(file);

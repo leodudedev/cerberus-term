@@ -122,9 +122,11 @@ export async function openSettingsEditor(): Promise<void> {
     input.disabled = !t.available;
 
     const state = !t.available
-      ? 'not installed here'
+      ? (t.reason ?? 'not installed here')
       : t.installed
-        ? 'registered'
+        ? t.trust === 'pending'
+          ? 'registered — awaiting trust in Codex (/hooks)'
+          : 'registered'
         : 'not registered';
     // On the same line as the tickbox: the path is the point of the row, and a
     // separate line under it read as a note about the section instead.

@@ -13,17 +13,20 @@ import {
 import { commandFor, isStaleCommand, type TargetId } from '../src/core/hook-targets.js';
 
 // install/uninstall/status all take the home dir, so a tmpdir keeps the real
-// ~/.claude and ~/.copilot out of it. The registered command still points at
-// the real ~/.cerberus-term — that's the stable path, not a target.
+// ~/.claude, ~/.copilot and ~/.codex out of it. The registered command still
+// points at the real ~/.cerberus-term — that's the stable path, not a target.
 let home: string;
 const NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'notify.sh');
 const COPILOT_NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'copilot-notify.sh');
+const CODEX_NOTIFY = join(homedir(), '.cerberus-term', 'hooks', 'codex-notify.sh');
 
 // Every agent, i.e. what the consent dialog produces when nothing is unticked.
-const ALL = ['claude', 'copilot'] as const;
+const ALL = ['claude', 'copilot', 'codex'] as const;
 
 const claudeFile = (): string => join(home, '.claude', 'settings.json');
 const copilotFile = (): string => join(home, '.copilot', 'settings.json');
+const codexFile = (): string => join(home, '.codex', 'hooks.json');
+const codexToml = (): string => join(home, '.codex', 'config.toml');
 
 interface ClaudeSettings {
   hooks: Record<string, { matcher?: string; hooks: { type: string; command: string }[] }[]>;
@@ -31,6 +34,13 @@ interface ClaudeSettings {
 }
 interface CopilotSettings {
   hooks: Record<string, { type?: string; bash?: string; timeoutSec?: number }[]>;
+  [k: string]: unknown;
+}
+interface CodexSettings {
+  hooks: Record<
+    string,
+    { hooks: { type?: string; command?: string; timeout?: number; statusMessage?: string }[] }[]
+  >;
   [k: string]: unknown;
 }
 
@@ -61,9 +71,10 @@ describe('hook install / uninstall', () => {
     installAgentHooks(ALL, home);
     expect(existsSync(join(home, '.claude'))).toBe(false);
     expect(existsSync(join(home, '.copilot'))).toBe(false);
+    expect(existsSync(join(home, '.codex'))).toBe(false);
 
     const status = hooksStatus(home);
-    expect(status.map((t) => t.available)).toEqual([false, false]);
+    expect(status.map((t) => t.available)).toEqual([false, false, false]);
     expect(status.every((t) => !t.installed)).toBe(true);
   });
 
@@ -284,6 +295,98 @@ describe('hook install / uninstall', () => {
     installAgentHooks(ALL, home);
 
     expect(commandsFor(read<ClaudeSettings>(claudeFile()), 'PreToolUse')).toEqual([theirs, NOTIFY]);
+  });
+});
+
+// Codex-specific: its own file (hooks.json, not settings.json), the
+// config.toml collision it must refuse rather than silently trigger a Codex
+// startup warning, and the trust-store status read back from the same file.
+// See docs/todo.md #1.1 / #1.6b.
+describe('codex', () => {
+  it('registers in hooks.json, in the nested-groups shape, no matcher', () => {
+    withConfigDir('.codex');
+    installAgentHooks(ALL, home);
+
+    const s = read<CodexSettings>(codexFile());
+    expect(Object.keys(s.hooks)).toEqual([
+      'PreToolUse',
+      'PostToolUse',
+      'PermissionRequest',
+      'SessionEnd'
+    ]);
+    expect(s.hooks['PreToolUse']).toEqual([
+      { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 5, statusMessage: 'Cerberus' }] }
+    ]);
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.installed).toBe(true);
+  });
+
+  it('preserves an unrelated top-level description key', () => {
+    withConfigDir('.codex');
+    writeFileSync(codexFile(), JSON.stringify({ description: 'hand-written', hooks: {} }));
+    installAgentHooks(ALL, home);
+    expect(read<CodexSettings>(codexFile())['description']).toBe('hand-written');
+  });
+
+  it('is available with no config.toml at all', () => {
+    withConfigDir('.codex');
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.available).toBe(true);
+  });
+
+  it('refuses to install over an inline [hooks] table, with a reason', () => {
+    withConfigDir('.codex');
+    writeFileSync(codexToml(), '[hooks.PreToolUse]\ncommand = "/opt/other/hook"\n');
+    installAgentHooks(ALL, home);
+
+    expect(existsSync(codexFile())).toBe(false);
+    const status = hooksStatus(home).find((t) => t.id === 'codex');
+    expect(status?.available).toBe(false);
+    expect(status?.reason).toMatch(/config\.toml/);
+  });
+
+  it('is not fooled by [hooks.state], which Codex writes itself once trusted', () => {
+    withConfigDir('.codex');
+    writeFileSync(
+      codexToml(),
+      '[hooks.state."/x/hooks.json:pre_tool_use:0:0"]\ntrusted_hash = "sha256:abc"\n'
+    );
+    installAgentHooks(ALL, home);
+    expect(existsSync(codexFile())).toBe(true); // not blocked
+  });
+
+  it('refuses to install when only managed hooks are allowed', () => {
+    withConfigDir('.codex');
+    writeFileSync(codexToml(), 'allow_managed_hooks_only = true\n');
+    installAgentHooks(ALL, home);
+
+    expect(existsSync(codexFile())).toBe(false);
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.available).toBe(false);
+  });
+
+  it('reports trust as pending until every registered event has a trust key', () => {
+    withConfigDir('.codex');
+    installAgentHooks(ALL, home);
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.trust).toBe('pending');
+
+    const hooksJsonPath = codexFile();
+    writeFileSync(
+      codexToml(),
+      [
+        `[hooks.state."${hooksJsonPath}:pre_tool_use:0:0"]`,
+        'trusted_hash = "sha256:a"',
+        `[hooks.state."${hooksJsonPath}:post_tool_use:0:0"]`,
+        'trusted_hash = "sha256:b"',
+        `[hooks.state."${hooksJsonPath}:permission_request:0:0"]`,
+        'trusted_hash = "sha256:c"',
+        `[hooks.state."${hooksJsonPath}:session_end:0:0"]`,
+        'trusted_hash = "sha256:d"'
+      ].join('\n')
+    );
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.trust).toBe('granted');
+  });
+
+  it('reports no trust field before hooks.json is even installed', () => {
+    withConfigDir('.codex');
+    expect(hooksStatus(home).find((t) => t.id === 'codex')?.trust).toBeUndefined();
   });
 });
 

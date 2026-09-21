@@ -151,6 +151,12 @@ export interface HookTargetStatus {
   command: string; // the exact command the entries run
   available: boolean; // its config dir exists — the CLI is installed here
   installed: boolean;
+  // Why `available` is false beyond a missing config dir — today only Codex,
+  // when its config.toml already has inline hooks or forbids unmanaged ones.
+  reason?: string;
+  // Codex only: whether it has trusted our hooks.json yet (docs/todo.md #1.6).
+  // Undefined for every other agent, which has no such gate.
+  trust?: 'granted' | 'pending';
 }
 
 export interface SettingsBridge {

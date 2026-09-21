@@ -81,6 +81,46 @@ export async function lastCopilotText(path: string | undefined): Promise<string>
   return "";
 }
 
+// Codex's rollout (~/.codex/sessions/**/rollout-*.jsonl) is a flat list of
+// {type, payload} rows sharing one file with token-usage records and other
+// bookkeeping we don't care about. The turn boundary is a `response_item` (or
+// `event_msg`) whose `payload.item.type` is "UserMessage"; the text we want is
+// the last "AgentMessage" after it. Block `type` casing is inconsistent
+// ("text" on UserMessage, "Text" on AgentMessage) so this matches on the
+// `text` field itself rather than the block type.
+function isCodexUserMessage(j: any): boolean {
+  return j?.type === "event_msg" && j?.payload?.item?.type === "UserMessage";
+}
+
+function codexMessageText(j: any): string | null {
+  if (j?.type !== "event_msg" || j?.payload?.item?.type !== "AgentMessage") return null;
+  const blocks = j.payload.item.content;
+  if (!Array.isArray(blocks)) return null;
+  const block = [...blocks].reverse().find((b) => typeof b?.text === "string" && b.text.trim());
+  return block ? String(block.text).trim() : null;
+}
+
+export async function lastCodexText(path: string | undefined): Promise<string> {
+  if (!path) return "";
+  try {
+    const lines = await readLines(path);
+    let boundary = -1;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (isCodexUserMessage(lines[i])) {
+        boundary = i;
+        break;
+      }
+    }
+    for (let i = lines.length - 1; i > boundary; i--) {
+      const text = codexMessageText(lines[i]);
+      if (text) return text;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
 // The pending tool + its input no longer come from the transcript: the daemon
 // caches them from the PreToolUse hook (see src/pending-tools.ts), which is
 // exact and race-free. Reading the transcript for the tool was unreliable —

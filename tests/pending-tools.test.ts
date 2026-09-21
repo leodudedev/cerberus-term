@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   peekPendingTool,
   putPendingTool,
+  summarizeApplyPatch,
+  summarizeCodexToolArgs,
   summarizeToolArgs
 } from '../src/core/pending-tools.js';
 
@@ -83,5 +85,34 @@ describe('summarizeToolArgs', () => {
   it('returns an empty string for non-objects', () => {
     expect(summarizeToolArgs(null)).toBe('');
     expect(summarizeToolArgs(42)).toBe('');
+  });
+});
+
+describe('summarizeApplyPatch', () => {
+  it('pulls the file names out of the patch headers', () => {
+    const patch = [
+      '*** Begin Patch',
+      '*** Add File: test.md',
+      '+hello',
+      '*** Update File: src/a.ts',
+      '*** Delete File: old.ts',
+      '*** End Patch'
+    ].join('\n');
+    expect(summarizeApplyPatch(patch)).toBe('test.md, src/a.ts, old.ts');
+  });
+
+  it('falls back to a truncated raw patch when no header matches', () => {
+    expect(summarizeApplyPatch('not a patch at all')).toBe('not a patch at all');
+  });
+});
+
+describe('summarizeCodexToolArgs', () => {
+  it("routes apply_patch through the patch-header extractor, not the raw text", () => {
+    const input = { command: '*** Begin Patch\n*** Add File: test.md\n+\n*** End Patch\n' };
+    expect(summarizeCodexToolArgs('apply_patch', input)).toBe('test.md');
+  });
+
+  it('routes everything else through the generic summariser', () => {
+    expect(summarizeCodexToolArgs('Bash', { command: 'ls -la' })).toBe('ls -la');
   });
 });

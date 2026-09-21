@@ -57,6 +57,12 @@ describe('classifyTool', () => {
   it('unknown lowercase readers use the name heuristic', () =>
     expect(classifyTool('read_file')).toBe('safe'));
   it('anything else is caution', () => expect(classifyTool('str_replace')).toBe('caution'));
+  it("Codex's apply_patch is caution, like Write/Edit", () =>
+    expect(classifyTool('apply_patch')).toBe('caution'));
+  it("Codex's update_plan is safe — writes only its own UI state", () =>
+    expect(classifyTool('update_plan')).toBe('safe'));
+  it('an MCP tool name falls back to caution', () =>
+    expect(classifyTool('mcp__codex_apps__clickup__clickup_update_task')).toBe('caution'));
 });
 
 describe('riskFor', () => {
@@ -64,6 +70,8 @@ describe('riskFor', () => {
     expect(riskFor('Bash', 'sudo rm -rf /')).toBe('danger'));
   it('matches Copilot shell tool names case-insensitively', () =>
     expect(riskFor('run_in_terminal', 'git reset --hard')).toBe('danger'));
+  it("matches Codex's exec_command as a shell tool", () =>
+    expect(riskFor('exec_command', 'sudo rm -rf /')).toBe('danger'));
   it('a shell tool with no command falls back to the tool classifier', () =>
     expect(riskFor('Bash', '')).toBe('caution'));
   it('a non-shell tool ignores the command string', () =>

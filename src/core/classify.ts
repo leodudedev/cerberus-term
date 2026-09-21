@@ -76,7 +76,10 @@ export function classifyTool(tool: string): Risk {
     case "NotebookEdit":
     case "WebFetch":
     case "WebSearch":
+    case "apply_patch": // Codex: file edits, whatever matcher name they registered under
       return "caution";
+    case "update_plan": // Codex: writes the plan shown in its own UI, touches nothing on disk
+      return "safe";
   }
   // Copilot CLI tool names are lowercase and not a fixed set: fall back to a
   // read-vs-write heuristic on the name.
