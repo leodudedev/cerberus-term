@@ -317,6 +317,11 @@ describe('codex', () => {
     expect(s.hooks['PreToolUse']).toEqual([
       { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 5, statusMessage: 'Cerberus' }] }
     ]);
+    // Codex hard-caps SessionEnd at 3s and warns on every startup if it has to
+    // clamp a higher value — register the number it will actually keep.
+    expect(s.hooks['SessionEnd']).toEqual([
+      { hooks: [{ type: 'command', command: CODEX_NOTIFY, timeout: 3, statusMessage: 'Cerberus' }] }
+    ]);
     expect(hooksStatus(home).find((t) => t.id === 'codex')?.installed).toBe(true);
   });
 

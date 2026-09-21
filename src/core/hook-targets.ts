@@ -33,7 +33,11 @@ export interface HookTarget {
   // Entry-list operations, per event. The list is whatever was on disk, so
   // every one of these has to survive garbage.
   has(list: unknown[], command: string): boolean;
-  add(list: unknown[], command: string): unknown[];
+  // `event` is passed through so a target whose per-event limits differ (Codex
+  // clamps SessionEnd to 3s, see docs/todo.md #1.9) can register the timeout it
+  // will actually get, instead of a value Codex silently overrides and warns
+  // about. Claude and Copilot ignore it — their timeout is uniform.
+  add(list: unknown[], command: string, event: string): unknown[];
   prune(list: unknown[], isOurs: (command: string) => boolean): { list: unknown[]; removed: number };
 }
 
@@ -189,9 +193,18 @@ const codex: HookTarget = {
   has: (list, command) =>
     (list as CodexGroup[]).some((g) => g?.hooks?.some((h) => h?.command === command)),
 
-  add: (list, command) => [
+  // SessionEnd's own timeout defaults to 1s and is hard-capped at 3s by Codex
+  // (docs/todo.md #1.9); every other event we register is capped higher, so 5s
+  // is safe there. Registering 5 for SessionEnd anyway works — Codex just
+  // clamps it and logs a warning on every `codex` startup — so it's set right
+  // here instead of leaving a permanent, harmless-but-noisy warning behind.
+  add: (list, command, event) => [
     ...list,
-    { hooks: [{ type: 'command', command, timeout: 5, statusMessage: 'Cerberus' }] }
+    {
+      hooks: [
+        { type: 'command', command, timeout: event === 'SessionEnd' ? 3 : 5, statusMessage: 'Cerberus' }
+      ]
+    }
   ],
 
   prune: (list, isOurs) => {

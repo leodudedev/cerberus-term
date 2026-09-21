@@ -206,6 +206,9 @@ Codex CLI, under `PreToolUse`, `PostToolUse`, `PermissionRequest` and
 { "hooks": [{ "type": "command", "command": "/Users/you/.cerberus-term/hooks/codex-notify.sh", "timeout": 5, "statusMessage": "Cerberus" }] }
 ```
 
+(`SessionEnd`'s registers `"timeout": 3` instead — Codex hard-caps that one event
+at 3s and warns on every startup otherwise.)
+
 On Windows the same Claude Code entry reads the PowerShell script and runs it in
 the shell the CLI already started, which is both faster than spawning a second
 PowerShell and immune to the execution policy that blocks script files by

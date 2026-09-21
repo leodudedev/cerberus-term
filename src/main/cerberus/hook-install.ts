@@ -261,7 +261,7 @@ function installOne(t: HookTarget, home: string, platform: HookPlatform): void {
 
     let list = pruned.list;
     if (!t.has(list, command)) {
-      list = t.add(list, command);
+      list = t.add(list, command, ev);
       changed = true;
     }
     settings.hooks[ev] = list;
