@@ -346,7 +346,14 @@ const server = createServer(async (req, res) => {
         // closing is the only signal we get; without acting on it the waiter
         // survives, and a tap arriving afterwards would be reported to the
         // phone as an approval that Codex never received.
-        req.on("close", () => cancelCodexDecision(sessionId, decisionId));
+        //
+        // On `res`, not `req`: measured on an aborted request whose body had
+        // already been consumed (which is always the case here — readJson ran
+        // first), `res` emitted 'close' at the moment of the abort while `req`
+        // never emitted it at all. Neither fires early on a healthy request,
+        // and the post-`end()` one this does get is harmless: the waiter is
+        // gone by then, and the id guard makes a stale cancel a no-op.
+        res.on("close", () => cancelCodexDecision(sessionId, decisionId));
 
         // Awaited, not fire-and-forget: its answer decides whether waiting is
         // meaningful at all. It returns false whenever no message went out —
