@@ -33,6 +33,17 @@ let mainWindow: BrowserWindow | null = null;
 
 const isDev = Boolean(process.env['ELECTRON_RENDERER_URL']);
 
+// `pnpm dev` otherwise shares userData with the installed app: Electron's
+// default userData folder name comes from package.json's "name" field
+// ("cerberus-term"), same in dev and packaged, since nothing here ever calls
+// app.setName(). That means cerberus-settings.json — the Telegram token and
+// chat id saved from Settings — is the SAME file in both, so a dev run always
+// pushes to the production bot regardless of .env.dev. Must run before any
+// app.getPath('userData') read (settings.ts) and before the app is ready.
+if (isDev) {
+  app.setPath('userData', `${app.getPath('userData')}-dev`);
+}
+
 // A native menu is the only reliable way to bind Cmd+, on macOS (the OS routes
 // it to the app menu before the web page ever sees the keydown). Zoom roles are
 // deliberately omitted so the terminal UI can't be zoomed.

@@ -8,3 +8,5 @@ dist/
 .serena/
 # local-only working docs (dev specs, roadmap)
 docs/
+# dev Telegram credentials (CERBERUS_ENV_FILE=.env.dev pnpm dev) — see .env.dev.example
+.env.dev
