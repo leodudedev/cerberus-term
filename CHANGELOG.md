@@ -8,6 +8,44 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.19.0] — 2026-09-22
+
+### Added
+
+- **Codex CLI sessions now reach your phone.** The third agent Cerberus knows
+  about, alongside Claude Code and Copilot CLI. When a Codex session asks to run
+  something, the request arrives in Telegram with the command, its risk icon,
+  and Codex's own explanation of why it wants permission — the sentence it would
+  have put on screen, in whatever language it wrote it.
+
+  Approving from the phone works differently here, and better. For the other two
+  agents Cerberus types the answer into the pane, which means reading the dialog
+  off the screen and trusting that the option numbers haven't moved since. Codex
+  lets the answer be given to it directly, so Approve and Deny are handed back as
+  a decision rather than as keystrokes: nothing is typed into the session, and a
+  pane that has scrolled or repainted in the meantime cannot be answered wrong.
+
+  The phone has about 25 seconds before Codex falls back to asking at the
+  keyboard, so a permission never waits on a phone left in another room — and if
+  no notification went out at all, because the project is muted or you haven't
+  set up a bot, Codex asks on screen immediately rather than pausing first.
+  Answering on the PC retires the buttons in the chat, the same as elsewhere.
+
+  Two things worth knowing. Codex reviews a hook before it will run it: the
+  first time, it asks you to trust this one from its own `/hooks` screen, and
+  until you do, nothing arrives — Settings says *awaiting trust* while that is
+  outstanding. And Codex is not offered on Windows yet, for the same reason
+  Copilot CLI isn't: nobody has run it there to find out whether the hook field
+  behaves the way it does on macOS and Linux.
+
+### Fixed
+
+- A second copy of Cerberus run from a checkout no longer borrows the installed
+  app's settings. It shared the same stored bot token and chat id, so a copy
+  started for development pushed to the real bot whatever it was told to use
+  instead, and a port set through an environment file was read too late to have
+  any effect. Both now hold; `.env.dev.example` describes the arrangement.
+
 ## [0.18.0] — 2026-09-11
 
 ### Fixed
