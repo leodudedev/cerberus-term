@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
@@ -23,6 +23,7 @@ import {
 import { capturePane } from "../pane-control.js";
 import { requestAttention } from "../attention.js";
 import { ALWAYS_OPTION_RE, dialogOptionsBlock, extractQuestionOptions } from "../../core/dialog.js";
+import { DECISION_ID_CHARS } from "../../core/callback-data.js";
 import { resolveFollowPath } from "../../core/follow-path.js";
 import { paneSpawnCwds } from "../bridge-electron.js";
 import { getDaemonToken } from "./token.js";
@@ -308,7 +309,11 @@ const server = createServer(async (req, res) => {
       // fires a PostToolUse to retire them when the answer was "no"), so
       // without an id a tap on that leftover would settle whatever request is
       // open now — approving a command the user never read.
-      const decisionId = randomUUID();
+      //
+      // Short on purpose: it rides in the button callback next to a UUID
+      // session id, and Telegram rejects the entire notification if that pair
+      // goes over 64 bytes. See core/callback-data.ts for the budget.
+      const decisionId = randomBytes(DECISION_ID_CHARS / 2).toString("hex");
       const session = upsertSession({
         sessionId,
         agent,

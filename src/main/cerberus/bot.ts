@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import { Bot, GrammyError, InlineKeyboard } from "grammy";
 import { actionKeysFor } from "../../core/config.js";
+import { callbackData } from "../../core/callback-data.js";
 import { RISK_ICON, RISK_RANK, riskFor, type Risk } from "../../core/classify.js";
 import {
   linkMessage,
@@ -551,11 +552,17 @@ function buildKeyboard(s: SessionInfo): InlineKeyboard | undefined {
   if (s.isPermission) {
     // Codex carries the id of the request this message is about, so a tap on
     // a message left behind by an earlier one can be told apart and refused
-    // rather than applied to whatever is pending now.
-    const target = s.decisionId ? `${s.sessionId}:${s.decisionId}` : s.sessionId;
-    const kb = new InlineKeyboard().text(t.btnApprove, `approve:${target}`);
-    if (s.hasAlways) kb.text(t.btnAlways, `always:${target}`);
-    kb.text(t.btnDeny, `deny:${target}`);
+    // rather than applied to whatever is pending now. Built through
+    // callbackData because that pair has to stay inside Telegram's 64-byte
+    // budget — over it, the whole notification is rejected, buttons and text.
+    const kb = new InlineKeyboard().text(
+      t.btnApprove,
+      callbackData("approve", s.sessionId, s.decisionId),
+    );
+    if (s.hasAlways) {
+      kb.text(t.btnAlways, callbackData("always", s.sessionId, s.decisionId));
+    }
+    kb.text(t.btnDeny, callbackData("deny", s.sessionId, s.decisionId));
     return kb;
   }
   return undefined;
