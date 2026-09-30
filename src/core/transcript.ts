@@ -62,6 +62,24 @@ export async function lastAssistantText(path: string | undefined): Promise<strin
   return "";
 }
 
+// The name the user gave the session with /rename, stored as a `custom-title`
+// row. Renaming again appends a new row, so the last one wins; an empty title
+// means the name was cleared. Claude's auto-generated `ai-title` is ignored —
+// only a deliberate name is worth a spot in the notification header.
+export async function sessionTitle(path: string | undefined): Promise<string> {
+  if (!path) return "";
+  try {
+    const lines = await readLines(path);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const j = lines[i];
+      if (j?.type === "custom-title") return String(j.customTitle ?? "").trim();
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
 // Copilot's transcript (events.jsonl) is a flat list of {type, data, ...} rows.
 // The most recent `assistant.message` row carries the final text in
 // `data.content` — used to enrich the agentStop completion notification.

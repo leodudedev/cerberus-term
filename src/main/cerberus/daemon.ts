@@ -8,6 +8,7 @@ import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bo
 import { takeApproval } from "./remote-approvals.js";
 import {
   lastAssistantText,
+  sessionTitle,
   lastCopilotText,
   lastCodexText,
   type ToolUse
@@ -450,10 +451,12 @@ const server = createServer(async (req, res) => {
     //    said"); the tool + input come from the PreToolUse cache below.
     //  - Copilot: no transcript — tool + input from the preToolUse cache too.
     let detail = "";
+    let title = "";
     let tool: ToolUse | null = null;
     let options: string[] = [];
     if (agent === "claude") {
       detail = await lastAssistantText(hook.transcript_path);
+      title = await sessionTitle(hook.transcript_path);
     } else if (agent === "codex") {
       detail = await lastCodexText(hook.transcript_path);
     }
@@ -512,6 +515,7 @@ const server = createServer(async (req, res) => {
       cwd: hook.cwd ?? "",
       lastMessage: message,
       detail,
+      title,
       toolName: tool?.name ?? "",
       command: tool?.command ?? "",
       options,

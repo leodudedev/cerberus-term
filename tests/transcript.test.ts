@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lastAssistantText, lastCodexText, lastCopilotText } from '../src/core/transcript.js';
+import { lastAssistantText, lastCodexText, lastCopilotText, sessionTitle } from '../src/core/transcript.js';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -152,5 +152,24 @@ describe('lastCodexText', () => {
   it('returns "" for a missing path or a missing file', async () => {
     expect(await lastCodexText(undefined)).toBe('');
     expect(await lastCodexText('/no/such/rollout.jsonl')).toBe('');
+  });
+});
+
+describe('sessionTitle', () => {
+  const rename = (t: string): unknown => ({ type: 'custom-title', customTitle: t, sessionId: 's' });
+
+  it('returns the latest /rename', () => {
+    const p = jsonl([rename('first'), user('hi'), rename('orchestrator'), assistant(text('ok'))]);
+    return expect(sessionTitle(p)).resolves.toBe('orchestrator');
+  });
+
+  it('ignores the auto-generated ai-title', async () => {
+    const p = jsonl([{ type: 'ai-title', aiTitle: 'Fix login bug' }, user('hi')]);
+    expect(await sessionTitle(p)).toBe('');
+  });
+
+  it('is empty without a transcript', async () => {
+    expect(await sessionTitle(undefined)).toBe('');
+    expect(await sessionTitle('/no/such/transcript.jsonl')).toBe('');
   });
 });

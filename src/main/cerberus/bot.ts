@@ -456,7 +456,8 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
   const kb = buildKeyboard(s);
 
   const folder = basename(s.cwd) || s.cwd;
-  let text = `${iconForProject(folder)} *${escapeMd(cap(s.profile))}* · \`${escapeCode(folder)}\`\n${escapeMd(s.lastMessage)}`;
+  const title = s.title ? ` · ${s.title}` : "";
+  let text = `${iconForProject(folder)} *${escapeMd(cap(s.profile))}* · \`${escapeCode(folder)}\`${escapeMd(title)}\n${escapeMd(s.lastMessage)}`;
 
   // Tool awaiting permission, prefixed with its risk icon. Inline code spans
   // cannot contain newlines in MarkdownV2: flatten multiline commands.
@@ -481,7 +482,7 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
     console.error("[bot] markdown push failed, retrying plain:", (e as Error).message);
     const flatCmd = s.command.replace(/\s*\n\s*/g, " ⏎ ");
     const plain =
-      `${iconForProject(folder)} ${cap(s.profile)} · ${folder}\n${s.lastMessage}` +
+      `${iconForProject(folder)} ${cap(s.profile)} · ${folder}${title}\n${s.lastMessage}` +
       (s.toolName ? `\n\n${RISK_ICON[risk]} ${s.toolName}: ${truncate(flatCmd, CMD_MAX)}` : "") +
       (s.detail ? `\n\n💬 ${tailText(s.detail, 1400)}` : "");
     sent = await bot.api.sendMessage(target, plain, { reply_markup: kb });
