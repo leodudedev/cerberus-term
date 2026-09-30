@@ -8,6 +8,19 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.20.0] — 2026-09-30
+
+### Added
+
+- **Telegram notifications carry the session's name.** Rename a Claude Code
+  session with `/rename` and every notification it sends shows that name after
+  the project — `🦈 Claude · my-app · orchestrator` — so when several
+  sessions run in the same folder you can tell which one is asking without
+  opening the chat. Renaming again takes effect on the next notification. Only
+  names you set yourself count: the title Claude generates on its own is left
+  out, and a session you never renamed looks exactly as before. Claude Code
+  only for now — Codex and Copilot CLI have no equivalent of `/rename`.
+
 ## [0.19.0] — 2026-09-22
 
 ### Added
