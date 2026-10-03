@@ -439,19 +439,38 @@ pnpm run dist:mac      # / dist:win / dist:linux
 > Use `pnpm run pack`/`dist`, not `pnpm pack`/`dist` — `pack` collides with a
 > pnpm builtin.
 
-## Experimental: orchestration cockpit
+## Running several agents
 
-> ⚗️ **Early-stage.** The APIs work but are young and may change.
+Two ways to run more than one agent at once, depending on whether the agents
+need to ask you anything.
 
-Beyond supervising single sessions, Cerberus can act as a **cockpit for
-multi-session orchestration**: one interactive session drives a queue of headless
-workers, each worker streams live into a read-only follower pane that auto-tiles
-into a grid, and the human gates (merge/push approvals) still arrive on your
-phone. Workers run with `CERBERUS_PANE_ID` unset so they never notify — only the
-orchestrator does.
+### Named interactive sessions
 
-The orchestrator is agent-agnostic: each task carries its own command, so you can
-mix Claude, Copilot, and plain scripts in one queue.
+Give each agent its own pane and its own name. Rename every Claude Code session
+with `/rename` — `orchestrator`, `backend`, `reviewer` — and let them hand work
+to each other however your agent supports it (a prompt, a shared file, a
+message to another session). Nothing to set up on Cerberus's side: every pane
+is a real session, so every permission prompt still reaches your phone, and the
+name rides along in the header — `🦈 Claude · my-app · reviewer` — so you know
+which one is asking without opening the chat.
+
+This is the simpler of the two and the one to reach for first.
+
+### Headless workers in follower panes
+
+> ⚗️ **Experimental.** The API works but is young and may change. macOS and
+> Linux only.
+
+For batch runs — a queue of `claude -p` jobs that never prompt — one interactive
+session drives the queue and Cerberus shows each worker live in a read-only
+follower pane that auto-tiles into a grid. The driver opens those panes through
+the daemon's `POST /pane`; `claude -p` stream-json output is rendered readably
+rather than as raw JSON. Workers run with `CERBERUS_PANE_ID` unset so they never
+notify — only the driving session does, and its human gates (merge/push
+approvals) still arrive on your phone.
+
+The driver is agent-agnostic: each task carries its own command, so you can mix
+Claude, Copilot, and plain scripts in one queue.
 
 **→ [`examples/`](examples/README.md)** has the full walkthrough plus
 [`orchestrate.sh`](examples/orchestrate.sh), a minimal crash-resumable driver you

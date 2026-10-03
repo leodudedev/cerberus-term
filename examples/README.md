@@ -8,6 +8,10 @@ multi-session orchestration**: one interactive session drives a queue of
 headless workers, each worker streams live into a read-only follower pane, and
 the human gates (merge/push approvals) still arrive on your phone.
 
+This is for batch runs of agents that never prompt. If your agents are
+interactive, you don't need any of it: run each in its own pane under a
+`/rename` name — see [Running several agents](../README.md#running-several-agents).
+
 ## The model
 
 - **Orchestrator** — one *interactive* session (e.g. `claude`) in a Cerberus
