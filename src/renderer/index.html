@@ -132,6 +132,16 @@
            of it and squashes the chips. Scrolling still works: wheel, trackpad,
            and selectTab's scrollIntoView. */
         scrollbar-width: none;
+        /* anchors the drop indicator */
+        position: relative;
+      }
+      /* Auto-scroll steps the offset every frame; smooth would lag behind. */
+      .tabbar-tabs.reordering {
+        scroll-behavior: auto;
+      }
+      .tabbar-tabs.reordering,
+      .tabbar-tabs.reordering * {
+        cursor: grabbing;
       }
       .tabbar-tabs::-webkit-scrollbar {
         display: none;
@@ -275,6 +285,27 @@
       }
       .tab-chip:hover {
         background: var(--btn-hover);
+      }
+      /* Being reordered: follows the pointer (transform set inline) over its
+         siblings. */
+      .tab-chip.dragging {
+        position: relative;
+        z-index: 1;
+        background: var(--header-focus);
+        color: var(--text);
+        box-shadow: 0 0 0 1px var(--accent), 0 4px 10px rgba(0, 0, 0, 0.35);
+      }
+      .tab-drop-indicator {
+        display: none;
+        position: absolute;
+        top: 50%;
+        width: 2px;
+        height: 18px;
+        transform: translateY(-50%);
+        border-radius: 1px;
+        background: var(--accent);
+        z-index: 2;
+        pointer-events: none;
       }
       .tab-chip.active {
         background: var(--header-focus);

@@ -21,6 +21,7 @@ import {
 } from './pane-tree.js';
 import { loadWorkspace, saveWorkspace, type SavedTab } from './persistence.js';
 import { confirmDialog } from './ConfirmDialog.js';
+import { dropSlot, edgeScrollStep, insertIndex, type ChipSpan } from './tab-reorder.js';
 import type { EditAction, OpenPanePayload, TabAction } from './cerberus.js';
 
 const shellQuote = (s: string): string => `'${s.replace(/'/g, "'\\''")}'`;
@@ -44,6 +45,30 @@ interface Tab {
   attention?: boolean;
 }
 
+const TAB_DRAG_THRESHOLD = 4; // px before a press becomes a drag
+const TAB_EDGE_ZONE = 40; // px from the strip edge where auto-scroll kicks in
+const TAB_EDGE_MAX_STEP = 14; // px/frame at the very edge
+
+// A chip press, tracked from pointerdown. Stays `active: false` (a plain click
+// or select) until the pointer moves past the threshold.
+interface TabDrag {
+  id: string;
+  pointerId: number;
+  startX: number;
+  clientX: number;
+  active: boolean;
+  // Snapshot taken on activation. Chips are positioned in strip-content
+  // coordinates so the auto-scroll can't skew them.
+  ids: string[];
+  chips: HTMLElement[];
+  spans: ChipSpan[];
+  from: number;
+  startContentX: number;
+  slot: number;
+  indicator: HTMLElement | null;
+  raf: number;
+}
+
 // A browser/iTerm-style tab strip on top of a splittable pane layout. Owns the
 // full workspace: tab lifecycle, the active tab's pane operations, and
 // persistence of the whole set.
@@ -51,6 +76,7 @@ export class Workspace {
   private tabs: Tab[] = [];
   private activeId = '';
   private readonly tabBarEl: HTMLElement;
+  private tabDrag: TabDrag | null = null;
   private readonly viewport: HTMLElement;
   private persistTimer: number | undefined;
   private skipCloseConfirm = false;
@@ -116,6 +142,15 @@ export class Workspace {
     // both change which edge has chips hidden behind it.
     this.tabBarEl.addEventListener('scroll', () => this.syncTabOverflow(), { passive: true });
     new ResizeObserver(() => this.syncTabOverflow()).observe(this.tabBarEl);
+
+    // Chip reordering. Listeners live on the strip (never re-rendered) so a
+    // renderTabBar mid-drag can't orphan them.
+    this.tabBarEl.addEventListener('pointermove', (e) => this.onTabPointerMove(e));
+    this.tabBarEl.addEventListener('pointerup', (e) => this.onTabPointerEnd(e, true));
+    this.tabBarEl.addEventListener('pointercancel', (e) => this.onTabPointerEnd(e, false));
+    // Capture lost without a pointerup (window blurred mid-drag). Fires after
+    // pointerup on a normal drop, by which point the drag is already over.
+    this.tabBarEl.addEventListener('lostpointercapture', (e) => this.onTabPointerEnd(e, false));
 
     bar.append(this.tabBarEl, actions);
 
@@ -357,6 +392,9 @@ export class Workspace {
   }
 
   private renderTabBar(): void {
+    // Chips are mid-drag (transforms, indicator): endTabDrag re-renders once
+    // it's over, which also picks up whatever changed in the meantime.
+    if (this.tabDrag?.active) return;
     this.tabBarEl.replaceChildren();
     let activeChip: HTMLElement | null = null;
 
@@ -391,13 +429,169 @@ export class Workspace {
       });
 
       chip.append(title, close);
-      chip.addEventListener('pointerdown', () => this.selectTab(t.id));
+      chip.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || chip.querySelector('input')) return;
+        this.selectTab(t.id);
+        this.tabDrag = {
+          id: t.id,
+          pointerId: e.pointerId,
+          startX: e.clientX,
+          clientX: e.clientX,
+          active: false,
+          ids: [],
+          chips: [],
+          spans: [],
+          from: -1,
+          startContentX: 0,
+          slot: 0,
+          indicator: null,
+          raf: 0
+        };
+      });
       this.tabBarEl.append(chip);
     });
 
     this.syncTabOverflow();
     // Cmd+1..9 and Ctrl+Tab can land on a chip that's scrolled out of sight.
     (activeChip as HTMLElement | null)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // ---- tab drag-to-reorder ------------------------------------------------
+
+  private tabContentX(clientX: number): number {
+    return clientX - this.tabBarEl.getBoundingClientRect().left + this.tabBarEl.scrollLeft;
+  }
+
+  private onTabPointerMove(e: PointerEvent): void {
+    const d = this.tabDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    // Released outside the strip before the drag started: nobody told us.
+    if (!(e.buttons & 1)) {
+      this.endTabDrag(false);
+      return;
+    }
+    d.clientX = e.clientX;
+    if (!d.active) {
+      if (Math.abs(e.clientX - d.startX) < TAB_DRAG_THRESHOLD) return;
+      if (!this.activateTabDrag(d)) {
+        this.tabDrag = null;
+        return;
+      }
+    }
+    this.updateTabDrag(d);
+  }
+
+  private onTabPointerEnd(e: PointerEvent, commit: boolean): void {
+    if (this.tabDrag && e.pointerId === this.tabDrag.pointerId) this.endTabDrag(commit);
+  }
+
+  private readonly onTabDragKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.endTabDrag(false);
+  };
+
+  // The press crossed the threshold: snapshot the chips and take over the
+  // pointer. Capture only starts here — grabbing it on pointerdown would
+  // retarget the click/dblclick that rename and close rely on.
+  private activateTabDrag(d: TabDrag): boolean {
+    const chips = Array.from(this.tabBarEl.children) as HTMLElement[];
+    const from = this.tabs.findIndex((t) => t.id === d.id);
+    if (from === -1 || chips.length !== this.tabs.length) return false;
+
+    const barLeft = this.tabBarEl.getBoundingClientRect().left;
+    const scroll = this.tabBarEl.scrollLeft;
+    d.ids = this.tabs.map((t) => t.id);
+    d.chips = chips;
+    d.spans = chips.map((c) => {
+      const r = c.getBoundingClientRect();
+      return { left: r.left - barLeft + scroll, right: r.right - barLeft + scroll };
+    });
+    d.from = from;
+    d.startContentX = this.tabContentX(d.startX);
+    d.slot = from;
+
+    d.indicator = document.createElement('div');
+    d.indicator.className = 'tab-drop-indicator';
+    this.tabBarEl.append(d.indicator);
+    chips[from]!.classList.add('dragging');
+    this.tabBarEl.classList.add('reordering');
+    this.tabBarEl.setPointerCapture(d.pointerId);
+    window.addEventListener('keydown', this.onTabDragKey, true);
+    d.active = true;
+    d.raf = requestAnimationFrame(() => this.tickTabDrag(d));
+    return true;
+  }
+
+  // Drag-follow + drop indicator, from the last pointer position and the
+  // current scroll offset.
+  private updateTabDrag(d: TabDrag): void {
+    const x = this.tabContentX(d.clientX);
+    const own = d.spans[d.from]!;
+    const min = -own.left;
+    const max = this.tabBarEl.scrollWidth - own.right;
+    const dx = Math.min(max, Math.max(min, x - d.startContentX));
+    d.chips[d.from]!.style.transform = `translateX(${dx}px)`;
+
+    d.slot = dropSlot(x, d.spans);
+    const noop = d.slot === d.from || d.slot === d.from + 1;
+    const ind = d.indicator!;
+    ind.style.display = noop ? 'none' : 'block';
+    if (!noop) {
+      const edge = d.slot < d.spans.length ? d.spans[d.slot]!.left - 1 : d.spans.at(-1)!.right + 1;
+      ind.style.left = `${edge - 1}px`;
+    }
+  }
+
+  // Runs every frame while dragging: scrolls the strip when the pointer is
+  // parked near an edge, then re-derives the drop slot against the new offset.
+  private tickTabDrag(d: TabDrag): void {
+    if (this.tabDrag !== d) return;
+    const r = this.tabBarEl.getBoundingClientRect();
+    const step = edgeScrollStep(d.clientX, r.left, r.right, TAB_EDGE_ZONE, TAB_EDGE_MAX_STEP);
+    if (step !== 0) {
+      this.tabBarEl.scrollLeft += step;
+      this.updateTabDrag(d);
+    }
+    d.raf = requestAnimationFrame(() => this.tickTabDrag(d));
+  }
+
+  private endTabDrag(commit: boolean): void {
+    const d = this.tabDrag;
+    if (!d) return;
+    this.tabDrag = null;
+    if (!d.active) return; // a plain press: selectTab already did the work
+
+    cancelAnimationFrame(d.raf);
+    window.removeEventListener('keydown', this.onTabDragKey, true);
+    this.tabBarEl.classList.remove('reordering');
+    if (this.tabBarEl.hasPointerCapture(d.pointerId)) {
+      this.tabBarEl.releasePointerCapture(d.pointerId);
+    }
+
+    // The model may have changed under the drag (tab closed or opened), so the
+    // drop is resolved by id against the live order, not by snapshot index.
+    const dragged = this.tabs.find((t) => t.id === d.id);
+    let moved = false;
+    if (commit && dragged) {
+      const from = this.tabs.indexOf(dragged);
+      const to = insertIndex(
+        this.tabs.map((t) => t.id),
+        d.id,
+        d.ids,
+        d.slot
+      );
+      if (to !== from) {
+        this.tabs.splice(from, 1);
+        this.tabs.splice(to, 0, dragged);
+        moved = true;
+      }
+    }
+    // Wipes the drag styling and the indicator, and flushes any render that
+    // was held back during the drag.
+    this.renderTabBar();
+    if (moved) this.schedulePersist();
   }
 
   // Fade an edge only while chips are hidden past it: fading the right one at
