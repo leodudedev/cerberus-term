@@ -271,6 +271,7 @@ permission prompt, and the Telegram push.
 | New / close tab | `+` / `✕` in the tab bar | `Cmd+T` / `Cmd+W` |
 | Next / previous tab | click the tab | `Cmd+Shift+]` / `Cmd+Shift+[` |
 | Jump to tab 1–9 | click the tab | `Cmd+1` … `Cmd+9` |
+| Reorder tabs | drag the tab | — |
 | Star this pane's cwd | the star button, or right-click the pane | — |
 | Jump to a favorite | the heart button, or right-click the pane | — |
 | Read the project's markdown | the document button in the pane header | ↑ ↓ and Enter in the list, Esc to close |

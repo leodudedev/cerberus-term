@@ -8,6 +8,29 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.21.0] — 2026-10-03
+
+### Added
+
+- **Drag a tab to reorder the strip.** Press a tab and move it sideways; a
+  marker shows where it will land, and the new order survives a restart. A
+  plain click still selects, double-click still renames, and the close button
+  still closes — the drag only starts once the pointer has actually moved.
+  With more tabs than fit, holding the tab near either edge scrolls the strip.
+  Escape, or switching away from the window, drops the drag and leaves the
+  order as it was. Unnamed tabs keep numbering by position, so dragging
+  "Terminale 3" to the front makes it "Terminale 1" — the same thing closing
+  a tab already does. Name a tab if you want its label to stay put.
+
+### Changed
+
+- **The README now leads multi-agent use with named sessions.** Running several
+  interactive agents side by side, each renamed with `/rename`, needs nothing
+  from Cerberus and every permission prompt still reaches your phone with the
+  agent's name on it — so that's the path the docs show first. The headless
+  worker setup with live follower panes is unchanged and still documented,
+  now scoped to what it's for: batch runs of agents that never prompt.
+
 ## [0.20.0] — 2026-09-30
 
 ### Added
