@@ -7,8 +7,7 @@ import { upsertSession, dropSession } from "../../core/registry.js";
 import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bot.js";
 import { takeApproval } from "./remote-approvals.js";
 import {
-  lastAssistantText,
-  sessionTitle,
+  claudeContext,
   lastCopilotText,
   lastCodexText,
   type ToolUse
@@ -455,8 +454,7 @@ const server = createServer(async (req, res) => {
     let tool: ToolUse | null = null;
     let options: string[] = [];
     if (agent === "claude") {
-      detail = await lastAssistantText(hook.transcript_path);
-      title = await sessionTitle(hook.transcript_path);
+      ({ text: detail, title } = await claudeContext(hook.transcript_path));
     } else if (agent === "codex") {
       detail = await lastCodexText(hook.transcript_path);
     }

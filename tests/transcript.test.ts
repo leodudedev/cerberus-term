@@ -1,8 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { appendFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lastAssistantText, lastCodexText, lastCopilotText, sessionTitle } from '../src/core/transcript.js';
+import { claudeContext, lastCodexText, lastCopilotText } from '../src/core/transcript.js';
+
+const lastAssistantText = async (p: string | undefined): Promise<string> => (await claudeContext(p)).text;
+const sessionTitle = async (p: string | undefined): Promise<string> => (await claudeContext(p)).title;
+
+// Wrapped so a test can count how many times a transcript is actually opened.
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, open: vi.fn(actual.open) };
+});
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -171,5 +181,123 @@ describe('sessionTitle', () => {
   it('is empty without a transcript', async () => {
     expect(await sessionTitle(undefined)).toBe('');
     expect(await sessionTitle('/no/such/transcript.jsonl')).toBe('');
+  });
+});
+
+// Bounded reads: a notification only ever reads the end of the transcript, and
+// when that window can't settle the answer the answer is "", never a guess.
+describe('transcript budgets', () => {
+  const toolResult = (size: number): unknown => ({
+    type: 'user',
+    message: { content: [{ type: 'tool_result', content: 'x'.repeat(size) }] }
+  });
+  const filler = (bytes: number): unknown[] => Array.from({ length: Math.ceil(bytes / 1000) }, () => toolResult(950));
+  const rename = (t: string): unknown => ({ type: 'custom-title', customTitle: t, sessionId: 's' });
+  const small = { tailBytes: 64 * 1024, titleScanBytes: 64 * 1024 * 1024 };
+
+  it('finds the current turn at the end of a transcript far larger than the budget', async () => {
+    const p = jsonl([user('go'), ...filler(512 * 1024), assistant(text('latest'))]);
+    expect((await claudeContext(p, small)).text).toBe('latest');
+  });
+
+  it('returns no context when the turn boundary is outside the window', async () => {
+    const p = jsonl([
+      user('first ask'),
+      assistant(text('old answer')),
+      user('second ask'),
+      ...filler(256 * 1024),
+      { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash' }] } }
+    ]);
+    expect((await claudeContext(p, small)).text).toBe('');
+    // With the whole file in budget the same transcript is still answered right.
+    expect((await claudeContext(p)).text).toBe('');
+  });
+
+  it('does not resurface an earlier turn with the default budget either', async () => {
+    const p = jsonl([user('old'), assistant(text('old answer')), user('new'), ...filler(9 * 1024 * 1024)]);
+    expect((await claudeContext(p)).text).toBe('');
+  });
+
+  it('gives up on a row longer than the budget instead of skipping past it', async () => {
+    const p = jsonl([assistant(text('old answer')), user('x'.repeat(128 * 1024))]);
+    expect((await claudeContext(p, small)).text).toBe('');
+  });
+
+  it('decodes multi-byte UTF-8 split across read chunks', async () => {
+    const long = 'àè€😀'.repeat(40_000); // ~400 KB, crosses many 64 KiB reads
+    const p = jsonl([user('go'), assistant(text(long))]);
+    expect((await claudeContext(p)).text).toBe(long);
+  });
+
+  it('applies the budget to Codex and Copilot transcripts too', async () => {
+    const codex = jsonl([codexUser('a'), codexAgent('old'), codexUser('b'), ...filler(256 * 1024)]);
+    expect(await lastCodexText(codex, small)).toBe('');
+    const copilot = jsonl([{ type: 'assistant.message', data: { content: 'old' } }, ...filler(256 * 1024)]);
+    expect(await lastCopilotText(copilot, small)).toBe('');
+    expect(await lastCopilotText(copilot)).toBe('old');
+  });
+
+  it('finds a /rename far behind the tail window', async () => {
+    const p = jsonl([rename('far back'), user('go'), ...filler(256 * 1024), assistant(text('ok'))]);
+    expect(await claudeContext(p, small)).toEqual({ text: 'ok', title: 'far back' });
+  });
+
+  it('picks up a /rename appended after the previous notification', async () => {
+    const p = jsonl([rename('first'), user('go'), assistant(text('ok'))]);
+    expect((await claudeContext(p)).title).toBe('first');
+    appendFileSync(p, '\n' + JSON.stringify(rename('second')) + '\n');
+    expect((await claudeContext(p)).title).toBe('second');
+    appendFileSync(p, JSON.stringify(rename('')) + '\n');
+    expect((await claudeContext(p)).title).toBe('');
+  });
+
+  it('counts a complete /rename that has no trailing newline yet', async () => {
+    const p = jsonl([user('go'), rename('fresh')]);
+    expect((await claudeContext(p)).title).toBe('fresh');
+  });
+
+  it('starts over when the transcript is truncated or replaced', async () => {
+    const p = jsonl([rename('before'), user('go'), ...filler(8 * 1024), assistant(text('ok'))]);
+    expect((await claudeContext(p)).title).toBe('before');
+    writeFileSync(p, [user('go'), assistant(text('ok'))].map((l) => JSON.stringify(l)).join('\n'));
+    expect((await claudeContext(p)).title).toBe('');
+
+    expect((await claudeContext(p)).text).toBe('ok');
+    renameSync(p, p + '.old');
+    writeFileSync(p, [rename('rotated'), user('go'), assistant(text('new'))].map((l) => JSON.stringify(l)).join('\n'));
+    expect(await claudeContext(p)).toEqual({ text: 'new', title: 'rotated' });
+  });
+
+  it('works off a title backlog larger than one scan over several calls', async () => {
+    const limits = { tailBytes: 64 * 1024, titleScanBytes: 64 * 1024 };
+    const p = jsonl([rename('named'), user('go'), ...filler(200 * 1024), assistant(text('ok'))]);
+    const titles: string[] = [];
+    for (let i = 0; i < 5; i++) titles.push((await claudeContext(p, limits)).title);
+    // Unknown until the scan has caught up, then the real title.
+    expect(titles.slice(0, 3)).toEqual(['', '', '']);
+    expect(titles.at(-1)).toBe('named');
+  });
+
+  it('skips an over-long row in the title scan without buffering it', async () => {
+    const p = jsonl([rename('a'), user('y'.repeat(200 * 1024)), rename('b'), assistant(text('ok'))]);
+    expect((await claudeContext(p)).title).toBe('b');
+  });
+
+  it('serves concurrent lookups of one file from at most two reads', async () => {
+    const p = jsonl([user('go'), ...filler(64 * 1024), assistant(text('ok'))]);
+    const opened = vi.mocked(open);
+    opened.mockClear();
+    const results = await Promise.all(Array.from({ length: 8 }, () => claudeContext(p)));
+    expect(results.every((r) => r.text === 'ok')).toBe(true);
+    expect(opened.mock.calls.filter(([f]) => f === p).length).toBeLessThanOrEqual(2);
+  });
+
+  it('never answers a caller with a read that started before it arrived', async () => {
+    const p = jsonl([user('go'), assistant(text('first'))]);
+    const early = claudeContext(p);
+    appendFileSync(p, '\n' + JSON.stringify(user('next')) + '\n' + JSON.stringify(assistant(text('second'))) + '\n');
+    const late = claudeContext(p);
+    expect((await early).text).toMatch(/^(first|second)$/);
+    expect((await late).text).toBe('second');
   });
 });
