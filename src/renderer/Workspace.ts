@@ -757,6 +757,8 @@ export class Workspace {
     }
 
     const { root, entries, truncated } = await window.cerberusDocs.list(paneId);
+    // Closed while the listing was in flight: nothing left to anchor to.
+    if (t.layout.paneBodyOf(leafId) !== host) return;
     openDocsDropdown({
       host,
       root,

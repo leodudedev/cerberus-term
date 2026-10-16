@@ -32,6 +32,12 @@ export interface ViewerOptions {
   onRemoteImagesChange?(remoteImages: boolean): void;
 }
 
+// Per document shown: the most image data (data: URL characters, local and
+// web together) inlined into it, and how many web images are fetched at once.
+// Past the budget the remaining images keep their alt-text chip.
+const IMAGE_BUDGET_CHARS = 48 * 1024 * 1024;
+const REMOTE_IMAGE_CONCURRENCY = 4;
+
 const FIND_HIGHLIGHT = 'md-find';
 const FIND_ACTIVE_HIGHLIGHT = 'md-find-active';
 
@@ -289,6 +295,17 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
 
   // ---- document loading ----------------------------------------------------
 
+  // Bumped by every load and by close. Each await in the loading path checks it
+  // on the way back, so an answer for a document no longer shown — or for a
+  // viewer already closed — is dropped instead of written into the page.
+  let generation = 0;
+  // Bumped whenever web images are (re)requested or turned off, so a fetch
+  // still in flight from an earlier request can't paint over the chips.
+  let remoteEpoch = 0;
+  const imageChars = { local: 0, remote: 0 };
+  const imageFits = (data: string): boolean =>
+    imageChars.local + imageChars.remote + data.length <= IMAGE_BUDGET_CHARS;
+
   const decorate = (): void => {
     void highlightCode(article);
     void renderMermaid(article, currentTheme() === 'dark');
@@ -296,7 +313,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
 
   // A document's own screenshots. The page's CSP allows `data:` and nothing
   // remote, so main hands the bytes over inlined.
-  const inlineImages = async (): Promise<void> => {
+  const inlineImages = async (gen: number): Promise<void> => {
     const images = article.querySelectorAll<HTMLImageElement>('img[data-md-src]');
     for (const img of images) {
       const src = img.dataset['mdSrc'];
@@ -307,8 +324,11 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
         continue;
       }
       const data = await window.cerberusDocs.asset(paneId, abs);
-      if (data) img.src = data;
-      else img.classList.add('md-img-missing');
+      if (gen !== generation) return;
+      if (data && imageFits(data)) {
+        imageChars.local += data.length;
+        img.src = data;
+      } else img.classList.add('md-img-missing');
     }
     parkRemoteImages();
     if (remoteImages) void loadRemoteImages();
@@ -328,24 +348,41 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     }
   };
 
-  // In parallel: a badge row is a dozen requests to the same host, and doing
-  // them one after another would have the document filling in for seconds.
+  // A few at a time: a badge row is a dozen requests to the same host, and
+  // doing them one after another would have the document filling in for
+  // seconds — but a page of hundreds shouldn't open hundreds of downloads.
+  // One request per URL, however many times the page repeats the badge.
   const loadRemoteImages = async (): Promise<void> => {
-    const images = [...article.querySelectorAll<HTMLImageElement>('img[data-md-remote]')];
-    await Promise.all(
-      images.map(async (img) => {
-        const url = img.dataset['mdRemote'];
-        if (!url || img.getAttribute('src')) return;
+    const gen = generation;
+    const epoch = ++remoteEpoch;
+    const live = (): boolean => gen === generation && epoch === remoteEpoch;
+    const byUrl = new Map<string, HTMLImageElement[]>();
+    for (const img of article.querySelectorAll<HTMLImageElement>('img[data-md-remote]')) {
+      const url = img.dataset['mdRemote'];
+      if (!url || img.getAttribute('src')) continue;
+      byUrl.set(url, [...(byUrl.get(url) ?? []), img]);
+    }
+    const queue = [...byUrl];
+    const worker = async (): Promise<void> => {
+      for (let next = queue.shift(); next && live(); next = queue.shift()) {
+        const [url, imgs] = next;
         const data = await window.cerberusDocs.remoteAsset(url);
-        // No data: offline, not an image, too big. The chip stays.
-        if (!data) return;
-        img.src = data;
-        img.classList.remove('md-img-missing');
-      })
-    );
+        // No data: offline, not an image, too big. Not live: closed, another
+        // document, or web images turned off meanwhile. The chip stays.
+        if (!data || !live() || !imageFits(data)) continue;
+        imageChars.remote += data.length;
+        for (const img of imgs) {
+          img.src = data;
+          img.classList.remove('md-img-missing');
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: REMOTE_IMAGE_CONCURRENCY }, worker));
   };
 
   const dropRemoteImages = (): void => {
+    remoteEpoch++;
+    imageChars.remote = 0;
     for (const img of article.querySelectorAll<HTMLImageElement>('img[data-md-remote]')) {
       img.removeAttribute('src');
       img.classList.add('md-img-missing');
@@ -353,6 +390,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   };
 
   const load = async (entry: DocEntry, anchor?: string, keepScroll = false): Promise<void> => {
+    const gen = ++generation;
     current = entry;
     title.textContent = relFrom(root, entry.abs);
     title.title = entry.abs;
@@ -361,6 +399,7 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     const scroll = content.scrollTop;
 
     const res = await window.cerberusDocs.read(paneId, entry.abs);
+    if (gen !== generation) return;
     if (!res.ok) {
       article.replaceChildren();
       const err = document.createElement('div');
@@ -369,14 +408,18 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
       article.append(err);
       return;
     }
+    imageChars.local = 0;
+    imageChars.remote = 0;
     article.innerHTML = renderMarkdown(res.content);
     // A reload keeps you where you were reading; opening a document starts at
     // the top. Either way the mtime we just rendered is the one to compare
     // against, so a save that lands mid-read isn't missed.
     content.scrollTop = keepScroll ? scroll : 0;
-    seenMtime = await window.cerberusDocs.mtime(paneId, entry.abs);
+    const mtime = await window.cerberusDocs.mtime(paneId, entry.abs);
+    if (gen !== generation) return;
+    seenMtime = mtime;
     decorate();
-    void inlineImages();
+    void inlineImages(gen);
     if (anchor) {
       const target = article.querySelector(`#${CSS.escape(anchor)}`);
       target?.scrollIntoView({ block: 'start' });
@@ -453,7 +496,10 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     // an inactive tab — those keep their DOM, so only the layout knows.
     if (document.hidden || overlay.offsetParent === null) return;
     void (async () => {
+      const gen = generation;
       const at = await window.cerberusDocs.mtime(paneId, current.abs);
+      // Closed, or another document opened, while the stat was out.
+      if (gen !== generation) return;
       // Null is a deleted or unreadable file: keep showing what we have rather
       // than blanking the document someone is reading.
       if (at === null) return;
@@ -481,6 +527,8 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   const close = (): void => {
     if (closed) return;
     closed = true;
+    generation++;
+    remoteEpoch++;
     clearFind();
     window.clearInterval(poll);
     window.removeEventListener('theme-change', onTheme);
@@ -515,6 +563,8 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   mount();
   const handle: ViewerHandle = { close, openFind, isOpen: () => !closed };
   openViewers.set(host, handle);
-  void load(current).then(() => content.focus());
+  void load(current).then(() => {
+    if (!closed) content.focus();
+  });
   return handle;
 }

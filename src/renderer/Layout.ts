@@ -109,9 +109,15 @@ export class Layout {
     if (root) collectLeafIds(root, present);
     for (const [id, entry] of this.leaves) {
       if (!present.has(id)) {
+        // Out of the map first, so a closing overlay's "focus the pane again"
+        // finds nothing to focus. Then overlays before the pty: a fullscreen
+        // document lives on document.body and would outlive the leaf's DOM,
+        // along with its reload timer and theme listener.
+        this.leaves.delete(id);
+        const body = entry.el.querySelector<HTMLElement>('.pane-body');
+        if (body) viewerFor(body)?.close();
         entry.pane.dispose();
         entry.el.remove();
-        this.leaves.delete(id);
         this.lockedTitles.delete(id);
         this.paneSpecs.delete(id);
       }
@@ -260,6 +266,9 @@ export class Layout {
   }
 
   focusLeaf(leafId: string): void {
+    // A late caller (an overlay closing after its pane) must not point focus
+    // at a leaf that no longer exists.
+    if (!this.leaves.has(leafId)) return;
     this.focusedLeafId = leafId;
     this.leaves.get(leafId)?.pane.focus();
     this.applyFocusStyles();
