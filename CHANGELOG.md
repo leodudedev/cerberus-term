@@ -8,6 +8,31 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.21.1] — 2026-10-16
+
+### Fixed
+
+- **Notifications no longer spike memory on long sessions.** Every
+  notification used to read and parse the agent's whole transcript — twice for
+  Claude — so a session with hundreds of MB of tool output could push the app
+  up by several hundred MB for each prompt, more when several sessions asked at
+  once. Now only the end of the transcript is read, with a fixed ceiling, and
+  memory stays flat whatever the transcript's size. The text shown is still
+  strictly from the current turn: when a turn is so long that its start is out
+  of reach, the notification arrives without the quote rather than with one
+  from an earlier turn. On a very large transcript the `/rename` name may be
+  missing from the first notification or two before it shows up.
+- **Closing a pane or tab now closes its document.** A document left open —
+  full window especially — stayed on screen after its pane was gone, and kept
+  checking the file for changes in the background. It now closes with the
+  pane, and nothing that was still loading for it lands afterwards.
+- **Web images in documents are kept in check.** A badge or image is now cut
+  off the moment it passes the size limit, instead of being downloaded whole
+  and only then refused; images declaring an enormous canvas are skipped; a
+  document fetches a few at a time, each address once, within an overall
+  budget. Turning web images off, or closing the document, stops late
+  downloads from filling them back in.
+
 ## [0.21.0] — 2026-10-03
 
 ### Added
