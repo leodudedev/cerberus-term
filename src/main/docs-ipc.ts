@@ -8,23 +8,11 @@ import { readProjectConfig } from '../core/project-config.js';
 import { DEFAULT_DOC_GLOBS } from '../core/docs-bridge.js';
 import type { DocsListResult, DocsReadResult } from '../core/docs-bridge.js';
 import { findProjectRoot, isMarkdown, scanDocs } from '../core/docs-scan.js';
+import { ASSET_TYPES, MAX_ASSET_BYTES, fetchRemoteImage, withinPixelLimit } from './doc-images.js';
 
 // A markdown file big enough to matter here is a generated log, and the viewer
 // would take the renderer down with it trying to lay it out.
 const MAX_BYTES = 4_000_000;
-
-// Images are inlined as base64, which costs a third again in size — a repo
-// screenshot fits, a design PSD export doesn't need to.
-const MAX_ASSET_BYTES = 8_000_000;
-const ASSET_TYPES: Record<string, string> = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.avif': 'image/avif',
-  '.svg': 'image/svg+xml'
-};
 
 // Both handlers re-derive the root from the pane rather than taking one from
 // the renderer: the pane's cwd is the only thing that says which project the
@@ -44,15 +32,6 @@ function isUnder(child: string, parent: string): boolean {
   return child.startsWith(parent.endsWith(sep) ? parent : parent + sep);
 }
 
-// A README's badge row points at shields.io and friends. The renderer's CSP
-// blocks anything remote, so main fetches the bytes and hands back a data: URL.
-// Node's fetch, not Electron's net: nothing here rides on the browser session,
-// so no cookie of the user's is ever attached to a request a document asked for.
-// Only reached when the viewer's toggle is on — see DocsSettings.remoteImages.
-const REMOTE_TIMEOUT_MS = 6000;
-const MAX_REMOTE_BYTES = 2_000_000;
-const REMOTE_TYPES = new Set(Object.values(ASSET_TYPES));
-
 export function registerDocsIpc(): void {
   ipcMain.handle('docs:list', (_e, paneId: string): DocsListResult => {
     const cwd = getPaneCwd(paneId);
@@ -71,7 +50,9 @@ export function registerDocsIpc(): void {
       const real = realpathSync(abs);
       if (!isUnder(real, root)) return null;
       if (statSync(real).size > MAX_ASSET_BYTES) return null;
-      return `data:${type};base64,${readFileSync(real).toString('base64')}`;
+      const buf = readFileSync(real);
+      if (!withinPixelLimit(buf)) return null;
+      return `data:${type};base64,${buf.toString('base64')}`;
     } catch {
       return null; // missing, unreadable, or a broken link in the document
     }
@@ -92,37 +73,9 @@ export function registerDocsIpc(): void {
     }
   });
 
-  ipcMain.handle('docs:remote-asset', async (_e, url: string): Promise<string | null> => {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return null;
-    }
-    // https only: a plain-http badge would leak the request in clear and is not
-    // worth downgrading the connection for.
-    if (parsed.protocol !== 'https:') return null;
-
-    try {
-      const res = await fetch(parsed, {
-        signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
-        redirect: 'follow',
-        credentials: 'omit',
-        referrerPolicy: 'no-referrer',
-        headers: { accept: 'image/*' }
-      });
-      if (!res.ok) return null;
-      const type = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase();
-      if (!type || !REMOTE_TYPES.has(type)) return null;
-      const declared = Number(res.headers.get('content-length'));
-      if (Number.isFinite(declared) && declared > MAX_REMOTE_BYTES) return null;
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.byteLength > MAX_REMOTE_BYTES) return null;
-      return `data:${type};base64,${buf.toString('base64')}`;
-    } catch {
-      return null; // offline, timed out, TLS, DNS — the document keeps its chip
-    }
-  });
+  ipcMain.handle('docs:remote-asset', (_e, url: string): Promise<string | null> =>
+    fetchRemoteImage(url)
+  );
 
   ipcMain.handle('docs:read', (_e, paneId: string, abs: string): DocsReadResult => {
     if (!abs || !isAbsolute(abs)) return { ok: false, error: 'Not an absolute path' };
