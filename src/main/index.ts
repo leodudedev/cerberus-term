@@ -8,7 +8,7 @@ import {
   shell,
   type MenuItemConstructorOptions
 } from 'electron';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { registerBridge, killAllPtys, detachAllPtys, ptyShellPids } from './bridge-electron.js';
 import {
@@ -24,10 +24,21 @@ import { registerConfigIpc } from './config-ipc.js';
 import { registerSettingsIpc } from './settings-ipc.js';
 import { registerMuteIpc } from './mute-ipc.js';
 import { registerDocsIpc } from './docs-ipc.js';
+import { guardNavigation } from './navigation-guard.js';
 import { initAttention, clearAttention } from './attention.js';
 import { startCerberus } from './cerberus/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// The one document allowed in the window. electron-vite injects the dev server
+// URL; production loads the built HTML. Loaded from this exact string so the
+// navigation guard compares against what was really loaded.
+const RENDERER_ENTRY =
+  process.env['ELECTRON_RENDERER_URL'] ||
+  pathToFileURL(join(__dirname, '../renderer/index.html')).href;
+
+// A renderer dying again this soon after a crash reload asks before reloading.
+const CRASH_RELOAD_WINDOW_MS = 10_000;
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -228,48 +239,50 @@ function createWindow(): void {
     }
   });
 
-  // The preload hands this window spawn/write/kill over the ptys, so letting any
-  // other document load here would hand a page arbitrary command execution.
-  // contextIsolation doesn't help with that — it protects the bridge, not which
-  // origin gets to hold it. Keep navigation pinned to our own renderer and push
-  // every link out to the OS browser.
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    const devUrl = process.env['ELECTRON_RENDERER_URL'];
-    if (devUrl && url.startsWith(devUrl)) return;
-    if (url.startsWith('file://')) return;
-    event.preventDefault();
-    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
-  });
-  // No <webview> anywhere in the app; anything trying to attach one is a bug or
-  // an injection.
-  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
-
-  // The ptys live in main and outlive the page. Whenever the renderer restarts
-  // — reload, crash, dev HMR — orphan them so their output is buffered until
-  // the fresh renderer reattaches, instead of being fired at a dead frame.
-  mainWindow.webContents.on('did-start-navigation', (details) => {
-    if (details.isMainFrame) detachAllPtys();
+  // Navigation pinned to our own page, pty ownership tied to the document
+  // actually shown. See navigation-guard.ts.
+  guardNavigation(mainWindow.webContents, RENDERER_ENTRY, {
+    detach: detachAllPtys,
+    openExternal: (url) => void shell.openExternal(url)
   });
 
-  // A crashed renderer would otherwise sit on the "Aw, snap" page with every
-  // shell still alive but unreachable. Reload it: the restore reattaches the
-  // surviving ptys and the sessions come back. Rate-limited, so a page that
-  // crashes on load can't spin here forever.
+  // A dead renderer would otherwise sit on a blank page with every shell still
+  // alive but unreachable. Reload it: the restore reattaches the surviving ptys
+  // and the sessions come back. "killed" counts too — the OS reclaiming memory,
+  // or a force quit from Activity Monitor — as long as it isn't us quitting.
+  // A page that dies again within seconds isn't reloaded blindly, so a crash on
+  // load can't spin here forever: the user gets the choice instead of a window
+  // left blank for good.
   let lastCrashReload = 0;
+  const reloadAfterCrash = (): void => {
+    lastCrashReload = Date.now();
+    mainWindow?.webContents.reload();
+  };
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
-    if (details.reason === 'clean-exit' || details.reason === 'killed') return;
-    const now = Date.now();
-    if (now - lastCrashReload < 10_000) {
-      console.error('[main] renderer crashed again (%s) — not reloading', details.reason);
+    // Nothing is listening for pty output any more, whatever happens next.
+    detachAllPtys();
+    if (details.reason === 'clean-exit' || quitting || !mainWindow) return;
+    if (Date.now() - lastCrashReload >= CRASH_RELOAD_WINDOW_MS) {
+      console.error('[main] renderer gone (%s) — reloading to reattach', details.reason);
+      reloadAfterCrash();
       return;
     }
-    lastCrashReload = now;
-    console.error('[main] renderer gone (%s) — reloading to reattach', details.reason);
-    mainWindow?.webContents.reload();
+    console.error('[main] renderer gone again (%s) — asking before reloading', details.reason);
+    void dialog
+      .showMessageBox(mainWindow, {
+        type: 'error',
+        buttons: ['Reload', 'Quit'],
+        defaultId: 0,
+        cancelId: 0,
+        message: 'The Cerberus window stopped working',
+        detail:
+          `It crashed twice in a row (${details.reason}). Your shells are still running: ` +
+          'reloading brings them back. Quitting closes them.'
+      })
+      .then(({ response }) => {
+        if (response === 0) reloadAfterCrash();
+        else app.quit();
+      });
   });
 
   mainWindow.once('ready-to-show', () => mainWindow?.show());
@@ -286,12 +299,7 @@ function createWindow(): void {
     mainWindow = null;
   });
 
-  // electron-vite injects the dev server URL; production loads the built HTML.
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+  void mainWindow.loadURL(RENDERER_ENTRY);
 }
 
 app.whenReady().then(() => {
@@ -383,8 +391,12 @@ async function handleStrays(policy: StrayPolicy): Promise<void> {
 // Set once the stray question has been answered (or skipped): app.quit() below
 // re-enters this handler, and the second pass must let the quit through.
 let strayCheckDone = false;
+// Set on the way out, so the renderer going down with the app isn't mistaken
+// for a crash to recover from.
+let quitting = false;
 
 app.on('before-quit', (e) => {
+  quitting = true;
   rememberPaneProcesses();
   killAllPtys();
   if (strayCheckDone) return;

@@ -254,3 +254,39 @@ describe('web images per document', () => {
     expect(painted.length).toBe(2);
   });
 });
+
+describe('links', () => {
+  // A cancelled navigation of the main window used to orphan every pane's
+  // output, so no link may start one: absolute URLs go to window.open.
+  it('opens an absolute link through window.open, never as a navigation', async () => {
+    docs.read.mockResolvedValueOnce({
+      ok: true,
+      content: '<a href="https://github.com/x">web</a> <a href="mailto:a@b.c">mail</a>'
+    });
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const { host } = paneWithViewer(false);
+    await flush();
+    for (const link of host.querySelectorAll('a')) {
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+      link.dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(true);
+    }
+    expect(open.mock.calls).toEqual([
+      ['https://github.com/x', '_blank', 'noopener'],
+      ['mailto:a@b.c', '_blank', 'noopener']
+    ]);
+  });
+
+  it('opens a relative markdown link in place, without window.open', async () => {
+    docs.read.mockResolvedValueOnce({ ok: true, content: '<a href="docs/guide.md">guide</a>' });
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const { host } = paneWithViewer(false);
+    await flush();
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true });
+    host.querySelector('a')!.dispatchEvent(click);
+    await flush();
+    expect(click.defaultPrevented).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+    expect(docs.read).toHaveBeenLastCalledWith('pane', '/project/docs/guide.md');
+  });
+});

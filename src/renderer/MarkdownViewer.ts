@@ -428,15 +428,19 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
   };
 
   // Links: a relative .md opens in place (with history), an anchor scrolls, and
-  // anything http(s) is left to the window's will-navigate handler, which hands
-  // it to the system browser.
+  // an absolute URL goes through window.open, whose handler in main hands
+  // http(s) to the system browser and denies the rest. Never as a navigation of
+  // this window: main cancels those, but the page is the one holding every pane.
   article.addEventListener('click', (e) => {
     const link = (e.target as HTMLElement | null)?.closest('a');
     const href = link?.getAttribute('href');
     if (!href) return;
-    if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return; // absolute URL — not ours
 
     e.preventDefault();
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+      window.open(href, '_blank', 'noopener');
+      return;
+    }
     if (href.startsWith('#')) {
       const target = article.querySelector(`#${CSS.escape(slugify(href.slice(1)))}`);
       target?.scrollIntoView({ block: 'start' });
