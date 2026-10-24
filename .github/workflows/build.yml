@@ -10,7 +10,37 @@ permissions:
   contents: write # needed to publish GitHub Releases
 
 jobs:
+  # One release, created before any installer is built. Left to the matrix,
+  # each electron-builder job looks the release up and creates it when it isn't
+  # there yet: started at the same moment, two of them can both miss it and
+  # create one each — two releases for one tag, the installers split between
+  # them, and every later edit refused because the tag is taken.
+  #
+  # A draft until `notes` publishes it, so releases/latest — what install.sh and
+  # the README download links resolve — keeps pointing at the previous version
+  # until every installer and the notes are in. Re-runnable: an existing
+  # release for the tag is reused.
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists — reusing it"
+          else
+            gh release create "$tag" --draft --verify-tag --title "${tag#v}" --notes ""
+          fi
+
   dist:
+    needs: release
+    # Manual runs build without a tag, so `release` is skipped, not failed.
+    if: ${{ !failure() && !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -84,9 +114,11 @@ jobs:
             dist/SHA256SUMS-*.txt
           if-no-files-found: ignore
 
-  # electron-builder publishes the installers but leaves the release body empty,
+  # electron-builder uploads the installers but leaves the release body empty,
   # and all three matrix jobs write to the same release — so the notes are set
-  # once, here, after the last one lands.
+  # once, here, after the last one lands, and the draft is published with them.
+  # A failed build never gets here: its release stays a draft, invisible to
+  # releases/latest, instead of going out with installers missing.
   notes:
     needs: dist
     if: startsWith(github.ref, 'refs/tags/')
@@ -132,4 +164,4 @@ jobs:
               printf '\n**Full changelog**: https://github.com/%s/compare/%s...%s\n' \
                 "$GITHUB_REPOSITORY" "$prev" "$tag"
             fi
-          } | gh release edit "$tag" --notes-file -
+          } | gh release edit "$tag" --notes-file - --draft=false --latest
