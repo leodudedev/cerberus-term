@@ -378,9 +378,11 @@ Each notification carries the session, the risk icon, and the pending command:
 | ❌ Deny | sends Escape, cancelling the pending action |
 
 Anything you type in the chat is forwarded to a session as a prompt: **reply** to
-a notification to target that session, or send a bare message to reach the most
-recent one. Slash commands the bot doesn't own (`/model`, `/compact`, …) are
-forwarded to the CLI verbatim.
+a notification to target that session, or send a bare message to reach the
+session that last notified that chat. A reply the bot can't trace back to a
+notification — one from before a restart, say — is refused rather than guessed,
+and nothing is typed into a pane whose agent has exited. Slash commands the bot
+doesn't own (`/model`, `/compact`, …) are forwarded to the CLI verbatim.
 
 The bot's own commands:
 

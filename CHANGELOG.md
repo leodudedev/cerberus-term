@@ -8,6 +8,42 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.23.0] — 2026-10-24
+
+### Changed
+
+- **A Telegram button only answers the prompt it was sent for.** Before, an
+  Approve left on an older notification acted on whatever the session was
+  asking *now* — so a tap on a message you'd scrolled past could approve a
+  command you never read. Every notification's buttons are now tied to that
+  one request: once it's been answered (on the phone or at the keyboard), or a
+  newer prompt has replaced it, its buttons reply "Outdated" and type nothing.
+  A double tap acts once. A reminder Claude sends for the same prompt still
+  pending keeps the buttons you already have working.
+- **Replies stay with the chat and the notification they answer.** A plain
+  message now goes to the session that last notified *that* chat, not the most
+  recent session anywhere, and a reply the bot can't trace — to a notification
+  from before a restart, for instance — is refused with a note instead of
+  landing on a guess. A reply to a session that has ended says so.
+
+### Fixed
+
+- **Nothing is typed into a pane whose agent is gone.** If Claude crashed or was
+  killed without signing off, the pane went back to its shell, and a reply or a
+  tap could have run there as a command. Cerberus now checks that the shell
+  isn't the one listening before typing anything, and a delivery that didn't
+  happen is reported as such — no 👍 or "Approved" for keys that never landed.
+- **Clearing Telegram settings takes effect immediately.** Emptying the bot
+  token, the chat id or the allowed chats in Settings used to change nothing
+  until the next launch: the bot kept polling and the removed chat kept its
+  access. Now the bot stops, or the chat is cut off, the moment you save. A
+  value that comes from a `.env` file still applies, as it would after a
+  restart — remove it there to switch it off. Switching to a different bot
+  token starts clean, without the old bot's message history.
+- **Releases are published whole.** A release is now assembled as a draft and
+  only made public once every installer and the notes are in, so the download
+  links can no longer point at a release that is missing files.
+
 ## [0.22.0] — 2026-10-24
 
 ### Added
