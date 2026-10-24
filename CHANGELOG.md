@@ -8,6 +8,31 @@ pre-1.0 minor bumps can still change behaviour.
 Installers for each version are on the
 [releases page](https://github.com/leodudedev/cerberus-term/releases).
 
+## [0.22.0] — 2026-10-24
+
+### Added
+
+- **Links to text files open in the document viewer.** A README pointing at
+  `LICENSE`, `install.sh` or a config file used to swallow the click without a
+  word. Those files now open in place, exactly as written — scripts and code
+  highlighted, Back to return to the document you came from. Only known text
+  types qualify: a link to `.env` or another dotfile, an image or a binary is
+  refused with a short message saying so, and nothing outside the project is
+  read, as before.
+
+### Fixed
+
+- **Clicking a web link no longer freezes the panes.** Opening a link from a
+  document handed it to the browser correctly, but every pane in the window
+  stopped showing output afterwards — typing still reached the shells, nothing
+  came back. Links now open in the browser without touching the window, and
+  the panes stay live.
+- **A renderer killed by the system recovers on its own.** When the window's
+  content was terminated — memory pressure, a forced quit of the process — it
+  stayed blank. It now reloads and reattaches the running sessions, like after
+  a crash; if it fails again within seconds, Cerberus asks what to do instead
+  of looping.
+
 ## [0.21.1] — 2026-10-16
 
 ### Fixed

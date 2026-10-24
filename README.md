@@ -351,8 +351,10 @@ and Enter to pick.
 
 The document opens over the pane: headings, tables, syntax-highlighted code and
 mermaid diagrams, in the app's own light/dark palette. `Cmd+F` searches inside
-it, links between documents are followed in place with a back button, the expand
-button takes it to the whole window, and Esc drops you back to the CLI.
+it, links between documents are followed in place with a back button — a link to
+a plain-text file such as `LICENSE` or a script opens it verbatim, web links go to
+your browser — the expand button takes it to the whole window, and Esc drops you
+back to the CLI.
 
 The pane is never resized while a document is open, so whatever TUI is running
 underneath never redraws — reading the spec doesn't disturb the agent working
