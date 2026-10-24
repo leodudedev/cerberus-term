@@ -289,4 +289,46 @@ describe('links', () => {
     expect(open).not.toHaveBeenCalled();
     expect(docs.read).toHaveBeenLastCalledWith('pane', '/project/docs/guide.md');
   });
+  it('shows a linked text file verbatim, never as markup', async () => {
+    docs.read
+      .mockResolvedValueOnce({ ok: true, content: '<a href="LICENSE">license</a>' })
+      .mockResolvedValueOnce({ ok: true, content: 'MIT <script>alert(1)</script> **not bold**' });
+    const { host } = paneWithViewer(false);
+    await flush();
+    host.querySelector('a')!.click();
+    await flush();
+    expect(docs.read).toHaveBeenLastCalledWith('pane', '/project/LICENSE');
+    const code = host.querySelector('.md-body pre.md-pre > code')!;
+    expect(code.textContent).toBe('MIT <script>alert(1)</script> **not bold**');
+    expect(host.querySelector('.md-body script, .md-body strong')).toBeNull();
+    expect(code.hasAttribute('data-lang')).toBe(false);
+    expect(host.querySelector('.md-title')!.textContent).toBe('LICENSE');
+    // Back returns to the document the link was in.
+    host.querySelector<HTMLButtonElement>('.md-bar .md-btn')!.click();
+    await flush();
+    expect(docs.read).toHaveBeenLastCalledWith('pane', '/project/README.md');
+  });
+
+  it('highlights a linked script by its extension', async () => {
+    docs.read
+      .mockResolvedValueOnce({ ok: true, content: '<a href="./install.sh">script</a>' })
+      .mockResolvedValueOnce({ ok: true, content: 'echo hi' });
+    const { host } = paneWithViewer(false);
+    await flush();
+    host.querySelector('a')!.click();
+    await flush();
+    expect(host.querySelector<HTMLElement>('.md-body code')!.dataset['lang']).toBe('bash');
+  });
+
+  it('says why a linked file cannot be shown instead of ignoring the click', async () => {
+    docs.read
+      .mockResolvedValueOnce({ ok: true, content: '<a href="shot.png">screenshot</a>' })
+      .mockResolvedValueOnce({ ok: false, error: 'Only Markdown and plain-text files open in the viewer' });
+    const { host } = paneWithViewer(false);
+    await flush();
+    host.querySelector('a')!.click();
+    await flush();
+    expect(docs.read).toHaveBeenLastCalledWith('pane', '/project/shot.png');
+    expect(host.querySelector('.md-error')!.textContent).toMatch(/Markdown and plain-text/);
+  });
 });

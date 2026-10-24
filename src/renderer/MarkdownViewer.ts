@@ -1,4 +1,4 @@
-import type { DocEntry } from '../core/docs-bridge.js';
+import { docKind, textLanguage, type DocEntry } from '../core/docs-bridge.js';
 import { highlightCode, renderMarkdown, renderMermaid, slugify } from './markdown.js';
 import { currentTheme } from './themes.js';
 import { ICONS } from './icons.js';
@@ -37,6 +37,10 @@ export interface ViewerOptions {
 // Past the budget the remaining images keep their alt-text chip.
 const IMAGE_BUDGET_CHARS = 48 * 1024 * 1024;
 const REMOTE_IMAGE_CONCURRENCY = 4;
+
+// Past this a linked text file shows unhighlighted: highlight.js runs on the
+// renderer thread, and a multi-MB log would freeze every pane with it.
+const TEXT_HIGHLIGHT_MAX_CHARS = 200_000;
 
 const FIND_HIGHLIGHT = 'md-find';
 const FIND_ACTIVE_HIGHLIGHT = 'md-find-active';
@@ -410,7 +414,19 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     }
     imageChars.local = 0;
     imageChars.remote = 0;
-    article.innerHTML = renderMarkdown(res.content);
+    if (docKind(entry.abs) === 'text') {
+      // Verbatim, as text content: nothing in the file is ever parsed as markup.
+      const pre = document.createElement('pre');
+      pre.className = 'md-pre';
+      const code = document.createElement('code');
+      const lang = textLanguage(entry.abs);
+      if (lang && res.content.length <= TEXT_HIGHLIGHT_MAX_CHARS) code.dataset['lang'] = lang;
+      code.textContent = res.content;
+      pre.append(code);
+      article.replaceChildren(pre);
+    } else {
+      article.innerHTML = renderMarkdown(res.content);
+    }
     // A reload keeps you where you were reading; opening a document starts at
     // the top. Either way the mtime we just rendered is the one to compare
     // against, so a save that lands mid-read isn't missed.
@@ -427,7 +443,8 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     if (findOpen() && findInput.value) runFind(true);
   };
 
-  // Links: a relative .md opens in place (with history), an anchor scrolls, and
+  // Links: a relative file opens in place (with history) — markdown rendered,
+  // plain text verbatim, anything else as a message — an anchor scrolls, and
   // an absolute URL goes through window.open, whose handler in main hands
   // http(s) to the system browser and denies the rest. Never as a navigation of
   // this window: main cancels those, but the page is the one holding every pane.
@@ -448,7 +465,6 @@ export function openMarkdownViewer(opts: ViewerOptions): ViewerHandle {
     }
     const [path, anchor] = href.split('#');
     if (!path) return;
-    if (!/\.mdx?$/i.test(path)) return; // only markdown navigates in the viewer
     const abs = resolveRelative(current.abs, path, root);
     if (!abs) return;
     history.push(current);

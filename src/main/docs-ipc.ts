@@ -5,9 +5,9 @@ import { extname, isAbsolute, sep } from 'node:path';
 import { getPaneCwd } from './bridge-electron.js';
 import { getSettings } from './settings.js';
 import { readProjectConfig } from '../core/project-config.js';
-import { DEFAULT_DOC_GLOBS } from '../core/docs-bridge.js';
+import { DEFAULT_DOC_GLOBS, docKind } from '../core/docs-bridge.js';
 import type { DocsListResult, DocsReadResult } from '../core/docs-bridge.js';
-import { findProjectRoot, isMarkdown, scanDocs } from '../core/docs-scan.js';
+import { findProjectRoot, scanDocs } from '../core/docs-scan.js';
 import { ASSET_TYPES, MAX_ASSET_BYTES, fetchRemoteImage, withinPixelLimit } from './doc-images.js';
 
 // A markdown file big enough to matter here is a generated log, and the viewer
@@ -62,7 +62,7 @@ export function registerDocsIpc(): void {
   // and a sync stat on a slow mount would hold up main — which is also where
   // every pane's output passes through.
   ipcMain.handle('docs:mtime', async (_e, paneId: string, abs: string): Promise<number | null> => {
-    if (!abs || !isAbsolute(abs) || !isMarkdown(abs)) return null;
+    if (!abs || !isAbsolute(abs) || !docKind(abs)) return null;
     const root = rootFor(paneId);
     try {
       const real = await realpath(abs);
@@ -79,7 +79,8 @@ export function registerDocsIpc(): void {
 
   ipcMain.handle('docs:read', (_e, paneId: string, abs: string): DocsReadResult => {
     if (!abs || !isAbsolute(abs)) return { ok: false, error: 'Not an absolute path' };
-    if (!isMarkdown(abs)) return { ok: false, error: 'Not a markdown file' };
+    const kind = docKind(abs);
+    if (!kind) return { ok: false, error: 'Only Markdown and plain-text files open in the viewer' };
 
     const root = rootFor(paneId);
     let real: string;
@@ -95,7 +96,12 @@ export function registerDocsIpc(): void {
 
     try {
       if (statSync(real).size > MAX_BYTES) return { ok: false, error: 'File too large to render' };
-      return { ok: true, content: readFileSync(real, 'utf8') };
+      const buf = readFileSync(real);
+      // The name says text; a NUL near the start says otherwise.
+      if (kind === 'text' && buf.subarray(0, 8192).includes(0)) {
+        return { ok: false, error: 'Not a text file' };
+      }
+      return { ok: true, content: buf.toString('utf8') };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
     }
