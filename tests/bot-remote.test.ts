@@ -250,7 +250,15 @@ describe('text routing stays inside its chat', () => {
     reg.forgetMessageLinks();
     const ctx = await say('200', 'hello');
     expect(pane.sendPrompt).not.toHaveBeenCalled();
-    expect(ctx.reply.mock.calls[0]?.[0]).toMatch(/No session has notified/);
+    expect(ctx.reply.mock.calls[0]?.[0]).toMatch(/No live session/);
+  });
+
+  it('says the session ended when replying to a notification of a finished session', async () => {
+    const m = await notify('t7', 'v', '100');
+    reg.dropSession('t7');
+    const ctx = await say('100', 'anyone?', m.messageId);
+    expect(pane.sendPrompt).not.toHaveBeenCalled();
+    expect(ctx.reply.mock.calls[0]?.[0]).toMatch(/has ended/);
   });
 
   it('does not confirm a prompt the pane refused', async () => {

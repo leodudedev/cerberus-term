@@ -48,7 +48,8 @@ const strings = {
     wasNotMuted: "Wasn't muted",
     noMutedProjects: "No muted projects",
     mutedEntry: (name: string, when: string) => `🔇 ${name} → ${when}`,
-    noKnownSession: "No session has notified this chat yet",
+    noKnownSession: "No live session to send this to in this chat",
+    sessionEnded: "⛔ Not delivered: the session behind that notification has ended.",
     replyUnknown:
       "⛔ Not delivered: I can't tell which session that message belongs to. Reply to a notification, or send a plain message to reach the last session notified here.",
     sentTo: (profile: string) => `→ sent to ${profile}`,
@@ -84,7 +85,8 @@ const strings = {
     wasNotMuted: "Non era mutato",
     noMutedProjects: "Nessun progetto mutato",
     mutedEntry: (name: string, when: string) => `🔇 ${name} → ${when}`,
-    noKnownSession: "Nessuna sessione ha ancora notificato questa chat",
+    noKnownSession: "Nessuna sessione attiva a cui inviarlo in questa chat",
+    sessionEnded: "⛔ Non inviato: la sessione di quella notifica è terminata.",
     replyUnknown:
       "⛔ Non inviato: non so a quale sessione appartiene quel messaggio. Rispondi a una notifica, oppure manda un messaggio normale per raggiungere l'ultima sessione notificata qui.",
     sentTo: (profile: string) => `→ inviato a ${profile}`,

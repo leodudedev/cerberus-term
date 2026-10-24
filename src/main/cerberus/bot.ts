@@ -366,14 +366,16 @@ export function initBot(): boolean {
   // a notification whose session has since ended.
   type Target =
     | { session: SessionInfo }
-    | { refuse: "unknown-reply" | "no-session" };
+    | { refuse: "unknown-reply" | "ended" | "no-session" };
+  const refusal = (r: "unknown-reply" | "ended" | "no-session", fallback: string): string =>
+    r === "unknown-reply" ? t.replyUnknown : r === "ended" ? t.sessionEnded : fallback;
   const resolveTarget = (ctx: any): Target => {
     const chat = String(ctx.chat?.id ?? "");
     const replyId = ctx.message?.reply_to_message?.message_id;
     if (replyId) {
       if (!hasMessageLink(chat, replyId)) return { refuse: "unknown-reply" };
       const session = sessionForMessage(chat, replyId);
-      return session ? { session } : { refuse: "no-session" };
+      return session ? { session } : { refuse: "ended" };
     }
     const session = sessionForChat(chat);
     return session ? { session } : { refuse: "no-session" };
@@ -383,7 +385,7 @@ export function initBot(): boolean {
   bot.command("mute", async (ctx) => {
     const resolved = resolveTarget(ctx);
     if (!("session" in resolved)) {
-      return void ctx.reply(resolved.refuse === "unknown-reply" ? t.replyUnknown : t.noSessionToMute);
+      return void ctx.reply(refusal(resolved.refuse, t.noSessionToMute));
     }
     const target = resolved.session;
 
@@ -400,7 +402,7 @@ export function initBot(): boolean {
   bot.command("unmute", async (ctx) => {
     const resolved = resolveTarget(ctx);
     if (!("session" in resolved)) {
-      return void ctx.reply(resolved.refuse === "unknown-reply" ? t.replyUnknown : t.noSession2);
+      return void ctx.reply(refusal(resolved.refuse, t.noSession2));
     }
     const target = resolved.session;
     const was = unmute(target.cwd);
@@ -432,7 +434,7 @@ export function initBot(): boolean {
 
     const resolved = resolveTarget(ctx);
     if (!("session" in resolved)) {
-      await ctx.reply(resolved.refuse === "unknown-reply" ? t.replyUnknown : t.noKnownSession);
+      await ctx.reply(refusal(resolved.refuse, t.noKnownSession));
       return;
     }
     const target = resolved.session;
