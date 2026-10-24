@@ -158,7 +158,8 @@ export async function openSettingsEditor(): Promise<void> {
 
   const hint = document.createElement('div');
   hint.className = 'settings-hint';
-  hint.textContent = 'Changing the Telegram token requires an app restart to re-poll.';
+  hint.textContent =
+    'Telegram changes apply on Save: a cleared field falls back to the launch environment (.env), if it has one.';
 
   const error = document.createElement('div');
   error.className = 'config-error';
