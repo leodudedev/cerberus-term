@@ -20,6 +20,7 @@ export interface PersistedState {
   muted?: Record<string, number | null>; // cwd -> expiry epoch ms, null = forever
   muteAll?: boolean; // global do-not-disturb: silences every project at once
   sessions?: Record<string, unknown>; // sessionId -> SessionInfo
+  chatTargets?: Record<string, string>; // Telegram chat id -> last session notified there
 }
 
 export function loadState(): PersistedState {

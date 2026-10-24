@@ -5,10 +5,12 @@ import { callbackData } from "../../core/callback-data.js";
 import { RISK_ICON, RISK_RANK, riskFor, type Risk } from "../../core/classify.js";
 import {
   linkMessage,
-  mostRecentSession,
   sessionForMessage,
+  sessionForChat,
   hasMessageLink,
   getSession,
+  consumeRequest,
+  forgetMessageLinks,
   type SessionInfo,
 } from "../../core/registry.js";
 import { paneAlive, paneBlockedBy, sendKey, sendPrompt } from "../pane-control.js";
@@ -24,6 +26,10 @@ import type { BotState, BotStatus } from "../../core/mute-bridge.js";
 
 let bot: Bot | null = null;
 let chatId: string | null = null;
+// The token the current bot state belongs to. Message ids, update ids and the
+// buttons out there are all per bot: when the token changes they mean nothing
+// to the new one, and keeping them would route by numbers it never issued.
+let botToken: string | null = null;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -161,6 +167,18 @@ export function initBot(): boolean {
   chatId = process.env.TELEGRAM_CHAT_ID ?? null;
 
   fatal = false;
+  // Rebuilt from scratch on every start: a chat removed from Settings must lose
+  // access now, not on the next launch.
+  allowedChats.clear();
+
+  if ((token ?? null) !== botToken) {
+    if (botToken !== null) {
+      seenUpdates.clear();
+      livePerm.clear();
+      forgetMessageLinks();
+    }
+    botToken = token ?? null;
+  }
 
   if (!token || !chatId) {
     console.warn("[bot] TELEGRAM_BOT_TOKEN/CHAT_ID mancanti — push disabilitato");
@@ -168,7 +186,6 @@ export function initBot(): boolean {
     return false;
   }
 
-  allowedChats.clear();
   allowedChats.add(chatId);
   for (const id of (process.env.TELEGRAM_ALLOWED_CHATS ?? "").split(","))
     if (id.trim()) allowedChats.add(id.trim());
@@ -263,6 +280,15 @@ export function initBot(): boolean {
       await ctx.answerCallbackQuery({ text: t.noSession });
       return;
     }
+    // The button must belong to the prompt pending now. Without this a tap on
+    // a message left behind by an earlier prompt — answered at the keyboard,
+    // or replaced by a newer one — would type into whatever is on screen now,
+    // approving a command the user never read. Checked here to answer fast,
+    // and spent below, after the awaits, where a racing second tap loses.
+    if (!decisionId || s.decisionId !== decisionId) {
+      await ctx.answerCallbackQuery({ text: t.stale });
+      return;
+    }
     // Stale-tap guard: past the TTL the dialog is likely gone and the
     // keystroke would land in the session's input instead.
     if (Date.now() - s.lastSeen > ACTION_TTL_MS) {
@@ -281,8 +307,24 @@ export function initBot(): boolean {
       await ctx.answerCallbackQuery({ text: t.paneBusy(busy) });
       return;
     }
+    if (!consumeRequest(sessionId!, decisionId)) {
+      await ctx.answerCallbackQuery({ text: t.stale });
+      return;
+    }
 
-    for (const k of keys) await sendKey(s.pane, k);
+    // The senders re-check the pane; a refusal there means nothing — or only
+    // part of the keys — landed, and the message must not say otherwise.
+    let delivered = true;
+    for (const k of keys) {
+      if (!(await sendKey(s.pane, k))) {
+        delivered = false;
+        break;
+      }
+    }
+    if (!delivered) {
+      await ctx.answerCallbackQuery({ text: t.notDelivered });
+      return;
+    }
 
     // Remote-approved a tool -> remember it so PostToolUse can push the result
     // back (completion feed). Only approve/always let the tool actually run.
@@ -315,21 +357,35 @@ export function initBot(): boolean {
     await ctx.answerCallbackQuery({ text: `${action} → ${s.profile} ${s.pane}` });
   });
 
-  // Resolve which session a command/message targets: reply -> that session,
-  // otherwise the most recent one.
-  // Replying to a notification whose session has since ended must NOT fall
-  // back: that's how a message aimed at a dead session gets typed into an
-  // unrelated live one. Only a message we never linked falls back.
-  const resolveTarget = (ctx: any) => {
+  // Resolve which session a command/message targets, never across chats: a
+  // reply goes to the session of the notification it answers; a bare message
+  // to the session last notified in this chat. A reply that can't be traced
+  // (a message from before a restart, an evicted link, a reply to something
+  // that was never a notification) is refused rather than guessed: guessing is
+  // how text aimed at one session ends up typed into another. So is a reply to
+  // a notification whose session has since ended.
+  type Target =
+    | { session: SessionInfo }
+    | { refuse: "unknown-reply" | "no-session" };
+  const resolveTarget = (ctx: any): Target => {
+    const chat = String(ctx.chat?.id ?? "");
     const replyId = ctx.message?.reply_to_message?.message_id;
-    if (replyId && hasMessageLink(replyId)) return sessionForMessage(replyId);
-    return mostRecentSession();
+    if (replyId) {
+      if (!hasMessageLink(chat, replyId)) return { refuse: "unknown-reply" };
+      const session = sessionForMessage(chat, replyId);
+      return session ? { session } : { refuse: "no-session" };
+    }
+    const session = sessionForChat(chat);
+    return session ? { session } : { refuse: "no-session" };
   };
 
   // /mute [durata]  — mute the targeted project (e.g. /mute 2h). No arg = forever.
   bot.command("mute", async (ctx) => {
-    const target = resolveTarget(ctx);
-    if (!target) return void ctx.reply(t.noSessionToMute);
+    const resolved = resolveTarget(ctx);
+    if (!("session" in resolved)) {
+      return void ctx.reply(resolved.refuse === "unknown-reply" ? t.replyUnknown : t.noSessionToMute);
+    }
+    const target = resolved.session;
 
     const arg = ctx.match.trim();
     const ttl = arg ? parseDuration(arg) : undefined;
@@ -342,8 +398,11 @@ export function initBot(): boolean {
 
   // /unmute — unmute the targeted project.
   bot.command("unmute", async (ctx) => {
-    const target = resolveTarget(ctx);
-    if (!target) return void ctx.reply(t.noSession2);
+    const resolved = resolveTarget(ctx);
+    if (!("session" in resolved)) {
+      return void ctx.reply(resolved.refuse === "unknown-reply" ? t.replyUnknown : t.noSession2);
+    }
+    const target = resolved.session;
     const was = unmute(target.cwd);
     await ctx.reply(was ? t.unmuted(basename(target.cwd)) : t.wasNotMuted);
   });
@@ -360,7 +419,7 @@ export function initBot(): boolean {
   });
 
   // Free text: a reply to a notification targets that session; a bare message
-  // targets the most recent session. Sends the text as a prompt. Slash texts
+  // targets the session last notified in this chat. Sends the text as a prompt. Slash texts
   // still land here unless consumed by a bot command above, so CLI slash
   // commands (/model, /compact, ...) are forwarded to the session.
   const RESERVED = new Set(["start", "help"]); // never forward these to the CLI
@@ -371,11 +430,12 @@ export function initBot(): boolean {
       if (RESERVED.has(cmd)) return;
     }
 
-    const target = resolveTarget(ctx);
-    if (!target) {
-      await ctx.reply(t.noKnownSession);
+    const resolved = resolveTarget(ctx);
+    if (!("session" in resolved)) {
+      await ctx.reply(resolved.refuse === "unknown-reply" ? t.replyUnknown : t.noKnownSession);
       return;
     }
+    const target = resolved.session;
     if (!(await paneAlive(target.pane))) {
       await ctx.reply(t.paneDead(target.pane));
       return;
@@ -390,7 +450,10 @@ export function initBot(): boolean {
       return;
     }
 
-    await sendPrompt(target.pane, text);
+    if (!(await sendPrompt(target.pane, text))) {
+      await ctx.reply(t.paneBusyReply(await paneBlockedBy(target.pane) || "something else"));
+      return;
+    }
     // Silent delivery confirmation: react to the user's message instead of
     // sending an extra chat message.
     try {
@@ -446,7 +509,10 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
   // Include the tool + command: Claude's permission `message` is generic
   // ("Claude needs your permission"), so keying on it alone would collapse two
   // different permission requests into one and suppress the second.
-  const key = `${s.sessionId}::${target}::${s.lastMessage}::${s.toolName}::${s.command}`;
+  // And the request id: a prompt that repeats an answered one word for word is
+  // still a new prompt with new buttons, while Claude re-firing the same pending
+  // prompt keeps its id and stays deduped.
+  const key = `${s.sessionId}::${target}::${s.lastMessage}::${s.toolName}::${s.command}::${s.decisionId ?? ""}`;
   const now = Date.now();
   const prev = lastPush.get(key) ?? 0;
   if (now - prev < DEDUPE_MS) return false;
@@ -488,7 +554,7 @@ export async function pushAttention(s: SessionInfo, opts: PushOptions = {}): Pro
     sent = await bot.api.sendMessage(target, plain, { reply_markup: kb });
   }
   // Link the message so a reply routes back to this session.
-  linkMessage(sent.message_id, s.sessionId);
+  linkMessage(target, sent.message_id, s.sessionId);
   // Buttoned message -> track it so a local approval can retire the buttons.
   if (kb) livePerm.set(s.sessionId, { chatId: target, messageId: sent.message_id });
   return true;
@@ -542,18 +608,18 @@ function buildKeyboard(s: SessionInfo): InlineKeyboard | undefined {
   if (s.options.length > 0) {
     const kb = new InlineKeyboard();
     s.options.forEach((label, i) => {
-      kb.text(`${i + 1}. ${truncate(label, 28)}`, `opt${i + 1}:${s.sessionId}`).row();
+      kb.text(`${i + 1}. ${truncate(label, 28)}`, callbackData(`opt${i + 1}`, s.sessionId, s.decisionId)).row();
     });
-    kb.text(t.btnCancel, `esc:${s.sessionId}`);
+    kb.text(t.btnCancel, callbackData("esc", s.sessionId, s.decisionId));
     return kb;
   }
   // Standard permission dialog. Buttons only here: on "waiting for input" a tap
   // would type into the session's prompt. "Nega" uses Escape, which cancels any
   // dialog regardless of option count, so a separate "Esc" button is redundant.
   if (s.isPermission) {
-    // Codex carries the id of the request this message is about, so a tap on
-    // a message left behind by an earlier one can be told apart and refused
-    // rather than applied to whatever is pending now. Built through
+    // Every agent carries the id of the request this message is about, so a
+    // tap on a message left behind by an earlier one can be told apart and
+    // refused rather than applied to whatever is pending now. Built through
     // callbackData because that pair has to stay inside Telegram's 64-byte
     // budget — over it, the whole notification is rejected, buttons and text.
     const kb = new InlineKeyboard().text(

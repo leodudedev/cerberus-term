@@ -13,8 +13,9 @@ export const CALLBACK_DATA_MAX = 64;
 // tell consecutive requests OF ONE SESSION apart inside a ~25s window.
 export const DECISION_ID_CHARS = 8;
 
-// `action:sessionId` for the agents we answer by keystroke, `action:sessionId:decisionId`
-// for Codex, where the tap has to name the request it was shown for.
+// `action:sessionId:decisionId`: every buttoned prompt names the request it was
+// shown for (Codex: the pending PermissionRequest; Claude/Copilot: a per-prompt
+// nonce). The two-part form only remains for the inert `noop` marker.
 export function callbackData(action: string, sessionId: string, decisionId?: string): string {
   const data = decisionId ? `${action}:${sessionId}:${decisionId}` : `${action}:${sessionId}`;
   if (Buffer.byteLength(data, "utf8") > CALLBACK_DATA_MAX) {

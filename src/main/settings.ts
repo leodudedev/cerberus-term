@@ -65,11 +65,32 @@ export function telegramConfigured(): boolean {
   return Boolean(token && chatId);
 }
 
-// Force-set the env the daemon/bot read, so in-app settings win over .env.
+// What the environment held before any setting was applied: the shell's env
+// plus the dev .env file. Captured once, on the first apply, so a field cleared
+// in Settings falls back to it — the same value the next launch would use —
+// instead of keeping whatever the field said before it was cleared.
+type EnvKey = 'TELEGRAM_BOT_TOKEN' | 'TELEGRAM_CHAT_ID' | 'TELEGRAM_ALLOWED_CHATS' | 'CERBERUS_LANG';
+let launchEnv: Record<EnvKey, string | undefined> | null = null;
+
+// Make the env the daemon/bot read match the settings, so in-app settings win
+// over .env. Removals count as much as values: clearing the token or a chat in
+// Settings has to stop the bot or revoke the chat now, not on the next launch.
 export function applySettingsToEnv(): void {
+  launchEnv ??= {
+    TELEGRAM_BOT_TOKEN: process.env['TELEGRAM_BOT_TOKEN'],
+    TELEGRAM_CHAT_ID: process.env['TELEGRAM_CHAT_ID'],
+    TELEGRAM_ALLOWED_CHATS: process.env['TELEGRAM_ALLOWED_CHATS'],
+    CERBERUS_LANG: process.env['CERBERUS_LANG']
+  };
   const tg = getSettings().telegram;
-  if (tg.token) process.env['TELEGRAM_BOT_TOKEN'] = tg.token;
-  if (tg.chatId) process.env['TELEGRAM_CHAT_ID'] = tg.chatId;
-  if (tg.allowedChats) process.env['TELEGRAM_ALLOWED_CHATS'] = tg.allowedChats;
-  if (tg.lang) process.env['CERBERUS_LANG'] = tg.lang;
+  const effective: Record<EnvKey, string | undefined> = {
+    TELEGRAM_BOT_TOKEN: tg.token || launchEnv.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID: tg.chatId || launchEnv.TELEGRAM_CHAT_ID,
+    TELEGRAM_ALLOWED_CHATS: tg.allowedChats || launchEnv.TELEGRAM_ALLOWED_CHATS,
+    CERBERUS_LANG: tg.lang || launchEnv.CERBERUS_LANG
+  };
+  for (const [key, value] of Object.entries(effective)) {
+    if (value) process.env[key] = value;
+    else delete process.env[key];
+  }
 }

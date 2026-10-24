@@ -108,7 +108,7 @@ describe('session lifetime', () => {
 
     expect(reg.dropSession('s1')).toBe(true);
     expect(reg.getSession('s1')).toBeUndefined();
-    expect(reg.mostRecentSession()?.sessionId).not.toBe('s1');
+    expect(reg.listSessions().map((x) => x.sessionId)).not.toContain('s1');
   });
 
   it('is a no-op for an unknown session', () => {
@@ -117,18 +117,18 @@ describe('session lifetime', () => {
 
   it('keeps the message link after the session is dropped, so a reply is refused', () => {
     reg.upsertSession(session('s2'));
-    reg.linkMessage(42, 's2');
-    expect(reg.sessionForMessage(42)?.sessionId).toBe('s2');
+    reg.linkMessage('100', 42, 's2');
+    expect(reg.sessionForMessage('100', 42)?.sessionId).toBe('s2');
 
     reg.dropSession('s2');
     // The link survives on purpose: hasMessageLink true + sessionForMessage
     // undefined is what tells the bot to refuse rather than fall back to the
     // most recent session.
-    expect(reg.hasMessageLink(42)).toBe(true);
-    expect(reg.sessionForMessage(42)).toBeUndefined();
+    expect(reg.hasMessageLink('100', 42)).toBe(true);
+    expect(reg.sessionForMessage('100', 42)).toBeUndefined();
   });
 
   it('reports no link for a message that was never a notification', () => {
-    expect(reg.hasMessageLink(999)).toBe(false);
+    expect(reg.hasMessageLink('100', 999)).toBe(false);
   });
 });

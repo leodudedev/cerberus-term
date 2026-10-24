@@ -96,6 +96,16 @@ function imageNames(pids: readonly number[]): Promise<string[]> {
   });
 }
 
+// Whether the shell is alone on its console: nothing it started is still
+// attached, so whatever ran in the pane has exited. Null when the console can't
+// be read.
+export async function consoleShellOnly(shellPid: number): Promise<boolean | null> {
+  if (!shellPid) return null;
+  const pids = await consolePids(shellPid);
+  if (!pids) return null;
+  return pids.every((p) => p === shellPid);
+}
+
 // Image names of the processes sharing the shell's console, the shell itself
 // excluded. Empty when the pane is idle — which is also the cheap path: with
 // nothing to name, tasklist is never spawned at all.

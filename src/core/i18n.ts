@@ -31,10 +31,12 @@ const strings = {
     handled: "Already handled",
     noSession: "Session not found",
     expired: "Expired — request too old",
+    stale: "Outdated — this request was already answered or replaced",
+    notDelivered: "Not delivered — the pane changed, check it on the computer",
     paneDead: (p: string) => `Pane ${p} not active`,
     paneBusy: (proc: string) => `Refused — the pane is running ${proc}, not the agent`,
     paneBusyReply: (proc: string) =>
-      `⛔ Not delivered: the pane is running ${proc}, not the agent. The text could have landed in a password prompt.`,
+      `⛔ Not delivered: the pane is running ${proc}, not the agent. The text would have gone to that program instead.`,
     // Commands
     noSessionToMute: "No session to mute",
     badDuration: "Invalid duration (e.g. 30m, 2h, 1d)",
@@ -46,7 +48,9 @@ const strings = {
     wasNotMuted: "Wasn't muted",
     noMutedProjects: "No muted projects",
     mutedEntry: (name: string, when: string) => `🔇 ${name} → ${when}`,
-    noKnownSession: "No known session",
+    noKnownSession: "No session has notified this chat yet",
+    replyUnknown:
+      "⛔ Not delivered: I can't tell which session that message belongs to. Reply to a notification, or send a plain message to reach the last session notified here.",
     sentTo: (profile: string) => `→ sent to ${profile}`,
   },
   it: {
@@ -64,10 +68,12 @@ const strings = {
     handled: "Già gestito",
     noSession: "Sessione non trovata",
     expired: "Scaduto — richiesta troppo vecchia",
+    stale: "Superato — richiesta già gestita o sostituita",
+    notDelivered: "Non inviato — la pane è cambiata, controlla sul computer",
     paneDead: (p: string) => `Pane ${p} non attivo`,
     paneBusy: (proc: string) => `Rifiutato — nella pane gira ${proc}, non l'agente`,
     paneBusyReply: (proc: string) =>
-      `⛔ Non inviato: nella pane gira ${proc}, non l'agente. Il testo poteva finire in un prompt password.`,
+      `⛔ Non inviato: nella pane gira ${proc}, non l'agente. Il testo sarebbe finito a quel programma.`,
     noSessionToMute: "Nessuna sessione da mutare",
     badDuration: "Durata non valida (es. 30m, 2h, 1d)",
     muted: (name: string, dur: string) => `🔇 ${name} — muto ${dur}`,
@@ -78,7 +84,9 @@ const strings = {
     wasNotMuted: "Non era mutato",
     noMutedProjects: "Nessun progetto mutato",
     mutedEntry: (name: string, when: string) => `🔇 ${name} → ${when}`,
-    noKnownSession: "Nessuna sessione nota",
+    noKnownSession: "Nessuna sessione ha ancora notificato questa chat",
+    replyUnknown:
+      "⛔ Non inviato: non so a quale sessione appartiene quel messaggio. Rispondi a una notifica, oppure manda un messaggio normale per raggiungere l'ultima sessione notificata qui.",
     sentTo: (profile: string) => `→ inviato a ${profile}`,
   },
 } as const;

@@ -2,15 +2,17 @@ import { ipcMain, type BrowserWindow } from 'electron';
 import { spawn as ptySpawn, type IPty } from 'node-pty';
 import { randomUUID } from 'node:crypto';
 import { readlinkSync, existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { config } from '../core/config.js';
 import { getSettings } from './settings.js';
 import { getDaemonToken } from './cerberus/token.js';
 import { stripAnsi } from '../core/ansi.js';
 import { extractOsc7Cwd } from '../core/osc7.js';
 import { parseLsofCwds } from '../core/lsof.js';
-import { consoleProcessNames } from './win-console.js';
+import { consoleProcessNames, consoleShellOnly } from './win-console.js';
+import { tpgidFromProcStat, tpgidFromPs } from '../core/foreground.js';
 import type { SpawnOptions } from '../core/terminal-bridge.js';
 
 // Electron-side backing of TerminalBridge: owns every pty, bridges IPC.
@@ -225,6 +227,34 @@ export async function paneConsoleProcesses(paneId: string): Promise<string[]> {
     return await consoleProcessNames(entry.proc.pid);
   } catch {
     return []; // pty exited between the lookup and the read
+  }
+}
+
+// Whether the pane's own shell holds the foreground — at its prompt, with
+// whatever ran in the pane gone. Null when it can't be told (pane gone, read
+// failed), so the caller decides how to fail. See core/foreground.ts.
+export async function paneShellInForeground(paneId: string): Promise<boolean | null> {
+  const entry = ptys.get(paneId);
+  if (!entry) return null;
+  let shellPid: number;
+  try {
+    shellPid = entry.proc.pid;
+  } catch {
+    return null;
+  }
+  try {
+    if (process.platform === 'win32') return await consoleShellOnly(shellPid);
+    const tpgid =
+      process.platform === 'linux'
+        ? tpgidFromProcStat(await readFile(`/proc/${shellPid}/stat`, 'utf8'))
+        : await new Promise<number | null>((resolve) => {
+            execFile('ps', ['-o', 'tpgid=', '-p', String(shellPid)], { timeout: 2000 }, (err, out) =>
+              resolve(err ? null : tpgidFromPs(out))
+            );
+          });
+    return tpgid === null ? null : tpgid === shellPid;
+  } catch {
+    return null;
   }
 }
 

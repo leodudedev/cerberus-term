@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { type BrowserWindow } from "electron";
 import { config } from "../../core/config.js";
 import { profileFromConfigDir, type Agent, type Profile } from "../../core/profile.js";
-import { upsertSession, dropSession } from "../../core/registry.js";
+import { upsertSession, dropSession, clearRequest, requestIdFor } from "../../core/registry.js";
 import { initBot, pushAttention, pushCompletion, markHandledLocally } from "./bot.js";
 import { takeApproval } from "./remote-approvals.js";
 import {
@@ -273,6 +273,9 @@ const server = createServer(async (req, res) => {
     // returns null and markHandledLocally is a no-op; nothing is stripped
     // prematurely.
     if ((agent === "claude" || agent === "codex") && hook.hook_event_name === "PostToolUse") {
+      // Whatever prompt was pending has been answered — from Telegram (the tap
+      // already spent its id) or at the keyboard: no button may answer it now.
+      if (agent === "claude") clearRequest(sessionId);
       const appr = takeApproval(sessionId, String(hook.tool_name ?? ""));
       if (appr) {
         void pushCompletion({ chatId: appr.chatId, messageId: appr.messageId }).catch((e) =>
@@ -415,6 +418,8 @@ const server = createServer(async (req, res) => {
     const isCopilotStop = agent === "copilot" && typeof hook.stopReason === "string";
     let doneText = "";
     if (isCopilotStop) {
+      // The turn is over, so no prompt from it is still waiting for a button.
+      clearRequest(sessionId);
       doneText = await lastCopilotText(String(hook.transcriptPath ?? ""));
 
       // Copilot has no PostToolUse hook, so the completion feed for a
@@ -519,6 +524,13 @@ const server = createServer(async (req, res) => {
       options,
       hasAlways,
       isPermission,
+      decisionId: requestIdFor(sessionId, {
+        message,
+        toolName: tool?.name ?? "",
+        command: tool?.command ?? "",
+        options,
+        isPermission,
+      }),
     });
     console.log("[event]", {
       agent,
